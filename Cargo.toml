@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "jgb-core",
+    "jgb-main",
+]
