@@ -3,12 +3,12 @@
 version = 3
 
 [[package]]
-name = "jgb-core"
-version = "0.1.0"
-
-[[package]]
-name = "jgb-main"
+name = "jgb-cli"
 version = "0.1.0"
 dependencies = [
  "jgb-core",
 ]
+
+[[package]]
+name = "jgb-core"
+version = "0.1.0"

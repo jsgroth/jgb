@@ -2,5 +2,5 @@
 
 members = [
     "jgb-core",
-    "jgb-main",
+    "jgb-cli",
 ]
