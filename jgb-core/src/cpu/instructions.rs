@@ -1,7 +1,7 @@
 use std::num::TryFromIntError;
 use thiserror::Error;
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair, CpuRegisters};
-use crate::data::AddressSpace;
+use crate::memory::AddressSpace;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JumpCondition {

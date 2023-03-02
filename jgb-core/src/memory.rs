@@ -1,4 +1,20 @@
-pub struct Cartridge {}
+use std::{fs, io};
+use std::path::Path;
+
+pub struct Cartridge {
+    raw_data: Vec<u8>,
+}
+
+impl Cartridge {
+    pub fn new(raw_data: Vec<u8>) -> Self {
+        Self { raw_data }
+    }
+
+    pub fn from_file(file_path: &str) -> Result<Self, io::Error> {
+        let raw_data = fs::read(Path::new(file_path))?;
+        Ok(Self { raw_data })
+    }
+}
 
 pub struct VRam {}
 
@@ -9,6 +25,14 @@ pub struct AddressSpace {
 }
 
 impl AddressSpace {
+    pub fn new(cartridge: Cartridge, vram: VRam) -> Self {
+        Self {
+            cartridge,
+            system_ram: [0; 8192],
+            vram,
+        }
+    }
+
     pub fn read_address_u8(&self, address: u16) -> u8 {
         todo!()
     }

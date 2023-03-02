@@ -1,2 +1,2 @@
 mod instructions;
-mod registers;
+pub mod registers;

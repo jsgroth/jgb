@@ -48,6 +48,21 @@ pub struct CpuRegisters {
 }
 
 impl CpuRegisters {
+    pub fn new() -> Self {
+        Self {
+            accumulator: 0x01,
+            flags: 0x80,
+            b: 0x00,
+            c: 0x13,
+            d: 0x00,
+            e: 0xD8,
+            h: 0x01,
+            l: 0x4D,
+            pc: 0x0100,
+            sp: 0xFFFE,
+        }
+    }
+
     pub fn af(&self) -> u16 {
         u16::from_be_bytes([self.accumulator, self.flags])
     }
