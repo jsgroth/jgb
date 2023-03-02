@@ -176,7 +176,13 @@ impl CpuRegisters {
             (u8::from(z) << 7) | (u8::from(n) << 6) | (u8::from(h) << 5) | (u8::from(c) << 4);
     }
 
-    pub fn set_some_flags(&mut self, z: Option<bool>, n: Option<bool>, h: Option<bool>, c: Option<bool>) {
+    pub fn set_some_flags(
+        &mut self,
+        z: Option<bool>,
+        n: Option<bool>,
+        h: Option<bool>,
+        c: Option<bool>,
+    ) {
         match z {
             Some(true) => {
                 self.flags |= 1 << 7;

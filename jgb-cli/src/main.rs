@@ -1,6 +1,6 @@
-use std::error::Error;
 use clap::Parser;
 use jgb_core::{PersistentConfig, RunConfig};
+use std::error::Error;
 
 #[derive(Parser)]
 struct Cli {
@@ -12,7 +12,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
 
     let persistent_config = PersistentConfig {};
-    let run_config = RunConfig { gb_file_path: args.gb_file_path };
+    let run_config = RunConfig {
+        gb_file_path: args.gb_file_path,
+    };
 
     jgb_core::run(persistent_config, run_config)
 }
