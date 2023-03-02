@@ -33,6 +33,7 @@ pub enum CpuRegisterPair {
     SP,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CpuRegisters {
     pub accumulator: u8,
     pub flags: u8,
