@@ -108,6 +108,18 @@ impl CpuRegisters {
         }
     }
 
+    pub fn get_register_mut(&mut self, register: CpuRegister) -> &mut u8 {
+        match register {
+            CpuRegister::A => &mut self.accumulator,
+            CpuRegister::B => &mut self.b,
+            CpuRegister::C => &mut self.c,
+            CpuRegister::D => &mut self.d,
+            CpuRegister::E => &mut self.e,
+            CpuRegister::H => &mut self.h,
+            CpuRegister::L => &mut self.l,
+        }
+    }
+
     pub fn read_register_pair(&self, register_pair: CpuRegisterPair) -> u16 {
         match register_pair {
             CpuRegisterPair::AF => self.af(),
@@ -189,6 +201,10 @@ impl CpuRegisters {
             }
             None => {}
         }
+    }
+
+    pub fn zero_flag(&self) -> bool {
+        self.flags & 0x80 != 0
     }
 
     pub fn carry_flag(&self) -> bool {
