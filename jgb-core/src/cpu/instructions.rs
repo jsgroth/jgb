@@ -734,28 +734,26 @@ impl Instruction {
             }
             Self::Call(nn) => {
                 cpu_registers.sp -= 2;
-                address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc.swap_bytes());
+                address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc);
                 cpu_registers.pc = nn;
             }
             Self::CallCond(cc, nn) => {
                 if cc.check(cpu_registers) {
                     cpu_registers.sp -= 2;
                     address_space
-                        .write_address_u16(cpu_registers.sp, cpu_registers.pc.swap_bytes());
+                        .write_address_u16(cpu_registers.sp, cpu_registers.pc);
                     cpu_registers.pc = nn;
                 }
             }
             Self::Return => {
                 cpu_registers.pc = address_space
-                    .read_address_u16(cpu_registers.sp)
-                    .swap_bytes();
+                    .read_address_u16(cpu_registers.sp);
                 cpu_registers.sp += 2;
             }
             Self::ReturnCond(cc) => {
                 if cc.check(cpu_registers) {
                     cpu_registers.pc = address_space
-                        .read_address_u16(cpu_registers.sp)
-                        .swap_bytes();
+                        .read_address_u16(cpu_registers.sp);
                     cpu_registers.sp += 2;
                 }
             }
@@ -764,7 +762,7 @@ impl Instruction {
             }
             Self::RestartCall(n) => {
                 cpu_registers.sp -= 2;
-                address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc.swap_bytes());
+                address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc);
                 cpu_registers.pc = (n << 3) as u16;
             }
             Self::HaltClock => {
