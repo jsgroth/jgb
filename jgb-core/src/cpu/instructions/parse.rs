@@ -189,7 +189,8 @@ pub fn parse_next_instruction(
             Ok((Instruction::AddImmediate(n), pc + 2))
         }
         0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
-            Ok((Instruction::RestartCall(opcode), pc + 1))
+            let n = (opcode & 38) >> 3;
+            Ok((Instruction::RestartCall(n), pc + 1))
         }
         0xC9 => Ok((Instruction::Return, pc + 1)),
         0xCB => parse_cb_prefixed_opcode(address_space, pc),

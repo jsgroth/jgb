@@ -243,6 +243,14 @@ impl CpuRegisters {
         self.flags & 0x80 != 0
     }
 
+    pub fn n_flag(&self) -> bool {
+        self.flags & 0x40 != 0
+    }
+
+    pub fn half_carry_flag(&self) -> bool {
+        self.flags & 0x20 != 0
+    }
+
     pub fn carry_flag(&self) -> bool {
         self.flags & 0x10 != 0
     }

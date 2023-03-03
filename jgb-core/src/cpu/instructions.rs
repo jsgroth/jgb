@@ -705,7 +705,7 @@ impl Instruction {
                 cpu_registers.set_some_flags(None, Some(false), Some(false), Some(true));
             }
             Self::DecimalAdjustAccumulator => {
-                todo!()
+                decimal_adjust_accumulator(cpu_registers);
             }
             Self::ComplementAccumulator => {
                 cpu_registers.accumulator = !cpu_registers.accumulator;
@@ -763,7 +763,9 @@ impl Instruction {
                 todo!()
             }
             Self::RestartCall(n) => {
-                todo!()
+                cpu_registers.sp -= 2;
+                address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc.swap_bytes());
+                cpu_registers.pc = (n << 3) as u16;
             }
             Self::HaltClock => {
                 todo!()
@@ -839,4 +841,34 @@ fn rotate_right_thru_carry(value: u8, carry: bool) -> (u8, bool) {
     let new_value = (value >> 1) | (u8::from(carry) << 7);
 
     (new_value, rightmost_set)
+}
+
+fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
+    if cpu_registers.n_flag() {
+        // Last op was subtraction
+        let mut value = cpu_registers.accumulator;
+        if cpu_registers.half_carry_flag() {
+            value = value.wrapping_sub(0x06);
+        }
+        if cpu_registers.carry_flag() {
+            value = value.wrapping_sub(0x60);
+        }
+
+        cpu_registers.accumulator = value;
+        cpu_registers.set_some_flags(Some(value == 0), None, Some(false), None);
+    } else {
+        // Last op was addition
+        let mut value = u16::from(cpu_registers.accumulator);
+        if value & 0x0F >= 0x0A || cpu_registers.half_carry_flag() {
+            value += 0x06;
+        }
+        if value & 0xF0 >= 0xA0 || cpu_registers.carry_flag() {
+            value += 0x60;
+        }
+
+        let carry_flag = value > 0xFF;
+        let value = value as u8;
+        cpu_registers.accumulator = value;
+        cpu_registers.set_some_flags(Some(value == 0), None, Some(false), Some(carry_flag));
+    }
 }
