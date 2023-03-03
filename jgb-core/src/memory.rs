@@ -36,7 +36,7 @@ enum Mapper {
         rom_bank_number: u8,
         ram_bank_number: u8,
         banking_mode_select: u8,
-    }
+    },
 }
 
 impl Mapper {
@@ -60,15 +60,26 @@ impl Mapper {
                 rom_bank_number: 0x00,
                 ram_bank_number: 0x00,
                 banking_mode_select: 0x00,
-            }
+            },
         }
     }
 
     fn map_rom_address(&self, address: u16) -> u32 {
         match self {
             Self::None => u32::from(address),
-            &Self::MBC1 { rom_bank_bit_mask, ram_bank_bit_mask, rom_bank_number, ram_bank_number, banking_mode_select, .. } => {
-                let rom_bank_number = if rom_bank_number == 0x00 { 0x01 } else { rom_bank_number };
+            &Self::MBC1 {
+                rom_bank_bit_mask,
+                ram_bank_bit_mask,
+                rom_bank_number,
+                ram_bank_number,
+                banking_mode_select,
+                ..
+            } => {
+                let rom_bank_number = if rom_bank_number == 0x00 {
+                    0x01
+                } else {
+                    rom_bank_number
+                };
 
                 match address {
                     address @ 0x0000..=0x3FFF => {
@@ -96,31 +107,41 @@ impl Mapper {
 
     fn write_rom_address(&mut self, address: u16, value: u8) {
         match self {
-            Self::None => {},
-            Self::MBC1 { ram_enable, rom_bank_number, ram_bank_number, banking_mode_select, .. } => {
-                match address {
-                    _address @ 0x0000..=0x1FFF => {
-                        *ram_enable = value;
-                    }
-                    _address @ 0x2000..=0x3FFF => {
-                        *rom_bank_number = value & 0x1F;
-                    }
-                    _address @ 0x4000..=0x5FFF => {
-                        *ram_bank_number = value & 0x03;
-                    }
-                    _address @ 0x6000..=0x7FFF => {
-                        *banking_mode_select = value & 0x01;
-                    }
-                    _ => panic!("invalid ROM write address in MBC1 mapper: {address:04x}")
+            Self::None => {}
+            Self::MBC1 {
+                ram_enable,
+                rom_bank_number,
+                ram_bank_number,
+                banking_mode_select,
+                ..
+            } => match address {
+                _address @ 0x0000..=0x1FFF => {
+                    *ram_enable = value;
                 }
-            }
+                _address @ 0x2000..=0x3FFF => {
+                    *rom_bank_number = value & 0x1F;
+                }
+                _address @ 0x4000..=0x5FFF => {
+                    *ram_bank_number = value & 0x03;
+                }
+                _address @ 0x6000..=0x7FFF => {
+                    *banking_mode_select = value & 0x01;
+                }
+                _ => panic!("invalid ROM write address in MBC1 mapper: {address:04x}"),
+            },
         }
     }
 
     fn map_ram_address(&self, address: u16) -> Option<u32> {
         match self {
             Self::None => Some(u32::from(address)),
-            &Self::MBC1 { ram_bank_bit_mask, ram_enable, ram_bank_number, banking_mode_select, .. } => {
+            &Self::MBC1 {
+                ram_bank_bit_mask,
+                ram_enable,
+                ram_bank_number,
+                banking_mode_select,
+                ..
+            } => {
                 if ram_enable & 0x0A == 0x0A {
                     if banking_mode_select == 0x00 {
                         Some(u32::from(address))
@@ -168,11 +189,11 @@ impl Cartridge {
             let ram_size_code = rom[addresses::RAM_SIZE as usize];
             let ram_size = match ram_size_code {
                 0x00 => 0,
-                0x02 => 8192,  // 8 KB
+                0x02 => 8192,   // 8 KB
                 0x03 => 32768,  // 32 KB
-                0x04 => 131072,  // 128 KB
+                0x04 => 131072, // 128 KB
                 0x05 => 65536,  // 64 KB
-                _ => return Err(CartridgeLoadError::InvalidRamSize { ram_size_code })
+                _ => return Err(CartridgeLoadError::InvalidRamSize { ram_size_code }),
             };
             vec![0; ram_size as usize]
         } else {
@@ -214,8 +235,12 @@ impl Cartridge {
 
     pub fn read_ram_address(&self, address: u16) -> u8 {
         match self.mapper.map_ram_address(address) {
-            Some(mapped_address) => self.ram.get(mapped_address as usize).copied().unwrap_or(0xFF),
-            None => 0xFF
+            Some(mapped_address) => self
+                .ram
+                .get(mapped_address as usize)
+                .copied()
+                .unwrap_or(0xFF),
+            None => 0xFF,
         }
     }
 

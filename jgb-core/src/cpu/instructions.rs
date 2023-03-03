@@ -590,8 +590,7 @@ impl Instruction {
             Self::RotateLeftIndirectHLThruCarry => {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
-                let (value, carry_flag) =
-                    rotate_left_thru_carry(value, cpu_registers.carry_flag());
+                let (value, carry_flag) = rotate_left_thru_carry(value, cpu_registers.carry_flag());
                 address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
