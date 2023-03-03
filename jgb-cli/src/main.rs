@@ -9,6 +9,8 @@ struct Cli {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+
     let args = Cli::parse();
 
     let persistent_config = PersistentConfig {};

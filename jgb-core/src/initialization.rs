@@ -1,6 +1,6 @@
 use crate::config::{PersistentConfig, RunConfig};
 use crate::cpu::registers::CpuRegisters;
-use crate::memory::{AddressSpace, Cartridge, VRam};
+use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::EmulationState;
 use std::error::Error;
 use std::io;
@@ -8,11 +8,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum StartupError {
-    #[error("error reading file at {file_path}: {source}")]
+    #[error("error loading cartridge from {file_path}: {source}")]
     FileReadError {
         file_path: String,
         #[source]
-        source: io::Error,
+        source: CartridgeLoadError,
     },
 }
 
@@ -30,7 +30,7 @@ pub fn initialize(
         }
     };
 
-    let address_space = AddressSpace::new(cartridge, VRam {});
+    let address_space = AddressSpace::new(cartridge);
     let cpu_registers = CpuRegisters::new();
 
     Ok(EmulationState {

@@ -459,9 +459,9 @@ impl Instruction {
             }
             Self::IncIndirectHL => {
                 let address = cpu_registers.hl();
-                let value = address_space.get_address_u8_mut(address);
-                let (sum, _, h_flag) = add(*value, 1, false);
-                *value = sum;
+                let value = address_space.read_address_u8(address);
+                let (sum, _, h_flag) = add(value, 1, false);
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_some_flags(Some(sum == 0), Some(false), Some(h_flag), None);
             }
             Self::DecRegister(r) => {
@@ -471,9 +471,9 @@ impl Instruction {
             }
             Self::DecIndirectHL => {
                 let address = cpu_registers.hl();
-                let value = address_space.get_address_u8_mut(address);
-                let (difference, _, h_flag) = sub(*value, 1, false);
-                *value = difference;
+                let value = address_space.read_address_u8(address);
+                let (difference, _, h_flag) = sub(value, 1, false);
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_some_flags(Some(difference == 0), Some(true), Some(h_flag), None);
             }
             Self::AndRegister(r) => {
@@ -573,9 +573,10 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateLeftIndirectHL => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                let (value, carry_flag) = rotate_left(*address);
-                *address = value;
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address);
+                let (value, carry_flag) = rotate_left(value);
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateLeftThruCarry(r) => {
@@ -587,10 +588,11 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateLeftIndirectHLThruCarry => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address);
                 let (value, carry_flag) =
-                    rotate_left_thru_carry(*address, cpu_registers.carry_flag());
-                *address = value;
+                    rotate_left_thru_carry(value, cpu_registers.carry_flag());
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateRight(r) => {
@@ -599,9 +601,10 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateRightIndirectHL => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                let (value, carry_flag) = rotate_right(*address);
-                *address = value;
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address);
+                let (value, carry_flag) = rotate_right(value);
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateRightThruCarry(r) => {
@@ -613,10 +616,11 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::RotateRightIndirectHLThruCarry => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address);
                 let (value, carry_flag) =
-                    rotate_right_thru_carry(*address, cpu_registers.carry_flag());
-                *address = value;
+                    rotate_right_thru_carry(value, cpu_registers.carry_flag());
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry_flag);
             }
             Self::ShiftLeft(r) => {
@@ -625,9 +629,10 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry);
             }
             Self::ShiftLeftIndirectHL => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                let (value, carry) = address.overflowing_shl(1);
-                *address = value;
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address);
+                let (value, carry) = value.overflowing_shl(1);
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry);
             }
             Self::Swap(r) => {
@@ -637,9 +642,10 @@ impl Instruction {
                 cpu_registers.set_flags(z_flag, false, false, false);
             }
             Self::SwapIndirectHL => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                *address = address.swap_bytes();
-                cpu_registers.set_flags(*address == 0, false, false, false);
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address).swap_bytes();
+                address_space.write_address_u8(address, value);
+                cpu_registers.set_flags(value == 0, false, false, false);
             }
             Self::ShiftRight(r) => {
                 let old_value = cpu_registers.read_register(r);
@@ -649,11 +655,11 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry);
             }
             Self::ShiftRightIndirectHL => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                let old_value = *address;
+                let address = cpu_registers.hl();
+                let old_value = address_space.read_address_u8(address);
                 let (mut value, carry) = old_value.overflowing_shr(1);
                 value |= old_value & 0x80;
-                *address = value;
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry);
             }
             Self::ShiftRightLogical(r) => {
@@ -662,9 +668,10 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry);
             }
             Self::ShiftRightLogicalIndirectHL => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                let (value, carry) = address.overflowing_shr(1);
-                *address = value;
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address);
+                let (value, carry) = value.overflowing_shr(1);
+                address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, carry);
             }
             Self::TestBit(n, r) => {
@@ -682,16 +689,18 @@ impl Instruction {
                 *register |= 1 << n;
             }
             Self::SetBitIndirectHL(n) => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                *address |= 1 << n;
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address) | (1 << n);
+                address_space.write_address_u8(address, value);
             }
             Self::ResetBit(n, r) => {
                 let register = cpu_registers.get_register_mut(r);
                 *register &= !(1 << n);
             }
             Self::ResetBitIndirectHL(n) => {
-                let address = address_space.get_address_u8_mut(cpu_registers.hl());
-                *address &= !(1 << n);
+                let address = cpu_registers.hl();
+                let value = address_space.read_address_u8(address) & !(1 << n);
+                address_space.write_address_u8(address, value);
             }
             Self::ComplementCarryFlag => {
                 cpu_registers.set_some_flags(
@@ -740,20 +749,17 @@ impl Instruction {
             Self::CallCond(cc, nn) => {
                 if cc.check(cpu_registers) {
                     cpu_registers.sp -= 2;
-                    address_space
-                        .write_address_u16(cpu_registers.sp, cpu_registers.pc);
+                    address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc);
                     cpu_registers.pc = nn;
                 }
             }
             Self::Return => {
-                cpu_registers.pc = address_space
-                    .read_address_u16(cpu_registers.sp);
+                cpu_registers.pc = address_space.read_address_u16(cpu_registers.sp);
                 cpu_registers.sp += 2;
             }
             Self::ReturnCond(cc) => {
                 if cc.check(cpu_registers) {
-                    cpu_registers.pc = address_space
-                        .read_address_u16(cpu_registers.sp);
+                    cpu_registers.pc = address_space.read_address_u16(cpu_registers.sp);
                     cpu_registers.sp += 2;
                 }
             }

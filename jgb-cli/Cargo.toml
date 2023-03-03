@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.1", features = ["derive"] }
 jgb-core = { path = "../jgb-core" }
+
+clap = { version = "4.1", features = ["derive"] }
+env_logger = "0.10"

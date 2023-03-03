@@ -1,3 +1,5 @@
+use crate::memory::addresses;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CpuRegister {
     A,
@@ -73,7 +75,7 @@ impl CpuRegisters {
             e: 0xD8,
             h: 0x01,
             l: 0x4D,
-            pc: 0x0100,
+            pc: addresses::ENTRY_POINT,
             sp: 0xFFFE,
         }
     }
