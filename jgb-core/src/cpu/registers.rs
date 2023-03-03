@@ -10,7 +10,22 @@ pub enum CpuRegister {
 }
 
 impl CpuRegister {
-    pub fn from_opcode_bits(bits: u8) -> Option<Self> {
+    // From bits 3-5
+    pub fn from_mid_opcode_bits(bits: u8) -> Option<Self> {
+        match bits & 0x38 {
+            0x00 => Some(Self::B),
+            0x08 => Some(Self::C),
+            0x10 => Some(Self::D),
+            0x18 => Some(Self::E),
+            0x20 => Some(Self::H),
+            0x28 => Some(Self::L),
+            0x38 => Some(Self::A),
+            _ => None,
+        }
+    }
+
+    // From bits 0-2
+    pub fn from_low_opcode_bits(bits: u8) -> Option<Self> {
         match bits & 0x07 {
             0x00 => Some(Self::B),
             0x01 => Some(Self::C),

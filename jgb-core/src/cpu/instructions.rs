@@ -1,5 +1,8 @@
+mod parse;
+
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair, CpuRegisters};
 use crate::memory::AddressSpace;
+use lazy_static::lazy_static;
 use std::num::TryFromIntError;
 use thiserror::Error;
 
@@ -42,7 +45,7 @@ pub enum ExecutionError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Instruction {
+pub enum Instruction {
     // LD r, r'
     LoadRegisterRegister(CpuRegister, CpuRegister),
     // LD r, n
@@ -67,7 +70,7 @@ enum Instruction {
     LoadDirect16Accumulator(u16),
     // LDH A, (C)
     LoadAccumulatorIndirectC,
-    // LDH C, (A),
+    // LDH (C), A
     LoadIndirectCAccumulator,
     // LDH A, (n)
     LoadAccumulatorDirect8(u8),
