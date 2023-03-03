@@ -144,16 +144,16 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn new(raw_data: Vec<u8>) -> Result<Self, CartridgeLoadError> {
-        log::info!("Initializing cartridge using {} bytes of data", raw_data.len());
+    pub fn new(rom: Vec<u8>) -> Result<Self, CartridgeLoadError> {
+        log::info!("Initializing cartridge using {} bytes of data", rom.len());
 
-        if raw_data.len() < 0x0150 {
+        if rom.len() < 0x0150 {
             return Err(CartridgeLoadError::HeaderTooShort {
-                header_len: raw_data.len(),
+                header_len: rom.len(),
             });
         }
 
-        let mapper_byte = raw_data[addresses::MAPPER as usize];
+        let mapper_byte = rom[addresses::MAPPER as usize];
         let (mapper_type, has_ram, has_battery) = match mapper_byte {
             0x00 => (MapperType::None, false, false),
             0x01 => (MapperType::MBC1, false, false),
@@ -165,7 +165,7 @@ impl Cartridge {
         log::info!("Detected mapper type {mapper_type:?}");
 
         let ram = if has_ram {
-            let ram_size_code = raw_data[addresses::RAM_SIZE as usize];
+            let ram_size_code = rom[addresses::RAM_SIZE as usize];
             let ram_size = match ram_size_code {
                 0x00 => 0,
                 0x02 => 8192,  // 8 KB
@@ -179,13 +179,13 @@ impl Cartridge {
             Vec::new()
         };
 
-        let mapper = Mapper::new(mapper_type, raw_data.len() as u32, ram.len() as u32);
+        let mapper = Mapper::new(mapper_type, rom.len() as u32, ram.len() as u32);
 
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
         log::info!("Cartridge has battery: {has_battery}");
 
         Ok(Self {
-            rom: raw_data,
+            rom,
             mapper,
             ram,
             has_battery,
