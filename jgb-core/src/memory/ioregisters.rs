@@ -208,6 +208,9 @@ pub struct IoRegisters {
 }
 
 impl IoRegisters {
+    const JOYP_RELATIVE_ADDR: usize = 0x00;
+    const STAT_RELATIVE_ADDR: usize = 0x41;
+
     pub fn new() -> Self {
         Self {
             contents: [0; 0x80],
@@ -255,6 +258,22 @@ impl IoRegisters {
             }
         }
     }
+
+    pub fn privileged_read_joyp(&self) -> u8 {
+        self.contents[Self::JOYP_RELATIVE_ADDR] | 0xC0
+    }
+
+    pub fn privileged_read_stat(&self) -> u8 {
+        self.contents[Self::STAT_RELATIVE_ADDR] | 0x80
+    }
+
+    pub fn privileged_set_joyp(&mut self, value: u8) {
+        self.contents[Self::JOYP_RELATIVE_ADDR] = value & 0x3F;
+    }
+
+    pub fn privileged_set_stat(&mut self, value: u8) {
+        self.contents[Self::STAT_RELATIVE_ADDR] = value & 0x7F;
+    }
 }
 
 #[cfg(test)]
@@ -278,17 +297,14 @@ mod tests {
 
         registers.write_address(joyp_address, 0x0F);
         assert_eq!(0xC0, registers.read_address(joyp_address));
-        assert_eq!(
-            0x00,
-            registers.contents[(joyp_address - 0xFF00) as usize] & 0x0F
-        );
+        assert_eq!(0x00, registers.privileged_read_joyp() & 0x0F);
 
         registers.write_address(joyp_address, 0x20);
         assert_eq!(0xC0, registers.read_address(joyp_address));
-        assert_eq!(
-            0x20,
-            registers.contents[(joyp_address - 0xFF00) as usize] & 0x30
-        );
+        assert_eq!(0x20, registers.privileged_read_joyp() & 0x30);
+
+        registers.privileged_set_joyp(0x19);
+        assert_eq!(0xC9, registers.read_address(joyp_address));
     }
 
     #[test]
@@ -308,12 +324,12 @@ mod tests {
 
         registers.write_address(stat_address, 0x07);
         assert_eq!(0x80, registers.read_address(stat_address));
-        assert_eq!(
-            0x00,
-            registers.contents[(stat_address - 0xFF00) as usize] & 0x78
-        );
+        assert_eq!(0x00, registers.privileged_read_stat() & 0x7F);
 
         registers.write_address(stat_address, 0x28);
         assert_eq!(0xA8, registers.read_address(stat_address));
+
+        registers.privileged_set_stat(0x2F);
+        assert_eq!(0xAF, registers.read_address(stat_address));
     }
 }
