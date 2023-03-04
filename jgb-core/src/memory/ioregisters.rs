@@ -263,6 +263,10 @@ mod tests {
 
     #[test]
     fn joyp_mask() {
+        // Bits 6-7 should be unusable and should always read 1
+        // Bits 4-5 should be writable only and should always read 0
+        // Bits 0-3 should be readable only, writes should be ignored
+
         let mut registers = IoRegisters::new();
 
         let joyp_address = IoRegister::JOYP.to_address();
@@ -289,6 +293,10 @@ mod tests {
 
     #[test]
     fn stat_mask() {
+        // Bit 7 should be unusable and should always read 1
+        // Bits 3-6 should be both readable and writable
+        // Bits 0-2 should be readable only, writes should be ignored
+
         let mut registers = IoRegisters::new();
 
         let stat_address = IoRegister::STAT.to_address();
