@@ -1,4 +1,4 @@
-use crate::cpu::registers::CpuRegisters;
+use crate::cpu::CpuRegisters;
 use crate::memory::AddressSpace;
 use std::error::Error;
 
@@ -19,6 +19,8 @@ pub fn run(
     run_config: RunConfig,
 ) -> Result<(), Box<dyn Error>> {
     let emulation_state = initialization::initialize(persistent_config, run_config)?;
+
+    cpu::run(emulation_state)?;
 
     Ok(())
 }

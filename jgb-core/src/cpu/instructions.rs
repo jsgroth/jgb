@@ -2,9 +2,10 @@ mod parse;
 
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair, CpuRegisters};
 use crate::memory::AddressSpace;
-use lazy_static::lazy_static;
 use std::num::TryFromIntError;
 use thiserror::Error;
+
+pub use parse::parse_next_instruction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JumpCondition {
@@ -255,7 +256,7 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    fn execute(
+    pub fn execute(
         self,
         address_space: &mut AddressSpace,
         cpu_registers: &mut CpuRegisters,
@@ -763,7 +764,10 @@ impl Instruction {
                 }
             }
             Self::ReturnFromInterruptHandler => {
-                todo!()
+                cpu_registers.pc = address_space.read_address_u16(cpu_registers.sp);
+                cpu_registers.sp += 2;
+                cpu_registers.ime = true;
+                cpu_registers.interrupt_delay = false;
             }
             Self::RestartCall(n) => {
                 cpu_registers.sp -= 2;
@@ -777,10 +781,11 @@ impl Instruction {
                 todo!()
             }
             Self::DisableInterrupts => {
-                todo!()
+                cpu_registers.ime = false;
             }
             Self::EnableInterrupts => {
-                todo!()
+                cpu_registers.ime = true;
+                cpu_registers.interrupt_delay = true;
             }
             Self::NoOp => {}
         }

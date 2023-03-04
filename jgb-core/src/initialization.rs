@@ -1,9 +1,7 @@
 use crate::config::{PersistentConfig, RunConfig};
-use crate::cpu::registers::CpuRegisters;
+use crate::cpu::CpuRegisters;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::EmulationState;
-use std::error::Error;
-use std::io;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
