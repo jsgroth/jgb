@@ -256,3 +256,56 @@ impl IoRegisters {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn joyp_mask() {
+        let mut registers = IoRegisters::new();
+
+        let joyp_address = IoRegister::JOYP.to_address();
+
+        assert_eq!(0xC0, registers.read_address(joyp_address));
+
+        registers.write_address(joyp_address, 0x00);
+        assert_eq!(0xC0, registers.read_address(joyp_address));
+
+        registers.write_address(joyp_address, 0x0F);
+        assert_eq!(0xC0, registers.read_address(joyp_address));
+        assert_eq!(
+            0x00,
+            registers.contents[(joyp_address - 0xFF00) as usize] & 0x0F
+        );
+
+        registers.write_address(joyp_address, 0x20);
+        assert_eq!(0xC0, registers.read_address(joyp_address));
+        assert_eq!(
+            0x20,
+            registers.contents[(joyp_address - 0xFF00) as usize] & 0x30
+        );
+    }
+
+    #[test]
+    fn stat_mask() {
+        let mut registers = IoRegisters::new();
+
+        let stat_address = IoRegister::STAT.to_address();
+
+        assert_eq!(0x80, registers.read_address(stat_address));
+
+        registers.write_address(stat_address, 0x00);
+        assert_eq!(0x80, registers.read_address(stat_address));
+
+        registers.write_address(stat_address, 0x07);
+        assert_eq!(0x80, registers.read_address(stat_address));
+        assert_eq!(
+            0x00,
+            registers.contents[(stat_address - 0xFF00) as usize] & 0x78
+        );
+
+        registers.write_address(stat_address, 0x28);
+        assert_eq!(0xA8, registers.read_address(stat_address));
+    }
+}
