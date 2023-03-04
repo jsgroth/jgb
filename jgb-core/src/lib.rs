@@ -1,11 +1,12 @@
-use crate::cpu::CpuRegisters;
-use crate::memory::AddressSpace;
-use std::error::Error;
-
 mod config;
 mod cpu;
 mod initialization;
+mod lcd;
 mod memory;
+
+use crate::cpu::CpuRegisters;
+use crate::memory::AddressSpace;
+use std::error::Error;
 
 pub use config::{PersistentConfig, RunConfig};
 

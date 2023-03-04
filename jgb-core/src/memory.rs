@@ -1,4 +1,5 @@
 pub mod addresses;
+pub mod ioregisters;
 
 use std::path::Path;
 use std::{fs, io};
@@ -252,6 +253,8 @@ impl Cartridge {
         }
     }
 }
+
+struct IoRegisters {}
 
 pub struct AddressSpace {
     cartridge: Cartridge,
