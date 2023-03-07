@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.4"
 log = "0.4"
+rand = "0.8"
 sdl2 = "0.35"
 thiserror = "1.0"

@@ -212,9 +212,36 @@ impl IoRegisters {
     const STAT_RELATIVE_ADDR: usize = 0x41;
 
     pub fn new() -> Self {
-        Self {
-            contents: [0; 0x80],
-        }
+        let mut contents = [0; 0x80];
+
+        // JOYP
+        contents[0x00] = 0xCF;
+
+        // DIV
+        contents[0x04] = 0x18;
+
+        // TAC
+        contents[0x07] = 0xF8;
+
+        // IF
+        contents[0x0F] = 0xE1;
+
+        // LCDC
+        contents[0x40] = 0x91;
+
+        // STAT
+        contents[0x41] = 0x81;
+
+        // LY
+        contents[0x44] = 0x91;
+
+        // DMA
+        contents[0x46] = 0xFF;
+
+        // BGP
+        contents[0x47] = 0xFC;
+
+        Self { contents }
     }
 
     pub fn read_address(&self, address: u16) -> u8 {
@@ -280,13 +307,19 @@ impl IoRegisters {
 mod tests {
     use super::*;
 
+    fn empty_io_registers() -> IoRegisters {
+        IoRegisters {
+            contents: [0; 0x80],
+        }
+    }
+
     #[test]
     fn joyp_mask() {
         // Bits 6-7 should be unusable and should always read 1
         // Bits 4-5 should be writable only and should always read 0
         // Bits 0-3 should be readable only, writes should be ignored
 
-        let mut registers = IoRegisters::new();
+        let mut registers = empty_io_registers();
 
         let joyp_address = IoRegister::JOYP.to_address();
 
@@ -313,7 +346,7 @@ mod tests {
         // Bits 3-6 should be both readable and writable
         // Bits 0-2 should be readable only, writes should be ignored
 
-        let mut registers = IoRegisters::new();
+        let mut registers = empty_io_registers();
 
         let stat_address = IoRegister::STAT.to_address();
 

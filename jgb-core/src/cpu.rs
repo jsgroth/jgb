@@ -1,5 +1,6 @@
 mod instructions;
 mod registers;
+mod tests;
 
 use crate::EmulationState;
 use std::error::Error;
@@ -25,7 +26,7 @@ pub fn run(emulation_state: EmulationState) -> Result<(), Box<dyn Error>> {
 
         i += 1;
 
-        if i == 30 {
+        if i == 1000000 {
             return Ok(());
         }
     }

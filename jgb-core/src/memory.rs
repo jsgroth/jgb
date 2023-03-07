@@ -1,6 +1,7 @@
 pub mod addresses;
 pub mod ioregisters;
 
+use crate::memory::ioregisters::IoRegisters;
 use std::path::Path;
 use std::{fs, io};
 use thiserror::Error;
@@ -42,8 +43,12 @@ enum Mapper {
 
 impl Mapper {
     fn new(mapper_type: MapperType, rom_size: u32, ram_size: u32) -> Self {
-        let rom_bank_bit_mask = ((rom_size >> 14) - 1) as u8;
-        let ram_bank_bit_mask = if ram_size > 0 {
+        let rom_bank_bit_mask = if rom_size >= 1 << 14 {
+            ((rom_size >> 14) - 1) as u8
+        } else {
+            0
+        };
+        let ram_bank_bit_mask = if ram_size >= 1 << 13 {
             ((ram_size >> 13) - 1) as u8
         } else {
             0
@@ -254,14 +259,12 @@ impl Cartridge {
     }
 }
 
-struct IoRegisters {}
-
 pub struct AddressSpace {
     cartridge: Cartridge,
     vram: [u8; 8192],
     working_ram: [u8; 8192],
     oam: [u8; 160],
-    io_registers: [u8; 128],
+    io_registers: IoRegisters,
     hram: [u8; 127],
     ie_register: u8,
 }
@@ -273,7 +276,7 @@ impl AddressSpace {
             vram: [0; 8192],
             working_ram: [0; 8192],
             oam: [0; 160],
-            io_registers: [0; 128],
+            io_registers: IoRegisters::new(),
             hram: [0; 127],
             ie_register: 0,
         }
@@ -303,7 +306,7 @@ impl AddressSpace {
                 todo!("should return 0xFF if OAM is blocked, 0x00 otherwise")
             }
             address @ addresses::IO_REGISTERS_START..=addresses::IO_REGISTERS_END => {
-                self.io_registers[(address - addresses::IO_REGISTERS_START) as usize]
+                self.io_registers.read_address(address)
             }
             address @ addresses::HRAM_START..=addresses::HRAM_END => {
                 self.hram[(address - addresses::HRAM_START) as usize]
@@ -342,7 +345,7 @@ impl AddressSpace {
                 todo!("should return 0xFF if OAM is blocked, 0x00 otherwise")
             }
             address @ addresses::IO_REGISTERS_START..=addresses::IO_REGISTERS_END => {
-                self.io_registers[(address - addresses::IO_REGISTERS_START) as usize] = value;
+                self.io_registers.write_address(address, value);
             }
             address @ addresses::HRAM_START..=addresses::HRAM_END => {
                 self.hram[(address - addresses::HRAM_START) as usize] = value;
