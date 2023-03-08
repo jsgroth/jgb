@@ -1,3 +1,4 @@
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IoRegister {
     JOYP,
@@ -188,17 +189,14 @@ impl IoRegister {
     }
 
     pub fn is_readable(self) -> bool {
-        match self {
-            Self::NR13 | Self::NR23 | Self::NR31 | Self::NR33 | Self::NR41 => false,
-            _ => true,
-        }
+        !matches!(
+            self,
+            Self::NR13 | Self::NR23 | Self::NR31 | Self::NR33 | Self::NR41
+        )
     }
 
     pub fn is_writable(self) -> bool {
-        match self {
-            Self::LY => false,
-            _ => true,
-        }
+        !matches!(self, Self::LY)
     }
 }
 

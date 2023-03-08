@@ -12,27 +12,27 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum StartupError {
     #[error("error loading cartridge from {file_path}: {source}")]
-    FileReadError {
+    FileRead {
         file_path: String,
         #[source]
         source: CartridgeLoadError,
     },
     #[error("unable to get file name from path: {file_path}")]
-    FileNameError { file_path: String },
+    FileName { file_path: String },
     #[error("SDL2 error: {sdl_error}")]
-    GenericSdlError { sdl_error: String },
+    GenericSdl { sdl_error: String },
     #[error("error building SDL2 window: {source}")]
-    SdlWindowBuildError {
+    SdlWindowBuild {
         #[from]
         source: WindowBuildError,
     },
     #[error("error building SDL2 canvas: {source}")]
-    SdlCanvasBuildError {
+    SdlCanvasBuild {
         #[from]
         source: IntegerOrSdlError,
     },
     #[error("error creating SDL2 window texture: {source}")]
-    SdlTextureValueError {
+    SdlTextureValue {
         #[from]
         source: TextureValueError,
     },
@@ -40,7 +40,7 @@ pub enum StartupError {
 
 impl From<String> for StartupError {
     fn from(value: String) -> Self {
-        Self::GenericSdlError { sdl_error: value }
+        Self::GenericSdl { sdl_error: value }
     }
 }
 
@@ -59,7 +59,7 @@ pub fn init_emulation_state(
     let cartridge = match Cartridge::from_file(&run_config.gb_file_path) {
         Ok(cartridge) => cartridge,
         Err(err) => {
-            return Err(StartupError::FileReadError {
+            return Err(StartupError::FileRead {
                 file_path: run_config.gb_file_path.clone(),
                 source: err,
             })
@@ -109,13 +109,10 @@ pub fn init_sdl_state(
 }
 
 fn get_window_title(gb_file_path: &str) -> Result<String, StartupError> {
-    let file_name = Path::new(gb_file_path)
-        .file_name()
-        .map(|s| s.to_str())
-        .flatten();
+    let file_name = Path::new(gb_file_path).file_name().and_then(|s| s.to_str());
     match file_name {
         Some(file_name) => Ok(format!("jgb - {file_name}")),
-        None => Err(StartupError::FileNameError {
+        None => Err(StartupError::FileName {
             file_path: gb_file_path.into(),
         }),
     }

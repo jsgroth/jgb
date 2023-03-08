@@ -8,7 +8,7 @@ use thiserror::Error;
 pub use parse::parse_next_instruction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum JumpCondition {
+pub enum JumpCondition {
     NZ,
     Z,
     NC,
