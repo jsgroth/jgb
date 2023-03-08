@@ -17,7 +17,7 @@ struct ExpectedState {
 }
 
 macro_rules! compare_bytes {
-    // expected: Option<T>, actual: T where T: Eq
+    // (expected: Option<T>, actual: T) where T: Eq
     ($([$name:literal, $expected:expr, $actual:expr]),+$(,)?) => {
         {
             let mut match_fails = Vec::new();
@@ -325,7 +325,7 @@ fn load_indirect_hl_register() {
         let opcode = 0x70 | r.to_opcode_bits();
         let opcode_hex = format!("{opcode:02x}");
 
-        // LD <R>, E3; LD HL, 0xD075; LD (HL), <R>
+        // LD <R>, 0xE3; LD HL, 0xD075; LD (HL), <R>
         let program_hex = format!("{preload_opcode_hex}E32175D0{opcode_hex}");
         let expected_value = match r {
             CpuRegister::H => 0xD0,
@@ -341,4 +341,224 @@ fn load_indirect_hl_register() {
             },
         );
     }
+}
+
+#[test]
+fn load_accumulator_indirect_bc() {
+    run_test(
+        // LD HL, 0xC555; LD (HL), 0xC4; LD BC, 0xC555; LD A, (BC)
+        "2155C536C40155C50A",
+        &ExpectedState {
+            a: Some(0xC4),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_accumulator_indirect_de() {
+    run_test(
+        // LD HL, 0xC555; LD (HL), 0x2F; LD DE, 0xC555; LD A, (DE)
+        "2155C5362F1155C51A",
+        &ExpectedState {
+            a: Some(0x2F),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_accumulator_direct_16() {
+    run_test(
+        // LD HL, 0xD943; LD (HL), 0x1B; LD A, (0xD943)
+        "2143D9361BFA43D9",
+        &ExpectedState {
+            a: Some(0x1B),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_indirect_bc_accumulator() {
+    run_test(
+        // LD A, 0xFA; LD BC, 0xC560; LD (BC), A
+        "3EFA0160C502",
+        &ExpectedState {
+            memory: hash_map! { 0xC560: 0xFA },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_indirect_de_accumulator() {
+    run_test(
+        // LD A, 0x65; LD DE, 0xC010; LD (DE), A
+        "3E651110C012",
+        &ExpectedState {
+            memory: hash_map! { 0xC010: 0x65 },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_direct_16_accumulator() {
+    run_test(
+        // LD A, 0x90; LD (0xD40E), A
+        "3E90EA0ED4",
+        &ExpectedState {
+            memory: hash_map! { 0xD40E: 0x90 },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn ldh_accumulator_immediate() {
+    run_test(
+        // LD HL, 0xFF40; LD (HL), 0xC8; LDH A, (0x40)
+        "2140FF36C8F040",
+        &ExpectedState {
+            a: Some(0xC8),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn ldh_accumulator_c() {
+    // LD HL, 0xFF40; LD (HL), 0xEE; LD C, 0x40; LDH A, (C)
+    run_test(
+        "2140FF36EE0E40F2",
+        &ExpectedState {
+            a: Some(0xEE),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn ldh_immediate_accumulator() {
+    run_test(
+        // LD A, 0x72; LDH (0x40), A
+        "3E72E040",
+        &ExpectedState {
+            memory: hash_map! { 0xFF40: 0x72 },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn ldh_c_accumulator() {
+    run_test(
+        // LD A, 0xCB; LD C, 0x40; LDH (C), A
+        "3ECB0E40E2",
+        &ExpectedState {
+            memory: hash_map! { 0xFF40: 0xCB },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_accumulator_indirect_hl_inc() {
+    run_test(
+        // LD HL, 0xDC60; LD (HL), 0xD5; LD A, (HL+)
+        "2160DC36D52A",
+        &ExpectedState {
+            a: Some(0xD5),
+            h: Some(0xDC),
+            l: Some(0x61),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xCFFF; LD (HL), 0x93; LD A, (HL+)
+        "21FFCF36932A",
+        &ExpectedState {
+            a: Some(0x93),
+            h: Some(0xD0),
+            l: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_accumulator_indirect_hl_dec() {
+    run_test(
+        // LD HL, 0xD49A; LD (HL), 0x92; LD A, (HL-)
+        "219AD436923A",
+        &ExpectedState {
+            a: Some(0x92),
+            h: Some(0xD4),
+            l: Some(0x99),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD000; LD (HL), 0xF9; LD A, (HL-)
+        "2100D036F93A",
+        &ExpectedState {
+            a: Some(0xF9),
+            h: Some(0xCF),
+            l: Some(0xFF),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_indirect_hl_inc_accumulator() {
+    run_test(
+        // LD A, 0x04; LD HL, 0xD55F; LD (HL+), A
+        "3E04215FD522",
+        &ExpectedState {
+            h: Some(0xD5),
+            l: Some(0x60),
+            memory: hash_map! { 0xD55F: 0x04 },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x0D; LD HL, 0xCFFF; LD (HL+), A
+        "3E0D21FFCF22",
+        &ExpectedState {
+            h: Some(0xD0),
+            l: Some(0x00),
+            memory: hash_map! { 0xCFFF: 0x0D },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_indirect_hl_dec_accumulator() {
+    run_test(
+        // LD A, 0x19; LD HL, 0xD37F; LD (HL-), A
+        "3E19217FD332",
+        &ExpectedState {
+            h: Some(0xD3),
+            l: Some(0x7E),
+            memory: hash_map! { 0xD37F: 0x19 },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x4A; LD HL, 0xD000; LD (HL-), A
+        "3E4A2100D032",
+        &ExpectedState {
+            h: Some(0xCF),
+            l: Some(0xFF),
+            memory: hash_map! { 0xD000: 0x4A },
+            ..ExpectedState::empty()
+        },
+    );
 }

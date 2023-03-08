@@ -775,10 +775,10 @@ impl Instruction {
                 cpu_registers.pc = (n << 3) as u16;
             }
             Self::HaltClock => {
-                todo!()
+                todo!("HALT is not implemented")
             }
             Self::StopClocks => {
-                todo!()
+                todo!("STOP is not implemented")
             }
             Self::DisableInterrupts => {
                 cpu_registers.ime = false;
