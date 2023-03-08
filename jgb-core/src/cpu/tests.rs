@@ -833,3 +833,105 @@ fn adc_register() {
         );
     }
 }
+
+#[test]
+fn sub_immediate() {
+    run_test(
+        // LD A, 0xF5; SUB 0x13
+        "3EF5D613",
+        &ExpectedState {
+            a: Some(0xE2),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xF5; SCF; SUB 0x13
+        "3EF537D613",
+        &ExpectedState {
+            a: Some(0xE2),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xCC; SUB 0xCC
+        "3ECCD6CC",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0xC0),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x12; SUB 0x51
+        "3E12D651",
+        &ExpectedState {
+            a: Some(0xC1),
+            f: Some(0x50),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xF3; SUB 0x0A
+        "3EF3D60A",
+        &ExpectedState {
+            a: Some(0xE9),
+            f: Some(0x60),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0xFF
+        "3E00D6FF",
+        &ExpectedState {
+            a: Some(0x01),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn sub_indirect_hl() {
+    run_test(
+        // LD HL, 0xD0BC; LD (HL), 0xDD; LD A, 0x88; SUB (HL)
+        "21BCD036DD3E8896",
+        &ExpectedState {
+            a: Some(0xAB),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn sub_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let sub_opcode = 0x90 | r.to_opcode_bits();
+        let sub_opcode_hex = format!("{sub_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0x00, 0xC0),
+            _ => (0x2F, 0x60),
+        };
+
+        run_test(
+            // LD <r>, 0xAF; LD A, 0xDE; SUB <r>
+            &format!("{load_opcode_hex}AF3EDE{sub_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
