@@ -19,16 +19,16 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
         command: fmt
         args: --check --verbose
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --verbose
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
