@@ -1,4 +1,5 @@
-#![allow(unused)]
+// TODO remove this once this project is closer to working
+#![allow(unused_variables, dead_code)]
 
 mod config;
 mod cpu;
@@ -8,13 +9,7 @@ mod startup;
 
 use crate::cpu::CpuRegisters;
 use crate::memory::AddressSpace;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::pixels::{Color, PixelFormatEnum};
 use std::error::Error;
-use std::path::Path;
-use std::thread;
-use std::time::Duration;
 use thiserror::Error;
 
 pub use config::{PersistentConfig, RunConfig};
