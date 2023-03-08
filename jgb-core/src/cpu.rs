@@ -1,5 +1,7 @@
 mod instructions;
 mod registers;
+
+#[cfg(test)]
 mod tests;
 
 use crate::EmulationState;
