@@ -2,7 +2,7 @@
 
 ## Requirements
 
-This project requires SDL2 to build.
+This project requires SDL2 headers to build.
 
 Linux:
 ```shell
