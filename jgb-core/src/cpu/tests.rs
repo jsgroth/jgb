@@ -1,4 +1,4 @@
-use crate::cpu::registers::CpuRegister;
+use crate::cpu::registers::{CpuRegister, CpuRegisterPair};
 use crate::cpu::{instructions, CpuRegisters};
 use crate::memory::{AddressSpace, Cartridge};
 use std::collections::HashMap;
@@ -561,4 +561,111 @@ fn load_indirect_hl_dec_accumulator() {
             ..ExpectedState::empty()
         },
     );
+}
+
+#[test]
+fn load_sp_hl() {
+    run_test(
+        // LD HL, 0xFFBB; LD SP, HL
+        "21BBFFF9",
+        &ExpectedState {
+            sp: Some(0xFFBB),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn load_direct_sp() {
+    run_test(
+        // LD HL, 0xFFEB; LD SP, HL; LD (0xD58F), SP
+        "21EBFFF9088FD5",
+        &ExpectedState {
+            memory: hash_map! {
+                0xD58F: 0xEB,
+                0xD590: 0xFF,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn push_stack() {
+    // BC, DE, HL
+    for rr_bits in [0x00, 0x10, 0x20] {
+        let preload_opcode = 0x01 | rr_bits;
+        // LD <rr>, 0x912C
+        let preload_hex = format!("{preload_opcode:02x}2C91");
+
+        let opcode = 0xC5 | rr_bits;
+        let opcode_hex = format!("{opcode:02x}");
+
+        run_test(
+            // LD <rr>, 0x912C; PUSH <rr>; PUSH <rr>
+            &format!("{preload_hex}{opcode_hex}{opcode_hex}"),
+            &ExpectedState {
+                sp: Some(0xFFFA),
+                memory: hash_map! {
+                    0xFFFA: 0x2C,
+                    0xFFFB: 0x91,
+                    0xFFFC: 0x2C,
+                    0xFFFD: 0x91,
+                },
+                ..ExpectedState::empty()
+            },
+        );
+    }
+
+    // AF
+    run_test(
+        // LD A, 0x91; SCF; PUSH AF; PUSH AF
+        "3E9137F5F5",
+        &ExpectedState {
+            sp: Some(0xFFFA),
+            memory: hash_map! {
+                0xFFFA: 0x10,
+                0xFFFB: 0x91,
+                0xFFFC: 0x10,
+                0xFFFD: 0x91,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn pop_stack() {
+    for (rr, rr_bits) in [
+        (CpuRegisterPair::BC, 0x00),
+        (CpuRegisterPair::DE, 0x10),
+        (CpuRegisterPair::HL, 0x20),
+        (CpuRegisterPair::AF, 0x30),
+    ] {
+        let opcode = 0xC1 | rr_bits;
+        let opcode_hex = format!("{opcode:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        let (high_ref, low_ref) = match rr {
+            CpuRegisterPair::BC => (&mut expected_state.b, &mut expected_state.c),
+            CpuRegisterPair::DE => (&mut expected_state.d, &mut expected_state.e),
+            CpuRegisterPair::HL => (&mut expected_state.h, &mut expected_state.l),
+            CpuRegisterPair::AF => (&mut expected_state.a, &mut expected_state.f),
+            _ => panic!("unexpected register pair: {rr:?}"),
+        };
+        *high_ref = Some(0x6B);
+        *low_ref = Some(0x57);
+        expected_state.sp = Some(0xFFFC);
+
+        run_test(
+            // LD A, 0x57
+            // LDH (0xFA), A
+            // LD A, 0x6B
+            // LDH (0xFB), A
+            // LD SP, 0xFFFA
+            // POP <rr>
+            &format!("3E57E0FA3E6BE0FB31FAFF{opcode_hex}"),
+            &expected_state,
+        );
+    }
 }

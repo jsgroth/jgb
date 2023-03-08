@@ -83,7 +83,7 @@ impl CpuRegisters {
     pub fn new() -> Self {
         Self {
             accumulator: 0x01,
-            flags: 0x80,
+            flags: 0x00,
             b: 0x00,
             c: 0x13,
             d: 0x00,
