@@ -669,3 +669,118 @@ fn pop_stack() {
         );
     }
 }
+
+#[test]
+fn add_immediate() {
+    run_test(
+        // LD A, 0x05; ADD 0xDE
+        "3E05C6DE",
+        &ExpectedState {
+            a: Some(0xE3),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x01; ADD 0x03
+        "3E01C603",
+        &ExpectedState {
+            a: Some(0x04),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x55; ADD 0xAB
+        "3E55C6AB",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0xB0),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xFF; ADD 0x12
+        "3EFFC612",
+        &ExpectedState {
+            a: Some(0x11),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn add_indirect_hl() {
+    run_test(
+        // LD HL, 0xCDA4; LD (HL), 0x3B; LD A, 0xA1; ADD (HL)
+        "21A4CD363B3EA186",
+        &ExpectedState {
+            a: Some(0xDC),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn add_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let add_opcode = 0x80 | r.to_opcode_bits();
+        let add_opcode_hex = format!("{add_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0x68, 0x10),
+            _ => (0xEA, 0x00),
+        };
+
+        run_test(
+            // LD A, 0x36; LD <r>, 0xB4; ADD <r>
+            &format!("3E36{load_opcode_hex}B4{add_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
+
+#[test]
+fn adc_immediate() {
+    run_test(
+        // LD A, 0xBC; ADC 0x15
+        "3EBCCE15",
+        &ExpectedState {
+            a: Some(0xD1),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xBC; SCF; ADC 0x15
+        "3EBC37CE15",
+        &ExpectedState {
+            a: Some(0xD2),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xFD; SCF; ADC 0x02
+        "3EFD37CE02",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0xB0),
+            ..ExpectedState::empty()
+        },
+    );
+}

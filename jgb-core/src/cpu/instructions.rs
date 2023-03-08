@@ -800,7 +800,7 @@ fn add(l_value: u8, r_value: u8, carry: bool) -> (u8, bool, bool) {
         (sum, true) => (sum + carry, true),
         (sum, false) => sum.overflowing_add(carry),
     };
-    let h_flag = (l_value & 0x0F) + (r_value & 0x0F) >= 0x10;
+    let h_flag = (l_value & 0x0F) + (r_value & 0x0F) + carry >= 0x10;
 
     (sum, carry_flag, h_flag)
 }
@@ -818,7 +818,7 @@ fn sub(l_value: u8, r_value: u8, carry: bool) -> (u8, bool, bool) {
         (difference, true) => (difference - carry, true),
         (difference, false) => difference.overflowing_sub(carry),
     };
-    let h_flag = l_value & 0x0F < r_value & 0x0F;
+    let h_flag = l_value & 0x0F < (r_value & 0x0F) + carry;
 
     (difference, carry_flag, h_flag)
 }
