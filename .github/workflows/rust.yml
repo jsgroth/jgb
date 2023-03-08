@@ -25,7 +25,7 @@ jobs:
         command: fmt
         args: --check --verbose
     - name: Install libsdl2
-      run: sudo apt-get install -y libsdl2-dev
+      run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
     - name: Build
       uses: actions-rs/cargo@v1
       with:
