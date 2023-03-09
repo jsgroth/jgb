@@ -1164,3 +1164,87 @@ fn bcd_sub() {
         },
     );
 }
+
+#[test]
+fn add_hl_register_pair() {
+    run_test(
+        // LD HL, 0x1234; LD BC, 0x5678; ADD HL, BC
+        "21341201785609",
+        &ExpectedState {
+            h: Some(0x68),
+            l: Some(0xAC),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xFFEE; LD DE, 0x0155; ADD HL, DE
+        "21EEFF11550119",
+        &ExpectedState {
+            h: Some(0x01),
+            l: Some(0x43),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0x3911; ADD HL, HL
+        "21113929",
+        &ExpectedState {
+            h: Some(0x72),
+            l: Some(0x22),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC123; ADD HL, SP
+        "2123C139",
+        &ExpectedState {
+            h: Some(0xC1),
+            l: Some(0x21),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xFEF0; LD BC, 0x0110; ADD HL, BC
+        "21F0FE01100109",
+        &ExpectedState {
+            h: Some(0x00),
+            l: Some(0x00),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn inc_register_pair() {
+    // 0x03: INC BC
+    // 0x13: INC DE
+    // 0x23: INC HL
+    // 0x33: INC SP
+}
+
+#[test]
+fn dec_register_pair() {
+    // 0x0B: DEC BC
+    // 0x1B: DEC DE
+    // 0x2B: DEC HL
+    // 0x3B: DEC SP
+}
+
+#[test]
+fn add_sp_offset() {
+    // 0xE8 + e: ADD SP <e>
+}
+
+#[test]
+fn load_hl_sp_offset() {
+    // 0xF8 + e: LD HL SP+<e>
+}
