@@ -1337,3 +1337,181 @@ fn dec_indirect_hl() {
         },
     );
 }
+
+#[test]
+fn and_immediate() {
+    for n in 0x00..=0xFF {
+        let nn = format!("{n:02x}");
+        run_test(
+            // LD A, 0x00; AND <n>
+            &format!("3E00E6{nn}"),
+            &ExpectedState {
+                a: Some(0x00),
+                f: Some(0xA0),
+                ..ExpectedState::empty()
+            },
+        );
+
+        run_test(
+            // LD A, <n>; AND 0x00
+            &format!("3E{nn}E600"),
+            &ExpectedState {
+                a: Some(0x00),
+                f: Some(0xA0),
+                ..ExpectedState::empty()
+            },
+        );
+
+        let expected_f = if n & 0xA5 == 0 { 0xA0 } else { 0x20 };
+        run_test(
+            // LD A, <n>; AND 0xA5
+            &format!("3E{nn}E6A5"),
+            &ExpectedState {
+                a: Some(n & 0xA5),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        let expected_f = if n & 0x5A == 0 { 0xA0 } else { 0x20 };
+        run_test(
+            // LD A, <n>; SCF; AND 0x5A
+            &format!("3E{nn}37E65A"),
+            &ExpectedState {
+                a: Some(n & 0x5A),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
+
+#[test]
+fn and_indirect_hl() {
+    run_test(
+        // LD HL, 0xDDDE; LD (HL), 0xF0; LD A, 0x0F; AND (HL)
+        "21DEDD36F03E0FA6",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0xA0),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC83A; LD (HL), 0x3E; LD A, 0x9A; AND (HL)
+        "213AC8363E3E9AA6",
+        &ExpectedState {
+            a: Some(0x1A),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn and_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let and_opcode = 0xA0 | r.to_opcode_bits();
+        let and_opcode_hex = format!("{and_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0xE5, 0x20),
+            _ => (0x25, 0x20),
+        };
+
+        run_test(
+            // LD <r>, 0x37; LD A, 0xE5; AND <r>
+            &format!("{load_opcode_hex}373EE5{and_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0xAA, 0x20),
+            _ => (0x00, 0xA0),
+        };
+
+        run_test(
+            // LD <r>, 0x55; LD A, 0xAA; AND <r>
+            &format!("{load_opcode_hex}553EAA{and_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
+
+#[test]
+fn carry_flag_manipulation() {
+    run_test(
+        // SCF
+        "37",
+        &ExpectedState {
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // SCF; SCF
+        "3737",
+        &ExpectedState {
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // CCF
+        "3F",
+        &ExpectedState {
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // CCF; CCF
+        "3F3F",
+        &ExpectedState {
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x10; SUB 0x01; SCF
+        "3E10D60137",
+        &ExpectedState {
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; CCF
+        "3E00D6013F",
+        &ExpectedState {
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x10; SUB 0x01; CCF
+        "3E10D6013F",
+        &ExpectedState {
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+}
