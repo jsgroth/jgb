@@ -147,6 +147,16 @@ fn rotate_left_accumulator_thru_carry() {
     );
 
     run_test(
+        // LD A, 0x80; RLA
+        "3E8017",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
         // LD A, 0x36; RLA
         "3E3617",
         &ExpectedState {
@@ -210,6 +220,16 @@ fn rotate_left_indirect_hl_thru_carry() {
     );
 
     run_test(
+        // LD HL, 0xCD29; LD (HL), 0x80; RL (HL)
+        "2129CD3680CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xCD29: 0x00 },
+            f: Some(0x90),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
         // LD HL, 0xD156; LD (HL), 0x36; RL (HL)
         "2156D13636CB16",
         &ExpectedState {
@@ -258,6 +278,80 @@ fn rotate_left_indirect_hl_thru_carry() {
             ..ExpectedState::empty()
         },
     );
+}
+
+#[test]
+fn rotate_left_register_thru_carry() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let rl_opcode = 0x10 | r.to_opcode_bits();
+        let rl_opcode_hex = format!("CB{rl_opcode:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x80);
+        run_test(
+            // LD <r>, 0x00; RL <r>
+            &format!("{load_opcode_hex}00{rl_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x90);
+        run_test(
+            // LD <r> 0x80; RL <r>
+            &format!("{load_opcode_hex}80{rl_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x6C);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0x36; RL <r>
+            &format!("{load_opcode_hex}36{rl_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x22);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD <r>, 0x91; RL <r>
+            &format!("{load_opcode_hex}91{rl_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xFB);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0x7D; SCF; RL <r>
+            &format!("{load_opcode_hex}7D37{rl_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x91);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD <r>, 0xC8; SCF; RL <r>
+            &format!("{load_opcode_hex}C837{rl_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xFF);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD A, 0x00; SUB 0x01; LD <r>, 0xFF; RL <r>
+            &format!("3E00D601{load_opcode_hex}FF{rl_opcode_hex}"),
+            &expected_state,
+        );
+    }
 }
 
 #[test]
@@ -435,6 +529,16 @@ fn rotate_right_accumulator_thru_carry() {
     );
 
     run_test(
+        // LD A, 0x01; RRA
+        "3E011F",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
         // LD A, 0xFF; RRA
         "3EFF1F",
         &ExpectedState {
@@ -498,6 +602,16 @@ fn rotate_right_indirect_hl_thru_carry() {
     );
 
     run_test(
+        // LD HL, 0xCCC1; LD (HL), 0x01; RR (HL)
+        "21C1CC3601CB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xCCC1: 0x00 },
+            f: Some(0x90),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
         // LD HL, 0xCD6C; LD (HL), 0xFF; RR (HL)
         "216CCD36FFCB1E",
         &ExpectedState {
@@ -546,4 +660,78 @@ fn rotate_right_indirect_hl_thru_carry() {
             ..ExpectedState::empty()
         },
     );
+}
+
+#[test]
+fn rotate_right_register_thru_carry() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let rr_opcode = 0x18 | r.to_opcode_bits();
+        let rr_opcode_hex = format!("CB{rr_opcode:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x80);
+        run_test(
+            // LD <r>, 0x00; RR <r>
+            &format!("{load_opcode_hex}00{rr_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x90);
+        run_test(
+            // LD <r>, 0x01; RR <r>
+            &format!("{load_opcode_hex}01{rr_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x7F);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD <r>, 0xFF; RR <r>
+            &format!("{load_opcode_hex}FF{rr_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xFF);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD <r>, 0xFF; SCF; RR <r>
+            &format!("{load_opcode_hex}FF37{rr_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x1A);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0x34; RR <r>
+            &format!("{load_opcode_hex}34{rr_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x9A);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0x34; SCF; RR <r>
+            &format!("{load_opcode_hex}3437{rr_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x88);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD A, 0x00; SUB 0x01; LD <r>, 0x11; RR <r>
+            &format!("3E00D601{load_opcode_hex}11{rr_opcode_hex}"),
+            &expected_state,
+        );
+    }
 }
