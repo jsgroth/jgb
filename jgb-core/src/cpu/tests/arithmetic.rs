@@ -1370,7 +1370,6 @@ fn add_sp_offset() {
 
 #[test]
 fn load_hl_sp_offset() {
-    // 0xF8 + e: LD HL SP+<e>
     run_test(
         // LD HL, SP+5
         "F805",
