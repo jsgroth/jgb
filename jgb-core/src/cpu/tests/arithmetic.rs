@@ -1225,18 +1225,94 @@ fn add_hl_register_pair() {
 
 #[test]
 fn inc_register_pair() {
-    // 0x03: INC BC
-    // 0x13: INC DE
-    // 0x23: INC HL
-    // 0x33: INC SP
+    run_test(
+        // LD BC, 0x4C2F; INC BC
+        "012F4C03",
+        &ExpectedState {
+            b: Some(0x4C),
+            c: Some(0x30),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD DE, 0x4CFF; INC DE
+        "11FF4C13",
+        &ExpectedState {
+            d: Some(0x4D),
+            e: Some(0x00),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xFFFF; INC HL
+        "21FFFF23",
+        &ExpectedState {
+            h: Some(0x00),
+            l: Some(0x00),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // INC SP
+        "33",
+        &ExpectedState {
+            sp: Some(0xFFFF),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]
 fn dec_register_pair() {
-    // 0x0B: DEC BC
-    // 0x1B: DEC DE
-    // 0x2B: DEC HL
-    // 0x3B: DEC SP
+    run_test(
+        // LD BC, 0x3652; DEC BC
+        "0152360B",
+        &ExpectedState {
+            b: Some(0x36),
+            c: Some(0x51),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD DE, 0xFF00; DEC DE
+        "1100FF1B",
+        &ExpectedState {
+            d: Some(0xFE),
+            e: Some(0xFF),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0x0000; DEC HL
+        "2100002B",
+        &ExpectedState {
+            h: Some(0xFF),
+            l: Some(0xFF),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // DEC SP
+        "3B",
+        &ExpectedState {
+            sp: Some(0xFFFD),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]
