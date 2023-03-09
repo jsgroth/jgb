@@ -1632,3 +1632,40 @@ fn carry_flag_manipulation() {
         },
     );
 }
+
+#[test]
+fn complement_accumulator() {
+    for n in 0x00..=0xFF {
+        let nn = format!("{n:02x}");
+
+        run_test(
+            // LD A, <n>; CPL
+            &format!("3E{nn}2F"),
+            &ExpectedState {
+                a: Some(!n),
+                f: Some(0x60),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+
+    run_test(
+        // LD A, 0xC3; SCF; CPL
+        "3EC3372F",
+        &ExpectedState {
+            a: Some(0x3C),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x01; SUB 0x01; CPL
+        "3E01D6012F",
+        &ExpectedState {
+            a: Some(0xFF),
+            f: Some(0xE0),
+            ..ExpectedState::empty()
+        },
+    );
+}
