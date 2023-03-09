@@ -949,6 +949,9 @@ fn xor_immediate() {
 }
 
 #[test]
+fn xor_indirect_hl() {}
+
+#[test]
 fn carry_flag_manipulation() {
     run_test(
         // SCF
