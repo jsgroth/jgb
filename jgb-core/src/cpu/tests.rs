@@ -1451,6 +1451,123 @@ fn and_register() {
 }
 
 #[test]
+fn or_immediate() {
+    for n in 0x00..=0xFF {
+        let nn = format!("{n:02x}");
+
+        let expected_f = if n == 0x00 { 0x80 } else { 0x00 };
+        run_test(
+            // LD A, 0x00; OR <n>
+            &format!("3E00F6{nn}"),
+            &ExpectedState {
+                a: Some(n),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        run_test(
+            // LD A, 0xFF; SCF; OR <n>
+            &format!("3EFF37F6{nn}"),
+            &ExpectedState {
+                a: Some(0xFF),
+                f: Some(0x00),
+                ..ExpectedState::empty()
+            },
+        );
+
+        let expected_f = if n == 0x00 { 0x80 } else { 0x00 };
+        run_test(
+            // LD A, <n>; OR 0x00
+            &format!("3E{nn}F600"),
+            &ExpectedState {
+                a: Some(n),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        run_test(
+            // LD A, 0x32; OR <n>
+            &format!("3E32F6{nn}"),
+            &ExpectedState {
+                a: Some(n | 0x32),
+                f: Some(0x00),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
+
+#[test]
+fn or_indirect_hl() {
+    run_test(
+        // LD HL, 0xC610; LD (HL), 0x6A; LD A, 0x00; OR (HL)
+        "2110C6366A3E00B6",
+        &ExpectedState {
+            a: Some(0x6A),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC610; LD (HL), 0x6A; LD A, 0x33; OR (HL)
+        "2110C6366A3E33B6",
+        &ExpectedState {
+            a: Some(0x7B),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC610; LD (HL), 0x00; LD A, 0x00; OR (HL)
+        "2110C636003E00B6",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn or_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let or_opcode = 0xB0 | r.to_opcode_bits();
+        let or_opcode_hex = format!("{or_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0x86, 0x00),
+            _ => (0xFE, 0x00),
+        };
+        run_test(
+            // LD <r>, 0xFA; LD A, 0x86; SCF; OR <r>
+            &format!("{load_opcode_hex}FA3E8637{or_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        run_test(
+            // LD <r>, 0x00; LD A, 0x00; OR <r>
+            &format!("{load_opcode_hex}003E00{or_opcode_hex}"),
+            &ExpectedState {
+                a: Some(0x00),
+                f: Some(0x80),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
+
+#[test]
 fn carry_flag_manipulation() {
     run_test(
         // SCF
