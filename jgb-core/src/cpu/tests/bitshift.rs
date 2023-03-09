@@ -198,6 +198,69 @@ fn rotate_left_accumulator_thru_carry() {
 }
 
 #[test]
+fn rotate_left_indirect_hl_thru_carry() {
+    run_test(
+        // LD HL, 0xCD29; LD (HL), 0x00; RL (HL)
+        "2129CD3600CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xCD29: 0x00 },
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD156; LD (HL), 0x36; RL (HL)
+        "2156D13636CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xD156: 0x6C },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC85F; LD (HL), 0x91; RL (HL)
+        "215FC83691CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xC85F: 0x22 },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xCED9; LD (HL), 0x7D; SCF; RL (HL)
+        "21D9CE367D37CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xCED9: 0xFB },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xCAA8; LD (HL), 0xC8; SCF; RL (HL)
+        "21A8CA36C837CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xCAA8: 0x91 },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xC1A7; LD (HL), A; RL (HL)
+        "3E00D60121A7C177CB16",
+        &ExpectedState {
+            memory: hash_map! { 0xC1A7: 0xFF },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
 fn rotate_right_accumulator() {
     run_test(
         // LD A, 0x00; RRCA
@@ -416,6 +479,69 @@ fn rotate_right_accumulator_thru_carry() {
         "3E00D6013E111F",
         &ExpectedState {
             a: Some(0x88),
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn rotate_right_indirect_hl_thru_carry() {
+    run_test(
+        // LD HL, 0xCCC1; LD (HL), 0x00, RR (HL)
+        "21C1CC3600CB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xCCC1: 0x00 },
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xCD6C; LD (HL), 0xFF; RR (HL)
+        "216CCD36FFCB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xCD6C: 0x7F },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD623; LD (HL), 0xFF; SCF; RR (HL)
+        "2123D636FF37CB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xD623: 0xFF },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD114; LD (HL), 0x34; RR (HL)
+        "2114D13634CB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xD114: 0x1A },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD5D5; LD (HL), 0x34; SCF; RR (HL)
+        "21D5D5363437CB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xD5D5: 0x9A },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xC251; LD (HL), 0x11; RR (HL)
+        "3E00D6012151C23611CB1E",
+        &ExpectedState {
+            memory: hash_map! { 0xC251: 0x88 },
             f: Some(0x10),
             ..ExpectedState::empty()
         },
