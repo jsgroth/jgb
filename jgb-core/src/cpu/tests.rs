@@ -2,6 +2,7 @@
 #![cfg(not(tarpaulin_include))]
 
 mod arithmetic;
+mod bits;
 mod load;
 
 use crate::cpu::registers::CpuRegister;
