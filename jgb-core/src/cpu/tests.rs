@@ -935,3 +935,85 @@ fn sub_register() {
         );
     }
 }
+
+#[test]
+fn sbc_immediate() {
+    run_test(
+        // LD A, 0x5E; SBC 0x23
+        "3E5EDE23",
+        &ExpectedState {
+            a: Some(0x3B),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x5E; SCF; SBC 0x23
+        "3E5E37DE23",
+        &ExpectedState {
+            a: Some(0x3A),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x01; SCF; SBC 0x01
+        "3E0137DE01",
+        &ExpectedState {
+            a: Some(0xFF),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x01; SCF; SBC 0x00
+        "3E0137DE00",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0xC0),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn sbc_indirect_hl() {
+    run_test(
+        // LD HL, 0xD9DC; LD (HL), 0xFC; LD A, 0xF3; SCF; SBC (HL)
+        "21DCD936FC3EF3379E",
+        &ExpectedState {
+            a: Some(0xF6),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn sbc_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let sbc_opcode = 0x98 | r.to_opcode_bits();
+        let sbc_opcode_hex = format!("{sbc_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0xFF, 0x70),
+            _ => (0xF6, 0x70),
+        };
+
+        run_test(
+            // LD <r>, 0xFC; LD A, 0xF3; SCF; SBC <r>
+            &format!("{load_opcode_hex}FC3EF337{sbc_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
