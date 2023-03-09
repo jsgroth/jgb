@@ -16,31 +16,38 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
         command: fmt
         args: --check --verbose
+
     - name: Install libsdl2
       run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+
     - name: Build
       uses: actions-rs/cargo@v1
       with:
         command: build
         args: --verbose
+
     - name: Check Clippy warnings
       uses: actions-rs/cargo@v1
       with:
         command: clippy
         args: -- -D warnings --verbose
+
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
         command: test
         args: --verbose
+        
     - name: Generate code coverage report
       uses: actions-rs/tarpaulin@v0.1
       with:
