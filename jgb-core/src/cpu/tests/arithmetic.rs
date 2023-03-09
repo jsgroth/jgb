@@ -1317,7 +1317,6 @@ fn dec_register_pair() {
 
 #[test]
 fn add_sp_offset() {
-    // 0xE8 + e: ADD SP <e>
     run_test(
         // ADD SP, 5
         "E805",
@@ -1372,4 +1371,63 @@ fn add_sp_offset() {
 #[test]
 fn load_hl_sp_offset() {
     // 0xF8 + e: LD HL SP+<e>
+    run_test(
+        // LD HL, SP+5
+        "F805",
+        &ExpectedState {
+            h: Some(0x00),
+            l: Some(0x03),
+            sp: Some(0xFFFE),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, SP-5
+        "F8FB",
+        &ExpectedState {
+            h: Some(0xFF),
+            l: Some(0xF9),
+            sp: Some(0xFFFE),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD SP, 0x0FF0; LD HL, SP+16
+        "31F00FF810",
+        &ExpectedState {
+            h: Some(0x10),
+            l: Some(0x00),
+            sp: Some(0x0FF0),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD SP, 0x0005; LD HL, SP-11
+        "310500F8F5",
+        &ExpectedState {
+            h: Some(0xFF),
+            l: Some(0xFA),
+            sp: Some(0x0005),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD SP, 0xF005; LD HL, SP-37
+        "3105F0F8DB",
+        &ExpectedState {
+            h: Some(0xEF),
+            l: Some(0xE0),
+            sp: Some(0xF005),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
 }
