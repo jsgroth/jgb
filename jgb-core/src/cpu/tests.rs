@@ -1571,6 +1571,55 @@ fn or_register() {
 }
 
 #[test]
+fn xor_immediate() {
+    for n in 0x00..=0xFF {
+        let nn = format!("{n:02x}");
+
+        let expected_f = if n == 0x00 { 0x80 } else { 0x00 };
+        run_test(
+            // LD A, 0x00; XOR <n>
+            &format!("3E00EE{nn}"),
+            &ExpectedState {
+                a: Some(n),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        let expected_f = if n ^ 0xFF == 0x00 { 0x80 } else { 0x00 };
+        run_test(
+            // LD A, 0xFF; XOR <n>
+            &format!("3EFFEE{nn}"),
+            &ExpectedState {
+                a: Some(n ^ 0xFF),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+
+        run_test(
+            // LD A, <n>; XOR 0xFF
+            &format!("3E{nn}EEFF"),
+            &ExpectedState {
+                a: Some(n ^ 0xFF),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; XOR 0x33
+        "3E00D601EE33",
+        &ExpectedState {
+            a: Some(0xCC),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
 fn carry_flag_manipulation() {
     run_test(
         // SCF
