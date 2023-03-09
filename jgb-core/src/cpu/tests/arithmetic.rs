@@ -949,7 +949,52 @@ fn xor_immediate() {
 }
 
 #[test]
-fn xor_indirect_hl() {}
+fn xor_indirect_hl() {
+    run_test(
+        // LD HL, 0xDF9F; LD (HL), 0xD3; LD A, 0x98; XOR (HL)
+        "219FDF36D33E98AE",
+        &ExpectedState {
+            a: Some(0x4B),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xDF9F; LD (HL), 0x44; LD A, 0x44; XOR (HL)
+        "3E00D601219FDF36443E44AE",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn xor_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let xor_opcode = 0xA8 | r.to_opcode_bits();
+        let xor_opcode_hex = format!("{xor_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0x00, 0x80),
+            _ => (0x8C, 0x00),
+        };
+        run_test(
+            // LD A, 0x00; SUB 0x01; LD <r>, 0x1A; LD A, 0x96; XOR <r>
+            &format!("3E00D601{load_opcode_hex}1A3E96{xor_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
 
 #[test]
 fn carry_flag_manipulation() {
@@ -1049,6 +1094,72 @@ fn complement_accumulator() {
         &ExpectedState {
             a: Some(0xFF),
             f: Some(0xE0),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn bcd_add() {
+    run_test(
+        // LD A, 0x33; LD B, 0x57; ADD B; DAA
+        "3E3306578027",
+        &ExpectedState {
+            a: Some(0x90),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x99; LD B, 0x11; ADD B; DAA
+        "3E9906118027",
+        &ExpectedState {
+            a: Some(0x10),
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x25; LD B, 0x75; ADD B; DAA
+        "3E2506758027",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0x90),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn bcd_sub() {
+    run_test(
+        // LD A, 0x30; LD B, 0x05; SUB B; DAA
+        "3E3006059027",
+        &ExpectedState {
+            a: Some(0x25),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x13; LD B, 0x73; SUB B; DAA
+        "3E1306739027",
+        &ExpectedState {
+            a: Some(0x40),
+            f: Some(0x50),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x99; SUB A; DAA
+        "3E999727",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0xC0),
             ..ExpectedState::empty()
         },
     );
