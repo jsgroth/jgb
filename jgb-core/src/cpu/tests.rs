@@ -1129,3 +1129,87 @@ fn cp_register() {
         );
     }
 }
+
+#[test]
+fn inc_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let inc_opcode = 0x04 | (r.to_opcode_bits() << 3);
+        let inc_opcode_hex = format!("{inc_opcode:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x39);
+        expected_state.f = Some(0x00);
+
+        run_test(
+            // LD <r>, 0x38; INC <r>
+            &format!("{load_opcode_hex}38{inc_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x39);
+        expected_state.f = Some(0x10);
+
+        run_test(
+            // LD <r>, 0x38; SCF; INC <r>
+            &format!("{load_opcode_hex}3837{inc_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xA0);
+        expected_state.f = Some(0x20);
+
+        run_test(
+            // LD <r>, 0x9F; INC <r>
+            &format!("{load_opcode_hex}9F{inc_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0xA0);
+
+        run_test(
+            // LD <r>, 0xFF; INC <r>
+            &format!("{load_opcode_hex}FF{inc_opcode_hex}"),
+            &expected_state,
+        );
+    }
+}
+
+#[test]
+fn inc_indirect_hl() {
+    run_test(
+        // LD HL, 0xDB3D; LD (HL), 0x20; INC (HL)
+        "213DDB362034",
+        &ExpectedState {
+            f: Some(0x00),
+            memory: hash_map! { 0xDB3D: 0x21 },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC545; LD (HL), 0xCF; INC (HL)
+        "2145C536CF34",
+        &ExpectedState {
+            f: Some(0x20),
+            memory: hash_map! { 0xC545: 0xD0 },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xDE3A; LD (HL), 0xFF; INC (HL)
+        "213ADE36FF34",
+        &ExpectedState {
+            f: Some(0xA0),
+            memory: hash_map! { 0xDE3A: 0x00 },
+            ..ExpectedState::empty()
+        },
+    );
+}

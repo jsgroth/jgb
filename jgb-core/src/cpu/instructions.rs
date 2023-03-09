@@ -462,7 +462,7 @@ impl Instruction {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (sum, _, h_flag) = add(value, 1, false);
-                address_space.write_address_u8(address, value);
+                address_space.write_address_u8(address, sum);
                 cpu_registers.set_some_flags(Some(sum == 0), Some(false), Some(h_flag), None);
             }
             Self::DecRegister(r) => {
@@ -474,7 +474,7 @@ impl Instruction {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (difference, _, h_flag) = sub(value, 1, false);
-                address_space.write_address_u8(address, value);
+                address_space.write_address_u8(address, difference);
                 cpu_registers.set_some_flags(Some(difference == 0), Some(true), Some(h_flag), None);
             }
             Self::AndRegister(r) => {
