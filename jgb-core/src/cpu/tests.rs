@@ -1194,6 +1194,16 @@ fn inc_indirect_hl() {
     );
 
     run_test(
+        // LD HL, 0xDB3D; LD (HL), 0x20; SCF; INC (HL)
+        "213DDB36203734",
+        &ExpectedState {
+            f: Some(0x10),
+            memory: hash_map! { 0xDB3D: 0x21 },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
         // LD HL, 0xC545; LD (HL), 0xCF; INC (HL)
         "2145C536CF34",
         &ExpectedState {
@@ -1209,6 +1219,120 @@ fn inc_indirect_hl() {
         &ExpectedState {
             f: Some(0xA0),
             memory: hash_map! { 0xDE3A: 0x00 },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn dec_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let dec_opcode = 0x05 | (r.to_opcode_bits() << 3);
+        let dec_opcode_hex = format!("{dec_opcode:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x3D);
+        expected_state.f = Some(0x40);
+
+        run_test(
+            // LD <r>, 0x3E; DEC <r>
+            &format!("{load_opcode_hex}3E{dec_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x3D);
+        expected_state.f = Some(0x50);
+
+        run_test(
+            // LD <r>, 0x3E; SCF; DEC <r>
+            &format!("{load_opcode_hex}3E37{dec_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x9F);
+        expected_state.f = Some(0x60);
+
+        run_test(
+            // LD <r> 0xA0; DEC <r>
+            &format!("{load_opcode_hex}A0{dec_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0xC0);
+
+        run_test(
+            // LD <r> 0x01; DEC <r>
+            &format!("{load_opcode_hex}01{dec_opcode_hex}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xFF);
+        expected_state.f = Some(0x60);
+
+        run_test(
+            // LD <r> 0x00; DEC <r>
+            &format!("{load_opcode_hex}00{dec_opcode_hex}"),
+            &expected_state,
+        );
+    }
+}
+
+#[test]
+fn dec_indirect_hl() {
+    run_test(
+        // LD HL, 0xDA48; LD (HL), 0x3E; DEC (HL)
+        "2148DA363E35",
+        &ExpectedState {
+            f: Some(0x40),
+            memory: hash_map! { 0xDA48: 0x3D },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC5EC; LD (HL), 0x3E; SCF; DEC (HL)
+        "21ECC5363E3735",
+        &ExpectedState {
+            f: Some(0x50),
+            memory: hash_map! { 0xC5EC: 0x3D },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xDBCF; LD (HL), 0x20; DEC (HL)
+        "21CFDB362035",
+        &ExpectedState {
+            f: Some(0x60),
+            memory: hash_map! { 0xDBCF: 0x1F },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC1D5; LD (HL), 0x01; DEC (HL)
+        "21D5C1360135",
+        &ExpectedState {
+            f: Some(0xC0),
+            memory: hash_map! { 0xC1D5: 0x00 },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD31C; LD (HL), 0x00; DEC (HL)
+        "211CD3360035",
+        &ExpectedState {
+            f: Some(0x60),
+            memory: hash_map! { 0xD31C: 0xFF },
             ..ExpectedState::empty()
         },
     );
