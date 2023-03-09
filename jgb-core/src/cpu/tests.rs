@@ -1,3 +1,6 @@
+// Don't include this test-only module in code coverage
+#![cfg(not(tarpaulin_include))]
+
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair};
 use crate::cpu::{instructions, CpuRegisters};
 use crate::memory::{AddressSpace, Cartridge};

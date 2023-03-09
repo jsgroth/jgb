@@ -1,3 +1,0 @@
-[config]
-ignore-tests = true
-exclude-files = ["jgb-core/src/cpu/tests.rs"]
