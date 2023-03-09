@@ -1017,3 +1017,115 @@ fn sbc_register() {
         );
     }
 }
+
+#[test]
+fn cp_immediate() {
+    run_test(
+        // LD A, 0xF5; CP 0x13
+        "3EF5FE13",
+        &ExpectedState {
+            a: Some(0xF5),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xCC; CP 0xCC
+        "3ECCFECC",
+        &ExpectedState {
+            a: Some(0xCC),
+            f: Some(0xC0),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xCC; SCF; CP 0xCD
+        "3ECC37FECD",
+        &ExpectedState {
+            a: Some(0xCC),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x12; CP 0x51
+        "3E12FE51",
+        &ExpectedState {
+            a: Some(0x12),
+            f: Some(0x50),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0xF3; CP 0x0A
+        "3EF3FE0A",
+        &ExpectedState {
+            a: Some(0xF3),
+            f: Some(0x60),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; CP 0xFF
+        "3E00FEFF",
+        &ExpectedState {
+            a: Some(0x00),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn cp_indirect_hl() {
+    run_test(
+        // LD HL, 0xD0BC; LD (HL), 0xDD; LD A, 0x88; CP (HL)
+        "21BCD036DD3E88BE",
+        &ExpectedState {
+            a: Some(0x88),
+            f: Some(0x70),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD0BC; LD (HL), 0xDD; LD A, 0xDD; CP (HL)
+        "21BCD036DD3EDDBE",
+        &ExpectedState {
+            a: Some(0xDD),
+            f: Some(0xC0),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn cp_register() {
+    for r in ALL_REGISTERS {
+        let load_opcode = 0x06 | (r.to_opcode_bits() << 3);
+        let load_opcode_hex = format!("{load_opcode:02x}");
+
+        let cp_opcode = 0xB8 | r.to_opcode_bits();
+        let cp_opcode_hex = format!("{cp_opcode:02x}");
+
+        let (expected_a, expected_f) = match r {
+            CpuRegister::A => (0xDE, 0xC0),
+            _ => (0xDE, 0x60),
+        };
+
+        run_test(
+            // LD <r>, 0xAF; LD A, 0xDE; CP <r>
+            &format!("{load_opcode_hex}AF3EDE{cp_opcode_hex}"),
+            &ExpectedState {
+                a: Some(expected_a),
+                f: Some(expected_f),
+                ..ExpectedState::empty()
+            },
+        );
+    }
+}
