@@ -57,4 +57,5 @@ jobs:
     - name: Generate code coverage report
       uses: actions-rs/cargo@v1
       with:
-        command: tarpaulin --out Xml
+        command: tarpaulin
+        args: --out Xml
