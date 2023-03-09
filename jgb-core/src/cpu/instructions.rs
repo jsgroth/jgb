@@ -540,11 +540,14 @@ impl Instruction {
                     .set_register_pair(rr, cpu_registers.read_register_pair(rr).wrapping_sub(1));
             }
             Self::AddSPImmediate(e) => {
-                cpu_registers.sp = ((cpu_registers.sp as i32) + (e as i32)).try_into()?;
+                let (sp, carry_flag, h_flag) = add_sp_offset(cpu_registers.sp, e);
+                cpu_registers.sp = sp;
+                cpu_registers.set_flags(false, false, h_flag, carry_flag);
             }
             Self::LoadHLStackPointerOffset(e) => {
-                let hl = ((cpu_registers.sp as i32) + (e as i32)).try_into()?;
-                cpu_registers.set_hl(hl);
+                let (sp, carry_flag, h_flag) = add_sp_offset(cpu_registers.sp, e);
+                cpu_registers.set_hl(sp);
+                cpu_registers.set_flags(false, false, h_flag, carry_flag);
             }
             Self::RotateLeftAccumulator => {
                 let (value, carry_flag) = rotate_left(cpu_registers.accumulator);
@@ -878,5 +881,23 @@ fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
         let value = value as u8;
         cpu_registers.accumulator = value;
         cpu_registers.set_some_flags(Some(value == 0), None, Some(false), Some(carry_flag));
+    }
+}
+
+fn add_sp_offset(sp: u16, offset: i8) -> (u16, bool, bool) {
+    if offset >= 0 {
+        add_u16(sp, offset as u16)
+    } else {
+        let sp = sp as i32;
+        let offset = -(offset as i32);
+
+        let h_flag = offset > sp & 0x0FFF;
+
+        let new_sp = sp - offset;
+        if new_sp >= 0x0000 {
+            (new_sp as u16, false, h_flag)
+        } else {
+            ((new_sp + 0xFFFF) as u16, true, h_flag)
+        }
     }
 }

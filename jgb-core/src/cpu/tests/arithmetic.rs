@@ -1318,6 +1318,35 @@ fn dec_register_pair() {
 #[test]
 fn add_sp_offset() {
     // 0xE8 + e: ADD SP <e>
+    run_test(
+        // ADD SP, 5
+        "E805",
+        &ExpectedState {
+            sp: Some(0x0003),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // ADD SP, -5
+        "E8FB",
+        &ExpectedState {
+            sp: Some(0xFFF9),
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD SP, 0x0FF0; ADD SP, 16
+        "31F00FE810",
+        &ExpectedState {
+            sp: Some(0x1000),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]

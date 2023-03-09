@@ -57,15 +57,7 @@ pub fn parse_next_instruction(
             Ok((Instruction::DecRegisterPair(rr), pc + 1))
         }
         0x0F => Ok((Instruction::RotateRightAccumulator, pc + 1)),
-        0x10 => {
-            let next_opcode = address_space.read_address_u8(pc + 1);
-            match next_opcode {
-                0x00 => Ok((Instruction::StopClocks, pc + 2)),
-                _ => Err(ParseError::InvalidOpcode {
-                    opcodes: vec![0x10, next_opcode],
-                }),
-            }
-        }
+        0x10 => Ok((Instruction::StopClocks, pc + 2)),
         0x12 => Ok((Instruction::LoadIndirectDEAccumulator, pc + 1)),
         0x17 => Ok((Instruction::RotateLeftAccumulatorThruCarry, pc + 1)),
         0x18 => {
