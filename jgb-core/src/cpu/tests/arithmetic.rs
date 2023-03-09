@@ -1347,6 +1347,26 @@ fn add_sp_offset() {
             ..ExpectedState::empty()
         },
     );
+
+    run_test(
+        // LD SP, 0x0005; ADD SP, -11
+        "310500E8F5",
+        &ExpectedState {
+            sp: Some(0xFFFA),
+            f: Some(0x30),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD SP, 0xF005; ADD SP, -37
+        "3105F0E8DB",
+        &ExpectedState {
+            sp: Some(0xEFE0),
+            f: Some(0x20),
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]

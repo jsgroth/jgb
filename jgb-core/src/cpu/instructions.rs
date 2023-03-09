@@ -941,7 +941,7 @@ fn add_sp_offset(sp: u16, offset: i8) -> (u16, CarryFlag, HalfCarryFlag) {
             (new_sp as u16, CarryFlag(false), HalfCarryFlag(h_flag))
         } else {
             (
-                (new_sp + 0xFFFF) as u16,
+                (new_sp + 0x10000) as u16,
                 CarryFlag(true),
                 HalfCarryFlag(h_flag),
             )
