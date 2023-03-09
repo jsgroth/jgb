@@ -59,3 +59,9 @@ jobs:
       with:
         command: tarpaulin
         args: --out Xml
+
+    - name: Upload code coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-coverage-xml
+        path: cobertura.xml
