@@ -52,4 +52,4 @@ jobs:
       uses: actions-rs/tarpaulin@v0.1
       with:
         version: 0.22.0
-        args: '--ignore-tests --avoid-cfg-tarpaulin'
+        args: '--avoid-cfg-tarpaulin --config tarpaulin.toml'
