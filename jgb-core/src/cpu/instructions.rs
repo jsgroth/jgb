@@ -359,18 +359,18 @@ impl Instruction {
                     false,
                 );
                 cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(sum == 0, false, h_flag, carry);
+                cpu_registers.set_flags(sum == 0, false, h_flag.into(), carry.into());
             }
             Self::AddIndirectHL => {
                 let value = address_space.read_address_u8(cpu_registers.hl());
                 let (sum, carry, h_flag) = add(cpu_registers.accumulator, value, false);
                 cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(sum == 0, false, h_flag, carry);
+                cpu_registers.set_flags(sum == 0, false, h_flag.into(), carry.into());
             }
             Self::AddImmediate(n) => {
                 let (sum, carry, h_flag) = add(cpu_registers.accumulator, n, false);
                 cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(sum == 0, false, h_flag, carry);
+                cpu_registers.set_flags(sum == 0, false, h_flag.into(), carry.into());
             }
             Self::AddCarryRegister(r) => {
                 let (sum, carry, h_flag) = add(
@@ -379,20 +379,20 @@ impl Instruction {
                     cpu_registers.carry_flag(),
                 );
                 cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(sum == 0, false, h_flag, carry);
+                cpu_registers.set_flags(sum == 0, false, h_flag.into(), carry.into());
             }
             Self::AddCarryIndirectHL => {
                 let value = address_space.read_address_u8(cpu_registers.hl());
                 let (sum, carry, h_flag) =
                     add(cpu_registers.accumulator, value, cpu_registers.carry_flag());
                 cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(sum == 0, false, h_flag, carry);
+                cpu_registers.set_flags(sum == 0, false, h_flag.into(), carry.into());
             }
             Self::AddCarryImmediate(n) => {
                 let (sum, carry, h_flag) =
                     add(cpu_registers.accumulator, n, cpu_registers.carry_flag());
                 cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(sum == 0, false, h_flag, carry);
+                cpu_registers.set_flags(sum == 0, false, h_flag.into(), carry.into());
             }
             Self::SubtractRegister(r) => {
                 let (difference, carry, h_flag) = sub(
@@ -401,18 +401,18 @@ impl Instruction {
                     false,
                 );
                 cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::SubtractIndirectHL => {
                 let value = address_space.read_address_u8(cpu_registers.hl());
                 let (difference, carry, h_flag) = sub(cpu_registers.accumulator, value, false);
                 cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::SubtractImmediate(n) => {
                 let (difference, carry, h_flag) = sub(cpu_registers.accumulator, n, false);
                 cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::SubtractCarryRegister(r) => {
                 let (difference, carry, h_flag) = sub(
@@ -421,20 +421,20 @@ impl Instruction {
                     cpu_registers.carry_flag(),
                 );
                 cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::SubtractCarryIndirectHL => {
                 let value = address_space.read_address_u8(cpu_registers.hl());
                 let (difference, carry, h_flag) =
                     sub(cpu_registers.accumulator, value, cpu_registers.carry_flag());
                 cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::SubtractCarryImmediate(n) => {
                 let (difference, carry, h_flag) =
                     sub(cpu_registers.accumulator, n, cpu_registers.carry_flag());
                 cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::CompareRegister(r) => {
                 let (difference, carry, h_flag) = sub(
@@ -442,40 +442,60 @@ impl Instruction {
                     cpu_registers.read_register(r),
                     false,
                 );
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::CompareIndirectHL => {
                 let value = address_space.read_address_u8(cpu_registers.hl());
                 let (difference, carry, h_flag) = sub(cpu_registers.accumulator, value, false);
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::CompareImmediate(n) => {
                 let (difference, carry, h_flag) = sub(cpu_registers.accumulator, n, false);
-                cpu_registers.set_flags(difference == 0, true, h_flag, carry);
+                cpu_registers.set_flags(difference == 0, true, h_flag.into(), carry.into());
             }
             Self::IncRegister(r) => {
                 let (sum, _, h_flag) = add(cpu_registers.read_register(r), 1, false);
                 cpu_registers.set_register(r, sum);
-                cpu_registers.set_some_flags(Some(sum == 0), Some(false), Some(h_flag), None);
+                cpu_registers.set_some_flags(
+                    Some(sum == 0),
+                    Some(false),
+                    Some(h_flag.into()),
+                    None,
+                );
             }
             Self::IncIndirectHL => {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (sum, _, h_flag) = add(value, 1, false);
                 address_space.write_address_u8(address, sum);
-                cpu_registers.set_some_flags(Some(sum == 0), Some(false), Some(h_flag), None);
+                cpu_registers.set_some_flags(
+                    Some(sum == 0),
+                    Some(false),
+                    Some(h_flag.into()),
+                    None,
+                );
             }
             Self::DecRegister(r) => {
                 let (difference, _, h_flag) = sub(cpu_registers.read_register(r), 1, false);
                 cpu_registers.set_register(r, difference);
-                cpu_registers.set_some_flags(Some(difference == 0), Some(true), Some(h_flag), None);
+                cpu_registers.set_some_flags(
+                    Some(difference == 0),
+                    Some(true),
+                    Some(h_flag.into()),
+                    None,
+                );
             }
             Self::DecIndirectHL => {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (difference, _, h_flag) = sub(value, 1, false);
                 address_space.write_address_u8(address, difference);
-                cpu_registers.set_some_flags(Some(difference == 0), Some(true), Some(h_flag), None);
+                cpu_registers.set_some_flags(
+                    Some(difference == 0),
+                    Some(true),
+                    Some(h_flag.into()),
+                    None,
+                );
             }
             Self::AndRegister(r) => {
                 let value = cpu_registers.accumulator & cpu_registers.read_register(r);
@@ -529,7 +549,12 @@ impl Instruction {
                 let (sum, carry, h_flag) =
                     add_u16(cpu_registers.hl(), cpu_registers.read_register_pair(rr));
                 cpu_registers.set_hl(sum);
-                cpu_registers.set_some_flags(None, Some(false), Some(h_flag), Some(carry));
+                cpu_registers.set_some_flags(
+                    None,
+                    Some(false),
+                    Some(h_flag.into()),
+                    Some(carry.into()),
+                );
             }
             Self::IncRegisterPair(rr) => {
                 cpu_registers
@@ -542,46 +567,46 @@ impl Instruction {
             Self::AddSPImmediate(e) => {
                 let (sp, carry_flag, h_flag) = add_sp_offset(cpu_registers.sp, e);
                 cpu_registers.sp = sp;
-                cpu_registers.set_flags(false, false, h_flag, carry_flag);
+                cpu_registers.set_flags(false, false, h_flag.into(), carry_flag.into());
             }
             Self::LoadHLStackPointerOffset(e) => {
                 let (sp, carry_flag, h_flag) = add_sp_offset(cpu_registers.sp, e);
                 cpu_registers.set_hl(sp);
-                cpu_registers.set_flags(false, false, h_flag, carry_flag);
+                cpu_registers.set_flags(false, false, h_flag.into(), carry_flag.into());
             }
             Self::RotateLeftAccumulator => {
                 let (value, carry_flag) = rotate_left(cpu_registers.accumulator);
                 cpu_registers.accumulator = value;
-                cpu_registers.set_flags(false, false, false, carry_flag);
+                cpu_registers.set_flags(false, false, false, carry_flag.into());
             }
             Self::RotateLeftAccumulatorThruCarry => {
                 let (value, carry_flag) =
                     rotate_left_thru_carry(cpu_registers.accumulator, cpu_registers.carry_flag());
                 cpu_registers.accumulator = value;
-                cpu_registers.set_flags(false, false, false, carry_flag);
+                cpu_registers.set_flags(false, false, false, carry_flag.into());
             }
             Self::RotateRightAccumulator => {
                 let (value, carry_flag) = rotate_right(cpu_registers.accumulator);
                 cpu_registers.accumulator = value;
-                cpu_registers.set_flags(false, false, false, carry_flag);
+                cpu_registers.set_flags(false, false, false, carry_flag.into());
             }
             Self::RotateRightAccumulatorThruCarry => {
                 let (value, carry_flag) =
                     rotate_right_thru_carry(cpu_registers.accumulator, cpu_registers.carry_flag());
                 cpu_registers.accumulator = value;
-                cpu_registers.set_flags(false, false, false, carry_flag);
+                cpu_registers.set_flags(false, false, false, carry_flag.into());
             }
             Self::RotateLeft(r) => {
                 let (value, carry_flag) = rotate_left(cpu_registers.read_register(r));
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateLeftIndirectHL => {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (value, carry_flag) = rotate_left(value);
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateLeftThruCarry(r) => {
                 let (value, carry_flag) = rotate_left_thru_carry(
@@ -589,26 +614,26 @@ impl Instruction {
                     cpu_registers.carry_flag(),
                 );
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateLeftIndirectHLThruCarry => {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (value, carry_flag) = rotate_left_thru_carry(value, cpu_registers.carry_flag());
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateRight(r) => {
                 let (value, carry_flag) = rotate_right(cpu_registers.read_register(r));
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateRightIndirectHL => {
                 let address = cpu_registers.hl();
                 let value = address_space.read_address_u8(address);
                 let (value, carry_flag) = rotate_right(value);
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateRightThruCarry(r) => {
                 let (value, carry_flag) = rotate_right_thru_carry(
@@ -616,7 +641,7 @@ impl Instruction {
                     cpu_registers.carry_flag(),
                 );
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::RotateRightIndirectHLThruCarry => {
                 let address = cpu_registers.hl();
@@ -624,7 +649,7 @@ impl Instruction {
                 let (value, carry_flag) =
                     rotate_right_thru_carry(value, cpu_registers.carry_flag());
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry_flag);
+                cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::ShiftLeft(r) => {
                 let (value, carry) = cpu_registers.read_register(r).overflowing_shl(1);
@@ -797,7 +822,25 @@ impl Instruction {
     }
 }
 
-fn add(l_value: u8, r_value: u8, carry: bool) -> (u8, bool, bool) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CarryFlag(bool);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HalfCarryFlag(bool);
+
+impl From<CarryFlag> for bool {
+    fn from(value: CarryFlag) -> Self {
+        value.0
+    }
+}
+
+impl From<HalfCarryFlag> for bool {
+    fn from(value: HalfCarryFlag) -> Self {
+        value.0
+    }
+}
+
+fn add(l_value: u8, r_value: u8, carry: bool) -> (u8, CarryFlag, HalfCarryFlag) {
     let carry = u8::from(carry);
     let (sum, carry_flag) = match l_value.overflowing_add(r_value) {
         (sum, true) => (sum + carry, true),
@@ -805,17 +848,17 @@ fn add(l_value: u8, r_value: u8, carry: bool) -> (u8, bool, bool) {
     };
     let h_flag = (l_value & 0x0F) + (r_value & 0x0F) + carry >= 0x10;
 
-    (sum, carry_flag, h_flag)
+    (sum, CarryFlag(carry_flag), HalfCarryFlag(h_flag))
 }
 
-fn add_u16(l_value: u16, r_value: u16) -> (u16, bool, bool) {
+fn add_u16(l_value: u16, r_value: u16) -> (u16, CarryFlag, HalfCarryFlag) {
     let (sum, carry_flag) = l_value.overflowing_add(r_value);
     let h_flag = (l_value & 0x0FFF) + (r_value & 0x0FFF) >= 0x1000;
 
-    (sum, carry_flag, h_flag)
+    (sum, CarryFlag(carry_flag), HalfCarryFlag(h_flag))
 }
 
-fn sub(l_value: u8, r_value: u8, carry: bool) -> (u8, bool, bool) {
+fn sub(l_value: u8, r_value: u8, carry: bool) -> (u8, CarryFlag, HalfCarryFlag) {
     let carry = u8::from(carry);
     let (difference, carry_flag) = match l_value.overflowing_sub(r_value) {
         (difference, true) => (difference - carry, true),
@@ -823,35 +866,35 @@ fn sub(l_value: u8, r_value: u8, carry: bool) -> (u8, bool, bool) {
     };
     let h_flag = l_value & 0x0F < (r_value & 0x0F) + carry;
 
-    (difference, carry_flag, h_flag)
+    (difference, CarryFlag(carry_flag), HalfCarryFlag(h_flag))
 }
 
-fn rotate_left(value: u8) -> (u8, bool) {
+fn rotate_left(value: u8) -> (u8, CarryFlag) {
     let leftmost_set = value & 0x80 != 0;
     let new_value = (value << 1) | u8::from(leftmost_set);
 
-    (new_value, leftmost_set)
+    (new_value, CarryFlag(leftmost_set))
 }
 
-fn rotate_left_thru_carry(value: u8, carry: bool) -> (u8, bool) {
+fn rotate_left_thru_carry(value: u8, carry: bool) -> (u8, CarryFlag) {
     let leftmost_set = value & 0x80 != 0;
     let new_value = (value << 1) | u8::from(carry);
 
-    (new_value, leftmost_set)
+    (new_value, CarryFlag(leftmost_set))
 }
 
-fn rotate_right(value: u8) -> (u8, bool) {
+fn rotate_right(value: u8) -> (u8, CarryFlag) {
     let rightmost_set = value & 0x01 != 0;
     let new_value = (value >> 1) | (u8::from(rightmost_set) << 7);
 
-    (new_value, rightmost_set)
+    (new_value, CarryFlag(rightmost_set))
 }
 
-fn rotate_right_thru_carry(value: u8, carry: bool) -> (u8, bool) {
+fn rotate_right_thru_carry(value: u8, carry: bool) -> (u8, CarryFlag) {
     let rightmost_set = value & 0x01 != 0;
     let new_value = (value >> 1) | (u8::from(carry) << 7);
 
-    (new_value, rightmost_set)
+    (new_value, CarryFlag(rightmost_set))
 }
 
 fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
@@ -884,7 +927,7 @@ fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
     }
 }
 
-fn add_sp_offset(sp: u16, offset: i8) -> (u16, bool, bool) {
+fn add_sp_offset(sp: u16, offset: i8) -> (u16, CarryFlag, HalfCarryFlag) {
     if offset >= 0 {
         add_u16(sp, offset as u16)
     } else {
@@ -895,9 +938,13 @@ fn add_sp_offset(sp: u16, offset: i8) -> (u16, bool, bool) {
 
         let new_sp = sp - offset;
         if new_sp >= 0x0000 {
-            (new_sp as u16, false, h_flag)
+            (new_sp as u16, CarryFlag(false), HalfCarryFlag(h_flag))
         } else {
-            ((new_sp + 0xFFFF) as u16, true, h_flag)
+            (
+                (new_sp + 0xFFFF) as u16,
+                CarryFlag(true),
+                HalfCarryFlag(h_flag),
+            )
         }
     }
 }
