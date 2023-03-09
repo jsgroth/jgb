@@ -57,7 +57,7 @@ jobs:
       id: tarpaulin-cache
       uses: actions/cache@v3
       with:
-        path: ~/.cargo/bin/tarpaulin
+        path: ~/.cargo/bin/cargo-tarpaulin
         key: ${{ runner.os }}-${{ steps.get-tarpaulin-version.outputs.version }}
 
     - name: Install tarpaulin
