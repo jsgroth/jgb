@@ -3,6 +3,7 @@
 
 mod arithmetic;
 mod bitshift;
+mod controlflow;
 mod load;
 mod singlebit;
 
