@@ -4,6 +4,7 @@
 mod arithmetic;
 mod bitshift;
 mod load;
+mod singlebit;
 
 use crate::cpu::registers::CpuRegister;
 use crate::cpu::{instructions, CpuRegisters};

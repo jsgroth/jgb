@@ -698,12 +698,12 @@ impl Instruction {
             }
             Self::TestBit(n, r) => {
                 let r_value = cpu_registers.read_register(r);
-                let z_flag = r_value & (1 << n) != 0;
+                let z_flag = r_value & (1 << n) == 0;
                 cpu_registers.set_some_flags(Some(z_flag), Some(false), Some(true), None);
             }
             Self::TestBitIndirectHL(n) => {
                 let value = address_space.read_address_u8(cpu_registers.hl());
-                let z_flag = value & (1 << n) != 0;
+                let z_flag = value & (1 << n) == 0;
                 cpu_registers.set_some_flags(Some(z_flag), Some(false), Some(true), None);
             }
             Self::SetBit(n, r) => {
