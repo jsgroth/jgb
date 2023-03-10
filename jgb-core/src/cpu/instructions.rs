@@ -16,16 +16,6 @@ pub enum JumpCondition {
 }
 
 impl JumpCondition {
-    fn from_opcode_bits(bits: u8) -> Self {
-        match bits & 0x03 {
-            0x00 => Self::NZ,
-            0x01 => Self::Z,
-            0x02 => Self::NC,
-            0x03 => Self::C,
-            _ => panic!("{bits} & 0x03 was not in range [0x00, 0x03]"),
-        }
-    }
-
     fn check(self, cpu_registers: &CpuRegisters) -> bool {
         match self {
             Self::NZ => !cpu_registers.zero_flag(),
