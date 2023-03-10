@@ -202,3 +202,91 @@ fn conditional_jump_c() {
         },
     );
 }
+
+#[test]
+fn relative_jump() {
+    run_test(
+        concat!(
+            "06AA", // 0x0150: LD B, 0xAA
+            "1802", // 0x0152: JR 2
+            "06BB", // 0x0154: LD B, 0xBB
+            "0ECC", // 0x0156: LD C, 0xCC
+        ),
+        &ExpectedState {
+            b: Some(0xAA),
+            c: Some(0xCC),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "06AA", // 0x0150: LD B, 0xAA
+            "1806", // 0x0152: JR 6
+            "0688", // 0x0154: LD B, 0x88
+            "3E99", // 0x0156: LD A, 0x99
+            "1802", // 0x0158: JR 2
+            "18FA", // 0x015A: JR -6
+            "0ECC", // 0x015C: LD C, 0xCC
+        ),
+        &ExpectedState {
+            a: Some(0x99),
+            b: Some(0xAA),
+            c: Some(0xCC),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn relative_jump_nz_z() {
+    run_test(
+        concat!(
+            "06AA", // 0x0150: LD B, 0xAA
+            "0ECC", // 0x0152: LD C, 0xCC
+            "3E01", // 0x0154: LD A, 0x01
+            "FE00", // 0x0156: CP 0x00
+            "2006", // 0x0158: JR NZ 6
+            "06BB", // 0x015A: LD B, 0xBB
+            "16DD", // 0x015C: LD D, 0xDD
+            "1804", // 0x015E: JR 4
+            "28FA", // 0x0160: JR Z, -6
+            "20F8", // 0x0162: JR NZ, -8
+            "1EEE", // 0x0164: LD E, 0xEE
+        ),
+        &ExpectedState {
+            a: Some(0x01),
+            b: Some(0xAA),
+            c: Some(0xCC),
+            d: Some(0xDD),
+            e: Some(0xEE),
+            f: Some(0x40),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "06AA", // 0x0150: LD B, 0xAA
+            "0ECC", // 0x0152: LD C, 0xCC
+            "3E00", // 0x0154: LD A, 0x00
+            "FE00", // 0x0156: CP 0x00
+            "2806", // 0x0158: JR Z 6
+            "06BB", // 0x015A: LD B, 0xBB
+            "16DD", // 0x015C: LD D, 0xDD
+            "1804", // 0x015E: JR 4
+            "20FA", // 0x0160: JR NZ, -6
+            "28F8", // 0x0162: JR Z, -8
+            "1EEE", // 0x0164: LD E, 0xEE
+        ),
+        &ExpectedState {
+            a: Some(0x00),
+            b: Some(0xAA),
+            c: Some(0xCC),
+            d: Some(0xDD),
+            e: Some(0xEE),
+            f: Some(0xC0),
+            ..ExpectedState::empty()
+        },
+    );
+}
