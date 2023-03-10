@@ -664,13 +664,13 @@ impl Instruction {
             }
             Self::Swap(r) => {
                 let register = cpu_registers.get_register_mut(r);
-                *register = register.swap_bytes();
+                *register = swap_bits(*register);
                 let z_flag = *register == 0;
                 cpu_registers.set_flags(z_flag, false, false, false);
             }
             Self::SwapIndirectHL => {
                 let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address).swap_bytes();
+                let value = swap_bits(address_space.read_address_u8(address));
                 address_space.write_address_u8(address, value);
                 cpu_registers.set_flags(value == 0, false, false, false);
             }
@@ -901,6 +901,10 @@ fn shift_right_arithmetic(value: u8) -> (u8, CarryFlag) {
 
 fn shift_right_logical(value: u8) -> (u8, CarryFlag) {
     (value >> 1, CarryFlag(value & 0x01 != 0))
+}
+
+fn swap_bits(value: u8) -> u8 {
+    (value >> 4) | (value << 4)
 }
 
 fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {

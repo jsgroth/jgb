@@ -1062,3 +1062,131 @@ fn shift_right_logical_register() {
         );
     }
 }
+
+#[test]
+fn swap_indirect_hl() {
+    run_test(
+        // LD HL, 0xDF07; LD (HL), 0x00; SWAP (HL)
+        "2107DF3600CB36",
+        &ExpectedState {
+            memory: hash_map! { 0xDF07: 0x00 },
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD3F6; LD (HL), 0xFF; SWAP (HL)
+        "21F6D336FFCB36",
+        &ExpectedState {
+            memory: hash_map! { 0xD3F6: 0xFF },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xDA19; LD (HL), 0xF0; SWAP (HL)
+        "2119DA36F0CB36",
+        &ExpectedState {
+            memory: hash_map! { 0xDA19: 0x0F },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD1F6; LD (HL), 0x9C; SWAP (HL)
+        "21F6D1369CCB36",
+        &ExpectedState {
+            memory: hash_map! { 0xD1F6: 0xC9 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xC723; LD (HL), 0x37; SWAP (HL); SWAP(HL)
+        "2123C73637CB36CB36",
+        &ExpectedState {
+            memory: hash_map! { 0xC723: 0x37 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xD6F2; LD (HL), 0x91; SWAP (HL)
+        "3E00D60121F2D63691CB36",
+        &ExpectedState {
+            memory: hash_map! { 0xD6F2: 0x19 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn swap_register() {
+    for r in ALL_REGISTERS {
+        let ld = 0x06 | (r.to_opcode_bits() << 3);
+        let ld = format!("{ld:02x}");
+
+        let swap = 0x30 | r.to_opcode_bits();
+        let swap = format!("CB{swap:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x80);
+        run_test(
+            // LD <r>, 0x00; SWAP <r>
+            &format!("{ld}00{swap}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xFF);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0xFF; SWAP <r>
+            &format!("{ld}FF{swap}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x0F);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0xF0; SWAP <r>
+            &format!("{ld}F0{swap}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xC9);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0x9C; SWAP <r>
+            &format!("{ld}9C{swap}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x37);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r>, 0x37; SWAP <r>; SWAP <r>
+            &format!("{ld}37{swap}{swap}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x19);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD A, 0x00; SUB 0x01; LD <r>, 0x91; SWAP <r>
+            &format!("3E00D601{ld}91{swap}"),
+            &expected_state,
+        );
+    }
+}
