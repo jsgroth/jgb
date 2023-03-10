@@ -1,4 +1,4 @@
-use super::{run_test, set_in_state, ExpectedState, ALL_REGISTERS};
+use super::{hash_map, run_test, set_in_state, ExpectedState, ALL_REGISTERS};
 
 #[test]
 fn test_bit_register() {
@@ -37,4 +37,35 @@ fn test_bit_register() {
 }
 
 #[test]
-fn test_bit_indirect_hl() {}
+fn test_bit_indirect_hl() {
+    for _ in 0..10 {
+        let n: u8 = rand::random();
+        let n_hex = format!("{n:02x}");
+
+        for bit in 0..8 {
+            let opcode = 0x46 | (bit << 3);
+            let opcode = format!("CB{opcode:02x}");
+
+            let expected_z_flag = u8::from(n & (1 << bit) == 0);
+            run_test(
+                // LD HL, 0xC53E; LD (HL), <n>; BIT <b>, (HL)
+                &format!("213EC536{n_hex}{opcode}"),
+                &ExpectedState {
+                    memory: hash_map! { 0xC53E: n },
+                    f: Some(0x20 | (expected_z_flag << 7)),
+                    ..ExpectedState::empty()
+                },
+            );
+        }
+    }
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xC53E; LD (HL), 0xF7; BIT 3, (HL)
+        "3E00D601213EC536F7CB5E",
+        &ExpectedState {
+            memory: hash_map! { 0xC53E: 0xF7 },
+            f: Some(0xB0),
+            ..ExpectedState::empty()
+        },
+    );
+}
