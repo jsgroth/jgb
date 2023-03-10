@@ -652,16 +652,15 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, carry_flag.into());
             }
             Self::ShiftLeft(r) => {
-                let (value, carry) = cpu_registers.read_register(r).overflowing_shl(1);
+                let (value, carry) = shift_left(cpu_registers.read_register(r));
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry);
+                cpu_registers.set_flags(value == 0, false, false, carry.into());
             }
             Self::ShiftLeftIndirectHL => {
                 let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address);
-                let (value, carry) = value.overflowing_shl(1);
+                let (value, carry) = shift_left(address_space.read_address_u8(address));
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry);
+                cpu_registers.set_flags(value == 0, false, false, carry.into());
             }
             Self::Swap(r) => {
                 let register = cpu_registers.get_register_mut(r);
@@ -676,31 +675,26 @@ impl Instruction {
                 cpu_registers.set_flags(value == 0, false, false, false);
             }
             Self::ShiftRight(r) => {
-                let old_value = cpu_registers.read_register(r);
-                let (mut value, carry) = old_value.overflowing_shr(1);
-                value |= old_value & 0x80;
+                let (value, carry) = shift_right_arithmetic(cpu_registers.read_register(r));
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry);
+                cpu_registers.set_flags(value == 0, false, false, carry.into());
             }
             Self::ShiftRightIndirectHL => {
                 let address = cpu_registers.hl();
-                let old_value = address_space.read_address_u8(address);
-                let (mut value, carry) = old_value.overflowing_shr(1);
-                value |= old_value & 0x80;
+                let (value, carry) = shift_right_arithmetic(address_space.read_address_u8(address));
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry);
+                cpu_registers.set_flags(value == 0, false, false, carry.into());
             }
             Self::ShiftRightLogical(r) => {
-                let (value, carry) = cpu_registers.read_register(r).overflowing_shr(1);
+                let (value, carry) = shift_right_logical(cpu_registers.read_register(r));
                 cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(value == 0, false, false, carry);
+                cpu_registers.set_flags(value == 0, false, false, carry.into());
             }
             Self::ShiftRightLogicalIndirectHL => {
                 let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address);
-                let (value, carry) = value.overflowing_shr(1);
+                let (value, carry) = shift_right_logical(address_space.read_address_u8(address));
                 address_space.write_address_u8(address, value);
-                cpu_registers.set_flags(value == 0, false, false, carry);
+                cpu_registers.set_flags(value == 0, false, false, carry.into());
             }
             Self::TestBit(n, r) => {
                 let r_value = cpu_registers.read_register(r);
@@ -895,6 +889,18 @@ fn rotate_right_thru_carry(value: u8, carry: bool) -> (u8, CarryFlag) {
     let new_value = (value >> 1) | (u8::from(carry) << 7);
 
     (new_value, CarryFlag(rightmost_set))
+}
+
+fn shift_left(value: u8) -> (u8, CarryFlag) {
+    (value << 1, CarryFlag(value & 0x80 != 0))
+}
+
+fn shift_right_arithmetic(value: u8) -> (u8, CarryFlag) {
+    ((value >> 1) | (value & 0x80), CarryFlag(value & 0x01 != 0))
+}
+
+fn shift_right_logical(value: u8) -> (u8, CarryFlag) {
+    (value >> 1, CarryFlag(value & 0x01 != 0))
 }
 
 fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
