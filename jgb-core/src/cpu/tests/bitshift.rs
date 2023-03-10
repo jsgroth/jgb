@@ -844,3 +844,221 @@ fn shift_left_register() {
         );
     }
 }
+
+#[test]
+fn shift_right_arithmetic_indirect_hl() {
+    run_test(
+        // LD HL, 0xC7DB; LD (HL), 0x00; SRA (HL)
+        "21DBC73600CB2E",
+        &ExpectedState {
+            memory: hash_map! { 0xC7DB: 0x00 },
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xDA3A; LD (HL), 0x88; SRA (HL)
+        "213ADA3688CB2E",
+        &ExpectedState {
+            memory: hash_map! { 0xDA3A: 0xC4 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD42D; LD (HL), 0x29; SRA (HL)
+        "212DD43629CB2E",
+        &ExpectedState {
+            memory: hash_map! { 0xD42D: 0x14 },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD602; LD (HL), 0x01; SRA (HL)
+        "2102D63601CB2E",
+        &ExpectedState {
+            memory: hash_map! { 0xD602: 0x00 },
+            f: Some(0x90),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xD02B; LD (HL), 0x80; SRA (HL)
+        "3E00D601212BD03680CB2E",
+        &ExpectedState {
+            memory: hash_map! { 0xD02B: 0xC0 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn shift_right_arithmetic_register() {
+    for r in ALL_REGISTERS {
+        let ld = 0x06 | (r.to_opcode_bits() << 3);
+        let ld = format!("{ld:02x}");
+
+        let sra = 0x28 | r.to_opcode_bits();
+        let sra = format!("CB{sra:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x80);
+        run_test(
+            // LD <r>, 0x00; SRA <r>
+            &format!("{ld}00{sra}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xC4);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r> 0x88; SRA <r>
+            &format!("{ld}88{sra}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x14);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD <r>, 0x29; SRA <r>
+            &format!("{ld}29{sra}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x90);
+        run_test(
+            // LD <r>, 0x01; SRA <r>
+            &format!("{ld}01{sra}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0xC0);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD A, 0x00; SUB 0x01; LD <r>, 0x80; SRA <r>
+            &format!("3E00D601{ld}80{sra}"),
+            &expected_state,
+        );
+    }
+}
+
+#[test]
+fn shift_right_logical_indirect_hl() {
+    run_test(
+        // LD HL, 0xC7DB; LD (HL), 0x00; SRL (HL)
+        "21DBC73600CB3E",
+        &ExpectedState {
+            memory: hash_map! { 0xC7DB: 0x00 },
+            f: Some(0x80),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xDA3A; LD (HL), 0x88; SRL (HL)
+        "213ADA3688CB3E",
+        &ExpectedState {
+            memory: hash_map! { 0xDA3A: 0x44 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD42D; LD (HL), 0x29; SRL (HL)
+        "212DD43629CB3E",
+        &ExpectedState {
+            memory: hash_map! { 0xD42D: 0x14 },
+            f: Some(0x10),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD HL, 0xD602; LD (HL), 0x01; SRL (HL)
+        "2102D63601CB3E",
+        &ExpectedState {
+            memory: hash_map! { 0xD602: 0x00 },
+            f: Some(0x90),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD A, 0x00; SUB 0x01; LD HL, 0xD02B; LD (HL), 0x80; SRL (HL)
+        "3E00D601212BD03680CB3E",
+        &ExpectedState {
+            memory: hash_map! { 0xD02B: 0x40 },
+            f: Some(0x00),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn shift_right_logical_register() {
+    for r in ALL_REGISTERS {
+        let ld = 0x06 | (r.to_opcode_bits() << 3);
+        let ld = format!("{ld:02x}");
+
+        let srl = 0x38 | r.to_opcode_bits();
+        let srl = format!("CB{srl:02x}");
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x80);
+        run_test(
+            // LD <r>, 0x00; SRL <r>
+            &format!("{ld}00{srl}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x44);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD <r> 0x88; SRL <r>
+            &format!("{ld}88{srl}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x14);
+        expected_state.f = Some(0x10);
+        run_test(
+            // LD <r>, 0x29; SRL <r>
+            &format!("{ld}29{srl}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x00);
+        expected_state.f = Some(0x90);
+        run_test(
+            // LD <r>, 0x01; SRL <r>
+            &format!("{ld}01{srl}"),
+            &expected_state,
+        );
+
+        let mut expected_state = ExpectedState::empty();
+        set_in_state(&mut expected_state, r, 0x40);
+        expected_state.f = Some(0x00);
+        run_test(
+            // LD A, 0x00; SUB 0x01; LD <r>, 0x80; SRL <r>
+            &format!("3E00D601{ld}80{srl}"),
+            &expected_state,
+        );
+    }
+}
