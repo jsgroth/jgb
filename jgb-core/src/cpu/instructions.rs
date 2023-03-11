@@ -779,7 +779,6 @@ impl Instruction {
                 cpu_registers.pc = address_space.read_address_u16(cpu_registers.sp);
                 cpu_registers.sp += 2;
                 cpu_registers.ime = true;
-                cpu_registers.interrupt_delay = false;
             }
             Self::RestartCall(n) => {
                 cpu_registers.sp -= 2;
@@ -797,10 +796,16 @@ impl Instruction {
             }
             Self::EnableInterrupts => {
                 cpu_registers.ime = true;
+
                 cpu_registers.interrupt_delay = true;
+                // Return early because this is the only instruction that should not unset interrupt
+                // delay
+                return Ok(());
             }
             Self::NoOp => {}
         }
+
+        cpu_registers.interrupt_delay = false;
 
         Ok(())
     }

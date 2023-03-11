@@ -11,6 +11,38 @@ use crate::cpu::registers::CpuRegister;
 use crate::cpu::{instructions, CpuRegisters};
 use crate::memory::{AddressSpace, Cartridge};
 use std::collections::HashMap;
+use std::fmt::Formatter;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HexFormattableBool(bool);
+
+impl From<bool> for HexFormattableBool {
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
+impl std::fmt::Display for HexFormattableBool {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::fmt::UpperHex for HexFormattableBool {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.0 {
+            write!(f, "01")
+        } else {
+            write!(f, "00")
+        }
+    }
+}
+
+impl std::fmt::LowerHex for HexFormattableBool {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(self, f)
+    }
+}
 
 struct ExpectedState {
     a: Option<u8>,
@@ -22,6 +54,8 @@ struct ExpectedState {
     h: Option<u8>,
     l: Option<u8>,
     sp: Option<u16>,
+    ime: Option<HexFormattableBool>,
+    interrupt_delay: Option<HexFormattableBool>,
     memory: HashMap<u16, u8>,
 }
 
@@ -34,7 +68,7 @@ macro_rules! compare_bytes {
                 if let Some(expected) = $expected {
                     let actual = $actual;
                     if expected != actual {
-                        match_fails.push(format!("{} mismatch: expected 0x{:02x}, actual 0x{:02x}", $name, expected, actual));
+                        match_fails.push(format!("{} mismatch: expected 0x{:02X}, actual 0x{:02X}", $name, expected, actual));
                     }
                 }
             )*
@@ -55,6 +89,8 @@ impl ExpectedState {
             h: None,
             l: None,
             sp: None,
+            ime: None,
+            interrupt_delay: None,
             memory: HashMap::new(),
         }
     }
@@ -70,6 +106,12 @@ impl ExpectedState {
             ["H", self.h, cpu_registers.h],
             ["L", self.l, cpu_registers.l],
             ["SP", self.sp, cpu_registers.sp],
+            ["IME", self.ime, cpu_registers.ime.into()],
+            [
+                "INTERRUPT_DELAY",
+                self.interrupt_delay,
+                cpu_registers.interrupt_delay.into()
+            ],
         );
 
         for (&address, &expected) in &self.memory {

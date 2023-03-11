@@ -1,4 +1,4 @@
-use super::{run_test, ExpectedState};
+use super::{hash_map, run_test, ExpectedState};
 
 #[test]
 fn jump() {
@@ -289,4 +289,121 @@ fn relative_jump_nz_z() {
             ..ExpectedState::empty()
         },
     );
+}
+
+#[test]
+fn call_return() {
+    run_test(
+        concat!(
+            "06AA",   // 0x0150: LD B, 0xAA
+            "1807",   // 0x0152: JR 7
+            "06BB",   // 0x0154: LD B, 0xBB
+            "0ECC",   // 0x0156: LD C, 0xCC
+            "C9",     // 0x0158: RET
+            "06FF",   // 0x0159: LD B, 0xFF
+            "16DD",   // 0x015B: LD D, 0xDD
+            "CD5601", // 0x015D: CALL 0x0156
+            "1EEE",   // 0x0160: LD E, 0xEE
+        ),
+        &ExpectedState {
+            b: Some(0xAA),
+            c: Some(0xCC),
+            d: Some(0xDD),
+            e: Some(0xEE),
+            sp: Some(0xFFFE),
+            memory: hash_map! {
+                0xFFFC: 0x60,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn conditional_call_nz_z() {
+    // C4: CALL NZ, nn
+    // CC: CALL Z, nn
+}
+
+#[test]
+fn conditional_call_nc_c() {
+    // D4: CALL NC, nn
+    // DC: CALL C, nn
+}
+
+#[test]
+fn conditional_return_nz_z() {
+    // C0: RET NZ
+    // C8: RET Z
+}
+
+#[test]
+fn conditional_return_nc_c() {
+    // D0: RET NC
+    // D8: RET C
+}
+
+#[test]
+fn rst_call() {
+    // C7 | 00 xxx 000: RST xxx
+}
+
+#[test]
+fn enable_interrupts() {
+    run_test(
+        // EI
+        "FB",
+        &ExpectedState {
+            ime: Some(true.into()),
+            interrupt_delay: Some(true.into()),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // EI; EI
+        "FBFB",
+        &ExpectedState {
+            ime: Some(true.into()),
+            interrupt_delay: Some(true.into()),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // EI; NOP
+        "FB00",
+        &ExpectedState {
+            ime: Some(true.into()),
+            interrupt_delay: Some(false.into()),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn disable_interrupts() {
+    run_test(
+        // DI
+        "F3",
+        &ExpectedState {
+            ime: Some(false.into()),
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // EI; DI
+        "FBF3",
+        &ExpectedState {
+            ime: Some(false.into()),
+            ..ExpectedState::empty()
+        },
+    );
+}
+
+#[test]
+fn return_from_interrupt_handler() {
+    // D9: RETI
 }
