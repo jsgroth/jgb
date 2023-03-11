@@ -29,7 +29,7 @@ impl JumpCondition {
 #[derive(Error, Debug)]
 pub enum ExecutionError {
     #[error("error adding relative offset to SP or PC register: {source}")]
-    RegisterOverflowError {
+    RegisterOverflow {
         #[from]
         source: TryFromIntError,
     },
