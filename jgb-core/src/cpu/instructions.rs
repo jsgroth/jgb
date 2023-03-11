@@ -780,10 +780,10 @@ impl Instruction {
                 cpu_registers.sp += 2;
                 cpu_registers.ime = true;
             }
-            Self::RestartCall(n) => {
+            Self::RestartCall(rst_address) => {
                 cpu_registers.sp -= 2;
                 address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc);
-                cpu_registers.pc = (n << 3) as u16;
+                cpu_registers.pc = rst_address.into();
             }
             Self::HaltClock => {
                 todo!("HALT is not implemented")

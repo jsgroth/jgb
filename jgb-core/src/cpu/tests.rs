@@ -54,6 +54,7 @@ struct ExpectedState {
     h: Option<u8>,
     l: Option<u8>,
     sp: Option<u16>,
+    pc: Option<u16>,
     ime: Option<HexFormattableBool>,
     interrupt_delay: Option<HexFormattableBool>,
     memory: HashMap<u16, u8>,
@@ -89,6 +90,7 @@ impl ExpectedState {
             h: None,
             l: None,
             sp: None,
+            pc: None,
             ime: None,
             interrupt_delay: None,
             memory: HashMap::new(),
@@ -106,6 +108,7 @@ impl ExpectedState {
             ["H", self.h, cpu_registers.h],
             ["L", self.l, cpu_registers.l],
             ["SP", self.sp, cpu_registers.sp],
+            ["PC", self.pc, cpu_registers.pc],
             ["IME", self.ime, cpu_registers.ime.into()],
             [
                 "INTERRUPT_DELAY",
@@ -160,7 +163,7 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
         AddressSpace::new(Cartridge::new(rom).expect("synthesized test ROM should be valid"));
     let mut cpu_registers = CpuRegisters::new();
 
-    while cpu_registers.pc < rom_len {
+    while cpu_registers.pc >= 0x0100 && cpu_registers.pc < rom_len {
         let (instruction, pc) =
             instructions::parse_next_instruction(&address_space, cpu_registers.pc)
                 .expect("all instructions in program should be valid");

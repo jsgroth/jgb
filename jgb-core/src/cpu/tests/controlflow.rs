@@ -343,10 +343,123 @@ fn conditional_return_nc_c() {
     // D0: RET NC
     // D8: RET C
 }
-
 #[test]
 fn rst_call() {
-    // C7 | 00 xxx 000: RST xxx
+    // Note: this test depends on the test harness stopping execution when PC < 0x0100
+
+    run_test(
+        // RST 0x00
+        "C7",
+        &ExpectedState {
+            pc: Some(0x0000),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x51,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // RST 0x08
+        "CF",
+        &ExpectedState {
+            pc: Some(0x0008),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x51,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // RST 0x10
+        "D7",
+        &ExpectedState {
+            pc: Some(0x0010),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x51,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // RST 0x18
+        "DF",
+        &ExpectedState {
+            pc: Some(0x0018),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x51,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // NOP; RST 0x20
+        "00E7",
+        &ExpectedState {
+            pc: Some(0x0020),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x52,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // LD BC, 0x1234; PUSH BC; RST 0x28
+        "013412C5EF",
+        &ExpectedState {
+            pc: Some(0x0028),
+            sp: Some(0xFFFA),
+            memory: hash_map! {
+                0xFFFA: 0x55,
+                0xFFFB: 0x01,
+                0xFFFC: 0x34,
+                0xFFFD: 0x12,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // RST 0x30
+        "F7",
+        &ExpectedState {
+            pc: Some(0x0030),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x51,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        // RST 0x38
+        "FF",
+        &ExpectedState {
+            pc: Some(0x0038),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x51,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]
