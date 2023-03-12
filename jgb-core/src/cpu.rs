@@ -20,8 +20,8 @@ pub fn run(emulation_state: EmulationState) -> Result<(), Box<dyn Error>> {
         let old_pc = cpu_registers.pc;
         let (instruction, pc) = instructions::parse_next_instruction(&address_space, old_pc)?;
 
-        log::debug!("Preparing to execute instruction [0x{old_pc:04x}]: {instruction:04x?}");
-        log::debug!("Updating PC to 0x{pc:04x}");
+        log::debug!("Preparing to execute instruction [0x{old_pc:04X}]: {instruction:04X?}");
+        log::debug!("Updating PC to 0x{pc:04X}");
 
         cpu_registers.pc = pc;
         instruction.execute(&mut address_space, &mut cpu_registers)?;

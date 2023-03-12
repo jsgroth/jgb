@@ -54,8 +54,8 @@ impl Mapper {
             0
         };
 
-        log::debug!("setting ROM bit bask to {rom_bank_bit_mask:02x} for size {rom_size}");
-        log::debug!("setting RAM bit mask to {ram_bank_bit_mask:02x} for size {ram_size}");
+        log::debug!("setting ROM bit bask to {rom_bank_bit_mask:02X} for size {rom_size}");
+        log::debug!("setting RAM bit mask to {ram_bank_bit_mask:02X} for size {ram_size}");
 
         match mapper_type {
             MapperType::None => Self::None,
@@ -105,7 +105,7 @@ impl Mapper {
                             u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
                         }
                     }
-                    _ => panic!("mapper called for address outside of cartridge address range: {address:04x}")
+                    _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
                 }
             }
         }
@@ -133,7 +133,7 @@ impl Mapper {
                 _address @ 0x6000..=0x7FFF => {
                     *banking_mode_select = value & 0x01;
                 }
-                _ => panic!("invalid ROM write address in MBC1 mapper: {address:04x}"),
+                _ => panic!("invalid ROM write address in MBC1 mapper: {address:04X}"),
             },
         }
     }
