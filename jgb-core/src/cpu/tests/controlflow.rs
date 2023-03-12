@@ -322,14 +322,104 @@ fn call_return() {
 
 #[test]
 fn conditional_call_nz_z() {
-    // C4: CALL NZ, nn
-    // CC: CALL Z, nn
+    run_test(
+        concat!(
+            "3E01",   // 0x0150: LD A, 0x01
+            "FE00",   // 0x0152: CP 0x00
+            "CC5E01", // 0x0154: CALL Z, 0x015E
+            "06BB",   // 0x0157: LD B, 0xBB
+            "C45E01", // 0x0159: CALL NZ, 0x015E
+            "06CC",   // 0x015C: LD B, 0xCC
+            "0EDD",   // 0x015E: LD C, 0xDD
+        ),
+        &ExpectedState {
+            a: Some(0x01),
+            b: Some(0xBB),
+            c: Some(0xDD),
+            f: Some(0x40),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x5C,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "3E00",   // 0x0150: LD A, 0x00
+            "FE00",   // 0x0152: CP 0x00
+            "C45E01", // 0x0154: CALL NZ, 0x015E
+            "06BB",   // 0x0157: LD B, 0xBB
+            "CC5E01", // 0x0159: CALL Z, 0x015E
+            "06CC",   // 0x015C: LD B, 0xCC
+            "0EDD",   // 0x015E: LD C, 0xDD
+        ),
+        &ExpectedState {
+            a: Some(0x00),
+            b: Some(0xBB),
+            c: Some(0xDD),
+            f: Some(0xC0),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x5C,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]
 fn conditional_call_nc_c() {
     // D4: CALL NC, nn
     // DC: CALL C, nn
+
+    run_test(
+        concat!(
+            "37",     // 0x0150: SCF
+            "3F",     // 0x0151: CCF
+            "DC5C01", // 0x0152: CALL C, 0x015C
+            "06BB",   // 0x0155: LD B, 0xBB
+            "D45C01", // 0x0157: CALL NC, 0x015C
+            "06CC",   // 0x015A: LD B, 0xCC
+            "0EDD",   // 0x015C: LD C, 0xDD
+        ),
+        &ExpectedState {
+            b: Some(0xBB),
+            c: Some(0xDD),
+            f: Some(0x00),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x5A,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "37",     // 0x0150: SCF
+            "D45B01", // 0x0151: CALL NC, 0x015B
+            "06BB",   // 0x0154: LD B, 0xBB
+            "DC5B01", // 0x0156: CALL C, 0x015B
+            "06CC",   // 0x0159: LD B, 0xCC
+            "0EDD",   // 0x015B: LD C, 0xDD
+        ),
+        &ExpectedState {
+            b: Some(0xBB),
+            c: Some(0xDD),
+            f: Some(0x10),
+            sp: Some(0xFFFC),
+            memory: hash_map! {
+                0xFFFC: 0x59,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]
