@@ -373,9 +373,6 @@ fn conditional_call_nz_z() {
 
 #[test]
 fn conditional_call_nc_c() {
-    // D4: CALL NC, nn
-    // DC: CALL C, nn
-
     run_test(
         concat!(
             "37",     // 0x0150: SCF
@@ -424,14 +421,117 @@ fn conditional_call_nc_c() {
 
 #[test]
 fn conditional_return_nz_z() {
-    // C0: RET NZ
-    // C8: RET Z
+    run_test(
+        concat!(
+            "3E01",   // 0x0150: LD A, 0x01
+            "FE00",   // 0x0152: CP 0x00
+            "1808",   // 0x0154: JR 8
+            "06BB",   // 0x0156: LD B, 0xBB
+            "C8",     // 0x0158: RET Z
+            "0ECC",   // 0x0159: LD C, 0xCC
+            "C0",     // 0x015B: RET NZ
+            "06DD",   // 0x015C: LD B, 0xDD
+            "CD5601", // 0x015E: CALL 0x0156
+            "16EE",   // 0x0161: LD D, 0xEE
+        ),
+        &ExpectedState {
+            a: Some(0x01),
+            b: Some(0xBB),
+            c: Some(0xCC),
+            d: Some(0xEE),
+            f: Some(0x40),
+            sp: Some(0xFFFE),
+            memory: hash_map! {
+                0xFFFC: 0x61,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "3E00",   // 0x0150: LD A, 0x00
+            "FE00",   // 0x0152: CP 0x00
+            "1808",   // 0x0154: JR 8
+            "06BB",   // 0x0156: LD B, 0xBB
+            "C0",     // 0x0158: RET NZ
+            "0ECC",   // 0x0159: LD C, 0xCC
+            "C8",     // 0x015B: RET Z
+            "06DD",   // 0x015C: LD B, 0xDD
+            "CD5601", // 0x015E: CALL 0x0156
+            "16EE",   // 0x0161: LD D, 0xEE
+        ),
+        &ExpectedState {
+            a: Some(0x00),
+            b: Some(0xBB),
+            c: Some(0xCC),
+            d: Some(0xEE),
+            f: Some(0xC0),
+            sp: Some(0xFFFE),
+            memory: hash_map! {
+                0xFFFC: 0x61,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
 }
 
 #[test]
 fn conditional_return_nc_c() {
-    // D0: RET NC
-    // D8: RET C
+    run_test(
+        concat!(
+            "37",     // 0x0150: SCF
+            "3F",     // 0x0151: CCF
+            "1808",   // 0x0152: JR 8
+            "06BB",   // 0x0154: LD B, 0xBB
+            "D8",     // 0x0156: RET C
+            "0ECC",   // 0x0157: LD C, 0xCC
+            "D0",     // 0x0159: RET NC
+            "06DD",   // 0x015A: LD B, 0xDD
+            "CD5401", // 0x015C: CALL 0x0154
+            "16EE",   // 0x015F: LD D, 0xEE
+        ),
+        &ExpectedState {
+            b: Some(0xBB),
+            c: Some(0xCC),
+            d: Some(0xEE),
+            f: Some(0x00),
+            sp: Some(0xFFFE),
+            memory: hash_map! {
+                0xFFFC: 0x5F,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "37",     // 0x0150: SCF
+            "1808",   // 0x0151: JR 8
+            "06BB",   // 0x0153: LD B, 0xBB
+            "D0",     // 0x0155: RET NC
+            "0ECC",   // 0x0156: LD C, 0xCC
+            "D8",     // 0x0158: RET C
+            "06DD",   // 0x0159: LD B, 0xDD
+            "CD5301", // 0x015B: CALL 0x0153
+            "16EE",   // 0x015E: LD D, 0xEE
+        ),
+        &ExpectedState {
+            b: Some(0xBB),
+            c: Some(0xCC),
+            d: Some(0xEE),
+            f: Some(0x10),
+            sp: Some(0xFFFE),
+            memory: hash_map! {
+                0xFFFC: 0x5E,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
 }
 #[test]
 fn rst_call() {

@@ -120,7 +120,7 @@ impl ExpectedState {
         for (&address, &expected) in &self.memory {
             let actual = address_space.read_address_u8(address);
             if expected != actual {
-                match_fails.push(format!("Mismatch at memory address 0x{address:04X}: expected = {expected:02X}, actual = {actual:02X}"));
+                match_fails.push(format!("Mismatch at memory address 0x{address:04X}: expected = 0x{expected:02X}, actual = 0x{actual:02X}"));
             }
         }
 
