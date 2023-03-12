@@ -518,5 +518,51 @@ fn disable_interrupts() {
 
 #[test]
 fn return_from_interrupt_handler() {
-    // D9: RETI
+    run_test(
+        concat!(
+            "06BB",   // 0x0150: LD B, 0xBB
+            "F3",     // 0x0152: DI
+            "1805",   // 0x0153: JR 5
+            "06CC",   // 0x0155: LD B, 0xCC
+            "0EDD",   // 0x0157: LD C, 0xDD
+            "D9",     // 0x0159: RETI
+            "16FF",   // 0x015A: LD D, 0xFF
+            "CD5701", // 0x015C: CALL 0x0157
+            "1E55",   // 0x015F: LD E, 0x55
+        ),
+        &ExpectedState {
+            b: Some(0xBB),
+            c: Some(0xDD),
+            d: Some(0xFF),
+            e: Some(0x55),
+            sp: Some(0xFFFE),
+            ime: Some(true.into()),
+            interrupt_delay: Some(false.into()),
+            memory: hash_map! {
+                0xFFFC: 0x5F,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
+
+    run_test(
+        concat!(
+            "F3",     // 0x0150: DI
+            "1801",   // 0x0151: JR 1
+            "D9",     // 0x0153: RETI
+            "CD5301", // 0x0154: CALL 0x0153
+            "",       // 0x0157: ---
+        ),
+        &ExpectedState {
+            sp: Some(0xFFFE),
+            ime: Some(true.into()),
+            interrupt_delay: Some(false.into()),
+            memory: hash_map! {
+                0xFFFC: 0x57,
+                0xFFFD: 0x01,
+            },
+            ..ExpectedState::empty()
+        },
+    );
 }
