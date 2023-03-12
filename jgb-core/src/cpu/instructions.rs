@@ -809,6 +809,138 @@ impl Instruction {
 
         Ok(())
     }
+
+    pub fn cycles_required(self, cpu_registers: &CpuRegisters) -> u32 {
+        match self {
+            Self::LoadRegisterRegister(..)
+            | Self::AddRegister(..)
+            | Self::AddCarryRegister(..)
+            | Self::SubtractRegister(..)
+            | Self::SubtractCarryRegister(..)
+            | Self::AndRegister(..)
+            | Self::OrRegister(..)
+            | Self::XorRegister(..)
+            | Self::CompareRegister(..)
+            | Self::IncRegister(..)
+            | Self::DecRegister(..)
+            | Self::DecimalAdjustAccumulator
+            | Self::ComplementAccumulator
+            | Self::RotateLeftAccumulator
+            | Self::RotateLeftAccumulatorThruCarry
+            | Self::RotateRightAccumulator
+            | Self::RotateRightAccumulatorThruCarry
+            | Self::SetCarryFlag
+            | Self::ComplementCarryFlag
+            | Self::NoOp
+            | Self::DisableInterrupts
+            | Self::EnableInterrupts
+            | Self::JumpHL => 4,
+            Self::LoadRegisterImmediate(..)
+            | Self::LoadRegisterIndirectHL(..)
+            | Self::LoadIndirectHLRegister(..)
+            | Self::LoadAccumulatorIndirectBC
+            | Self::LoadAccumulatorIndirectDE
+            | Self::LoadIndirectBCAccumulator
+            | Self::LoadIndirectDEAccumulator
+            | Self::LoadAccumulatorIndirectC
+            | Self::LoadIndirectCAccumulator
+            | Self::LoadAccumulatorIndirectHLInc
+            | Self::LoadAccumulatorIndirectHLDec
+            | Self::LoadIndirectHLIncAccumulator
+            | Self::LoadIndirectHLDecAccumulator
+            | Self::LoadStackPointerHL
+            | Self::AddImmediate(..)
+            | Self::AddIndirectHL
+            | Self::AddCarryImmediate(..)
+            | Self::AddCarryIndirectHL
+            | Self::SubtractImmediate(..)
+            | Self::SubtractIndirectHL
+            | Self::SubtractCarryImmediate(..)
+            | Self::SubtractCarryIndirectHL
+            | Self::AndImmediate(..)
+            | Self::AndIndirectHL
+            | Self::OrImmediate(..)
+            | Self::OrIndirectHL
+            | Self::XorImmediate(..)
+            | Self::XorIndirectHL
+            | Self::CompareImmediate(..)
+            | Self::CompareIndirectHL
+            | Self::AddHLRegister(..)
+            | Self::IncRegisterPair(..)
+            | Self::DecRegisterPair(..)
+            | Self::RotateLeft(..)
+            | Self::RotateLeftThruCarry(..)
+            | Self::RotateRight(..)
+            | Self::RotateRightThruCarry(..)
+            | Self::ShiftLeft(..)
+            | Self::ShiftRight(..)
+            | Self::ShiftRightLogical(..)
+            | Self::Swap(..)
+            | Self::TestBit(..)
+            | Self::SetBit(..)
+            | Self::ResetBit(..) => 8,
+            Self::LoadIndirectHLImmediate(..)
+            | Self::LoadAccumulatorDirect8(..)
+            | Self::LoadDirect8Accumulator(..)
+            | Self::LoadRegisterPairImmediate(..)
+            | Self::PopStack(..)
+            | Self::IncIndirectHL
+            | Self::DecIndirectHL
+            | Self::LoadHLStackPointerOffset(..)
+            | Self::TestBitIndirectHL(..)
+            | Self::RelativeJump(..) => 12,
+            Self::LoadAccumulatorDirect16(..)
+            | Self::LoadDirect16Accumulator(..)
+            | Self::PushStack(..)
+            | Self::AddSPImmediate(..)
+            | Self::RotateLeftIndirectHL
+            | Self::RotateLeftIndirectHLThruCarry
+            | Self::RotateRightIndirectHL
+            | Self::RotateRightIndirectHLThruCarry
+            | Self::ShiftLeftIndirectHL
+            | Self::ShiftRightIndirectHL
+            | Self::ShiftRightLogicalIndirectHL
+            | Self::SwapIndirectHL
+            | Self::SetBitIndirectHL(..)
+            | Self::ResetBitIndirectHL(..)
+            | Self::Jump(..)
+            | Self::Return
+            | Self::ReturnFromInterruptHandler
+            | Self::RestartCall(..) => 16,
+            Self::LoadDirectStackPointer(..) => 20,
+            Self::Call(..) => 24,
+            Self::JumpCond(cc, ..) => {
+                if cc.check(cpu_registers) {
+                    16
+                } else {
+                    12
+                }
+            }
+            Self::RelativeJumpCond(cc, ..) => {
+                if cc.check(cpu_registers) {
+                    12
+                } else {
+                    8
+                }
+            }
+            Self::CallCond(cc, ..) => {
+                if cc.check(cpu_registers) {
+                    24
+                } else {
+                    12
+                }
+            }
+            Self::ReturnCond(cc) => {
+                if cc.check(cpu_registers) {
+                    20
+                } else {
+                    8
+                }
+            }
+            Self::HaltClock => todo!("HALT is not implemented"),
+            Self::StopClocks => todo!("STOP is not implemented"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

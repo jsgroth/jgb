@@ -4,6 +4,7 @@
 mod arithmetic;
 mod bitshift;
 mod controlflow;
+mod cyclecount;
 mod load;
 mod singlebit;
 
