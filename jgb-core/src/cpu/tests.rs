@@ -140,9 +140,7 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
         );
     }
 
-    if program_hex.chars().any(|c| {
-        !('0'..='9').contains(&c) && !('a'..='f').contains(&c) && !('A'..='F').contains(&c)
-    }) {
+    if program_hex.chars().any(|c| !c.is_digit(16)) {
         panic!("program contains non-hexadecimal characters: '{program_hex}'");
     }
 
