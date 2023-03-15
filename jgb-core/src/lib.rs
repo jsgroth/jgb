@@ -3,6 +3,7 @@
 
 mod config;
 mod cpu;
+mod eventloop;
 mod memory;
 mod ppu;
 mod startup;
@@ -28,7 +29,10 @@ pub fn run(
 ) -> Result<(), Box<dyn Error>> {
     let emulation_state = startup::init_emulation_state(&persistent_config, &run_config)?;
 
-    // let mut sdl_state = startup::init_sdl_state(&persistent_config, &run_config)?;
+    let sdl_state = startup::init_sdl_state(&persistent_config, &run_config)?;
+
+    eventloop::run(emulation_state, sdl_state)?;
+
     //
     // let texture_creator = sdl_state.canvas.texture_creator();
     // let mut window_texture =
@@ -66,7 +70,7 @@ pub fn run(
     //     thread::sleep(Duration::from_millis(10));
     // }
 
-    cpu::run(emulation_state)?;
+    // cpu::run(emulation_state)?;
 
     Ok(())
 }

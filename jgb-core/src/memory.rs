@@ -361,6 +361,10 @@ impl AddressSpace {
         self.write_address_u8(address, lsb);
         self.write_address_u8(address + 1, msb);
     }
+
+    pub fn get_io_registers_mut(&mut self) -> &mut IoRegisters {
+        &mut self.io_registers
+    }
 }
 
 #[cfg(test)]

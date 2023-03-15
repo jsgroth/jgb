@@ -1,4 +1,4 @@
-mod instructions;
+pub(crate) mod instructions;
 mod registers;
 
 #[cfg(test)]

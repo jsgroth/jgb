@@ -208,6 +208,7 @@ pub struct IoRegisters {
 impl IoRegisters {
     const JOYP_RELATIVE_ADDR: usize = 0x00;
     const STAT_RELATIVE_ADDR: usize = 0x41;
+    const LY_RELATIVE_ADDR: usize = 0x44;
 
     pub fn new() -> Self {
         let mut contents = [0; 0x80];
@@ -284,6 +285,14 @@ impl IoRegisters {
         }
     }
 
+    pub fn read_register(&self, register: IoRegister) -> u8 {
+        self.read_address(register.to_address())
+    }
+
+    pub fn write_register(&mut self, register: IoRegister, value: u8) {
+        self.write_address(register.to_address(), value);
+    }
+
     pub fn privileged_read_joyp(&self) -> u8 {
         self.contents[Self::JOYP_RELATIVE_ADDR] | 0xC0
     }
@@ -298,6 +307,10 @@ impl IoRegisters {
 
     pub fn privileged_set_stat(&mut self, value: u8) {
         self.contents[Self::STAT_RELATIVE_ADDR] = value & 0x7F;
+    }
+
+    pub fn privileged_set_ly(&mut self, value: u8) {
+        self.contents[Self::LY_RELATIVE_ADDR] = value;
     }
 }
 
@@ -362,5 +375,20 @@ mod tests {
 
         registers.privileged_set_stat(0x2F);
         assert_eq!(0xAF, registers.read_address(stat_address));
+    }
+
+    #[test]
+    fn ly() {
+        // CPU should be allowed to read LY but not write LY
+
+        let mut registers = empty_io_registers();
+
+        let ly_address = IoRegister::LY.to_address();
+
+        registers.privileged_set_ly(0x57);
+        assert_eq!(0x57, registers.read_register(IoRegister::LY));
+
+        registers.write_register(IoRegister::LY, !0x57);
+        assert_eq!(0x57, registers.read_register(IoRegister::LY));
     }
 }

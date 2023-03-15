@@ -5,7 +5,7 @@ use crate::memory::AddressSpace;
 use std::num::TryFromIntError;
 use thiserror::Error;
 
-pub use parse::parse_next_instruction;
+pub use parse::{parse_next_instruction, ParseError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpCondition {
