@@ -1,3 +1,5 @@
+mod queue;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     HBlank { scanline: u8, cycle: u32 },
