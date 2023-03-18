@@ -1,4 +1,4 @@
-pub mod addresses;
+pub mod address;
 pub mod ioregisters;
 
 use crate::memory::ioregisters::IoRegisters;
@@ -180,7 +180,7 @@ impl Cartridge {
             });
         }
 
-        let mapper_byte = rom[addresses::MAPPER as usize];
+        let mapper_byte = rom[address::MAPPER as usize];
         let (mapper_type, has_ram, has_battery) = match mapper_byte {
             0x00 => (MapperType::None, false, false),
             0x01 => (MapperType::MBC1, false, false),
@@ -192,7 +192,7 @@ impl Cartridge {
         log::info!("Detected mapper type {mapper_type:?}");
 
         let ram = if has_ram {
-            let ram_size_code = rom[addresses::RAM_SIZE as usize];
+            let ram_size_code = rom[address::RAM_SIZE as usize];
             let ram_size = match ram_size_code {
                 0x00 => 0,
                 0x02 => 8192,   // 8 KB
@@ -284,34 +284,34 @@ impl AddressSpace {
 
     pub fn read_address_u8(&self, address: u16) -> u8 {
         match address {
-            address @ addresses::ROM_START..=addresses::ROM_END => {
+            address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.read_rom_address(address)
             }
-            address @ addresses::VRAM_START..=addresses::VRAM_END => {
-                self.vram[(address - addresses::VRAM_START) as usize]
+            address @ address::VRAM_START..=address::VRAM_END => {
+                self.vram[(address - address::VRAM_START) as usize]
             }
-            address @ addresses::EXTERNAL_RAM_START..=addresses::EXTERNAL_RAM_END => {
+            address @ address::EXTERNAL_RAM_START..=address::EXTERNAL_RAM_END => {
                 self.cartridge.read_ram_address(address)
             }
-            address @ addresses::WORKING_RAM_START..=addresses::WORKING_RAM_END => {
-                self.working_ram[(address - addresses::WORKING_RAM_START) as usize]
+            address @ address::WORKING_RAM_START..=address::WORKING_RAM_END => {
+                self.working_ram[(address - address::WORKING_RAM_START) as usize]
             }
-            address @ addresses::ECHO_RAM_START..=addresses::ECHO_RAM_END => {
-                self.working_ram[(address - addresses::ECHO_RAM_START) as usize]
+            address @ address::ECHO_RAM_START..=address::ECHO_RAM_END => {
+                self.working_ram[(address - address::ECHO_RAM_START) as usize]
             }
-            address @ addresses::OAM_START..=addresses::OAM_END => {
-                self.oam[(address - addresses::OAM_START) as usize]
+            address @ address::OAM_START..=address::OAM_END => {
+                self.oam[(address - address::OAM_START) as usize]
             }
-            _address @ addresses::UNUSABLE_START..=addresses::UNUSABLE_END => {
+            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => {
                 todo!("should return 0xFF if OAM is blocked, 0x00 otherwise")
             }
-            address @ addresses::IO_REGISTERS_START..=addresses::IO_REGISTERS_END => {
+            address @ address::IO_REGISTERS_START..=address::IO_REGISTERS_END => {
                 self.io_registers.read_address(address)
             }
-            address @ addresses::HRAM_START..=addresses::HRAM_END => {
-                self.hram[(address - addresses::HRAM_START) as usize]
+            address @ address::HRAM_START..=address::HRAM_END => {
+                self.hram[(address - address::HRAM_START) as usize]
             }
-            addresses::IE_REGISTER => self.ie_register,
+            address::IE_REGISTER => self.ie_register,
         }
     }
 
@@ -323,34 +323,34 @@ impl AddressSpace {
 
     pub fn write_address_u8(&mut self, address: u16, value: u8) {
         match address {
-            address @ addresses::ROM_START..=addresses::ROM_END => {
+            address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.write_rom_address(address, value);
             }
-            address @ addresses::VRAM_START..=addresses::VRAM_END => {
-                self.vram[(address - addresses::VRAM_START) as usize] = value;
+            address @ address::VRAM_START..=address::VRAM_END => {
+                self.vram[(address - address::VRAM_START) as usize] = value;
             }
-            address @ addresses::EXTERNAL_RAM_START..=addresses::EXTERNAL_RAM_END => {
+            address @ address::EXTERNAL_RAM_START..=address::EXTERNAL_RAM_END => {
                 self.cartridge.write_ram_address(address, value);
             }
-            address @ addresses::WORKING_RAM_START..=addresses::WORKING_RAM_END => {
-                self.working_ram[(address - addresses::WORKING_RAM_START) as usize] = value;
+            address @ address::WORKING_RAM_START..=address::WORKING_RAM_END => {
+                self.working_ram[(address - address::WORKING_RAM_START) as usize] = value;
             }
-            address @ addresses::ECHO_RAM_START..=addresses::ECHO_RAM_END => {
-                self.working_ram[(address - addresses::ECHO_RAM_START) as usize] = value;
+            address @ address::ECHO_RAM_START..=address::ECHO_RAM_END => {
+                self.working_ram[(address - address::ECHO_RAM_START) as usize] = value;
             }
-            address @ addresses::OAM_START..=addresses::OAM_END => {
-                self.oam[(address - addresses::OAM_START) as usize] = value;
+            address @ address::OAM_START..=address::OAM_END => {
+                self.oam[(address - address::OAM_START) as usize] = value;
             }
-            _address @ addresses::UNUSABLE_START..=addresses::UNUSABLE_END => {
+            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => {
                 todo!("should return 0xFF if OAM is blocked, 0x00 otherwise")
             }
-            address @ addresses::IO_REGISTERS_START..=addresses::IO_REGISTERS_END => {
+            address @ address::IO_REGISTERS_START..=address::IO_REGISTERS_END => {
                 self.io_registers.write_address(address, value);
             }
-            address @ addresses::HRAM_START..=addresses::HRAM_END => {
-                self.hram[(address - addresses::HRAM_START) as usize] = value;
+            address @ address::HRAM_START..=address::HRAM_END => {
+                self.hram[(address - address::HRAM_START) as usize] = value;
             }
-            addresses::IE_REGISTER => {
+            address::IE_REGISTER => {
                 self.ie_register = value;
             }
         }
