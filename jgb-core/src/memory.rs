@@ -313,10 +313,10 @@ impl AddressSpace {
             return 0xFF;
         }
 
-        self.read_address_u8_no_access_check(address, ppu_state)
+        self.read_address_u8_no_access_check(address)
     }
 
-    pub fn read_address_u8_no_access_check(&self, address: u16, ppu_state: &PpuState) -> u8 {
+    fn read_address_u8_no_access_check(&self, address: u16) -> u8 {
         match address {
             address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.read_rom_address(address)
@@ -336,10 +336,7 @@ impl AddressSpace {
             address @ address::OAM_START..=address::OAM_END => {
                 self.oam[(address - address::OAM_START) as usize]
             }
-            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => match ppu_state.mode() {
-                Mode::ScanningOAM | Mode::RenderingScanline => 0xFF,
-                _ => 0x00,
-            },
+            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => 0xFF,
             address @ address::IO_REGISTERS_START..=address::IO_REGISTERS_END => {
                 self.io_registers.read_address(address)
             }
@@ -364,7 +361,7 @@ impl AddressSpace {
         self.write_address_u8_no_access_check(address, value);
     }
 
-    pub fn write_address_u8_no_access_check(&mut self, address: u16, value: u8) {
+    fn write_address_u8_no_access_check(&mut self, address: u16, value: u8) {
         match address {
             address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.write_rom_address(address, value);
@@ -413,6 +410,11 @@ impl AddressSpace {
 
     pub fn get_ie_register(&self) -> u8 {
         self.ie_register
+    }
+
+    pub fn copy_byte(&mut self, src_address: u16, dst_address: u16) {
+        let byte = self.read_address_u8_no_access_check(src_address);
+        self.write_address_u8_no_access_check(dst_address, byte);
     }
 }
 
