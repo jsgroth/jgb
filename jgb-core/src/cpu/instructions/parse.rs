@@ -1,6 +1,7 @@
 use crate::cpu::instructions::{Instruction, JumpCondition};
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair};
 use crate::memory::AddressSpace;
+use crate::ppu::PpuState;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,13 +13,14 @@ pub enum ParseError {
 pub fn parse_next_instruction(
     address_space: &AddressSpace,
     pc: u16,
+    ppu_state: &PpuState,
 ) -> Result<(Instruction, u16), ParseError> {
-    let opcode = address_space.read_address_u8(pc);
+    let opcode = address_space.read_address_u8(pc, ppu_state);
     match opcode {
         0x00 => Ok((Instruction::NoOp, pc + 1)),
         0x01 | 0x11 | 0x21 | 0x31 => {
             let rr = register_pair_for_other_ops(opcode);
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::LoadRegisterPairImmediate(rr, nn), pc + 3))
         }
         0x02 => Ok((Instruction::LoadIndirectBCAccumulator, pc + 1)),
@@ -39,12 +41,12 @@ pub fn parse_next_instruction(
         0x06 | 0x0E | 0x16 | 0x1E | 0x26 | 0x2E | 0x3E => {
             let r = CpuRegister::from_mid_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 3-5");
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::LoadRegisterImmediate(r, n), pc + 2))
         }
         0x07 => Ok((Instruction::RotateLeftAccumulator, pc + 1)),
         0x08 => {
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::LoadDirectStackPointer(nn), pc + 3))
         }
         0x09 | 0x19 | 0x29 | 0x39 => {
@@ -61,14 +63,14 @@ pub fn parse_next_instruction(
         0x12 => Ok((Instruction::LoadIndirectDEAccumulator, pc + 1)),
         0x17 => Ok((Instruction::RotateLeftAccumulatorThruCarry, pc + 1)),
         0x18 => {
-            let e = address_space.read_address_u8(pc + 1) as i8;
+            let e = address_space.read_address_u8(pc + 1, ppu_state) as i8;
             Ok((Instruction::RelativeJump(e), pc + 2))
         }
         0x1A => Ok((Instruction::LoadAccumulatorIndirectDE, pc + 1)),
         0x1F => Ok((Instruction::RotateRightAccumulatorThruCarry, pc + 1)),
         0x20 | 0x28 | 0x30 | 0x38 => {
             let cc = parse_jump_condition(opcode);
-            let e = address_space.read_address_u8(pc + 1) as i8;
+            let e = address_space.read_address_u8(pc + 1, ppu_state) as i8;
             Ok((Instruction::RelativeJumpCond(cc, e), pc + 2))
         }
         0x22 => Ok((Instruction::LoadIndirectHLIncAccumulator, pc + 1)),
@@ -78,7 +80,7 @@ pub fn parse_next_instruction(
         0x34 => Ok((Instruction::IncIndirectHL, pc + 1)),
         0x35 => Ok((Instruction::DecIndirectHL, pc + 1)),
         0x36 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::LoadIndirectHLImmediate(n), pc + 2))
         }
         0x32 => Ok((Instruction::LoadIndirectHLDecAccumulator, pc + 1)),
@@ -165,16 +167,16 @@ pub fn parse_next_instruction(
         }
         0xC2 | 0xCA | 0xD2 | 0xDA => {
             let cc = parse_jump_condition(opcode);
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::JumpCond(cc, nn), pc + 3))
         }
         0xC3 => {
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::Jump(nn), pc + 3))
         }
         0xC4 | 0xCC | 0xD4 | 0xDC => {
             let cc = parse_jump_condition(opcode);
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::CallCond(cc, nn), pc + 3))
         }
         0xC5 | 0xD5 | 0xE5 | 0xF5 => {
@@ -182,7 +184,7 @@ pub fn parse_next_instruction(
             Ok((Instruction::PushStack(rr), pc + 1))
         }
         0xC6 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::AddImmediate(n), pc + 2))
         }
         0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
@@ -190,68 +192,68 @@ pub fn parse_next_instruction(
             Ok((Instruction::RestartCall(rst_address), pc + 1))
         }
         0xC9 => Ok((Instruction::Return, pc + 1)),
-        0xCB => parse_cb_prefixed_opcode(address_space, pc),
+        0xCB => parse_cb_prefixed_opcode(address_space, pc, ppu_state),
         0xCD => {
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::Call(nn), pc + 3))
         }
         0xCE => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::AddCarryImmediate(n), pc + 2))
         }
         0xD6 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::SubtractImmediate(n), pc + 2))
         }
         0xD9 => Ok((Instruction::ReturnFromInterruptHandler, pc + 1)),
         0xDE => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::SubtractCarryImmediate(n), pc + 2))
         }
         0xE0 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::LoadDirect8Accumulator(n), pc + 2))
         }
         0xE2 => Ok((Instruction::LoadIndirectCAccumulator, pc + 1)),
         0xE6 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::AndImmediate(n), pc + 2))
         }
         0xE8 => {
-            let e = address_space.read_address_u8(pc + 1) as i8;
+            let e = address_space.read_address_u8(pc + 1, ppu_state) as i8;
             Ok((Instruction::AddSPImmediate(e), pc + 2))
         }
         0xE9 => Ok((Instruction::JumpHL, pc + 1)),
         0xEA => {
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::LoadDirect16Accumulator(nn), pc + 3))
         }
         0xEE => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::XorImmediate(n), pc + 2))
         }
         0xF0 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::LoadAccumulatorDirect8(n), pc + 2))
         }
         0xF2 => Ok((Instruction::LoadAccumulatorIndirectC, pc + 1)),
         0xF3 => Ok((Instruction::DisableInterrupts, pc + 1)),
         0xF6 => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::OrImmediate(n), pc + 2))
         }
         0xF8 => {
-            let e = address_space.read_address_u8(pc + 1) as i8;
+            let e = address_space.read_address_u8(pc + 1, ppu_state) as i8;
             Ok((Instruction::LoadHLStackPointerOffset(e), pc + 2))
         }
         0xF9 => Ok((Instruction::LoadStackPointerHL, pc + 1)),
         0xFA => {
-            let nn = address_space.read_address_u16(pc + 1);
+            let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::LoadAccumulatorDirect16(nn), pc + 3))
         }
         0xFB => Ok((Instruction::EnableInterrupts, pc + 1)),
         0xFE => {
-            let n = address_space.read_address_u8(pc + 1);
+            let n = address_space.read_address_u8(pc + 1, ppu_state);
             Ok((Instruction::CompareImmediate(n), pc + 2))
         }
         _ => Err(ParseError::InvalidOpcode {
@@ -263,8 +265,9 @@ pub fn parse_next_instruction(
 fn parse_cb_prefixed_opcode(
     address_space: &AddressSpace,
     pc: u16,
+    ppu_state: &PpuState,
 ) -> Result<(Instruction, u16), ParseError> {
-    let opcode = address_space.read_address_u8(pc + 1);
+    let opcode = address_space.read_address_u8(pc + 1, ppu_state);
     match opcode {
         0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05 | 0x07 => {
             let r = CpuRegister::from_low_opcode_bits(opcode)

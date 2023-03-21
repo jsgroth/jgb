@@ -1,6 +1,7 @@
 use crate::config::{PersistentConfig, RunConfig};
 use crate::cpu::CpuRegisters;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
+use crate::ppu::PpuState;
 use crate::EmulationState;
 use sdl2::pixels::Color;
 use sdl2::render::{TextureValueError, WindowCanvas};
@@ -68,10 +69,12 @@ pub fn init_emulation_state(
 
     let address_space = AddressSpace::new(cartridge);
     let cpu_registers = CpuRegisters::new();
+    let ppu_state = PpuState::new();
 
     Ok(EmulationState {
         address_space,
         cpu_registers,
+        ppu_state,
     })
 }
 

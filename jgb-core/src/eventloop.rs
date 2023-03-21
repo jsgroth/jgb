@@ -80,6 +80,7 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     let EmulationState {
         mut address_space,
         mut cpu_registers,
+        ppu_state,
     } = emulation_state;
 
     let SdlState {
@@ -123,13 +124,15 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
         // TODO check interrupts here
 
         let (instruction, pc) =
-            instructions::parse_next_instruction(&address_space, cpu_registers.pc)?;
+            instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)?;
 
         log::trace!("Updating PC from 0x{:04X} to {:04X}", cpu_registers.pc, pc);
         cpu_registers.pc = pc;
 
-        log::trace!("Executing instruction {instruction:04X?}");
-        instruction.execute(&mut address_space, &mut cpu_registers)?;
+        let cycles_required = instruction.cycles_required(&cpu_registers);
+
+        log::trace!("Executing instruction {instruction:04X?}, will take {cycles_required} cycles");
+        instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state)?;
 
         // TODO execute PPU here
 

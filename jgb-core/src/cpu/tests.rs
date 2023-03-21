@@ -98,7 +98,12 @@ impl ExpectedState {
         }
     }
 
-    fn assert_matches(&self, cpu_registers: &CpuRegisters, address_space: &AddressSpace) {
+    fn assert_matches(
+        &self,
+        cpu_registers: &CpuRegisters,
+        address_space: &AddressSpace,
+        ppu_state: &PpuState,
+    ) {
         let mut match_fails = compare_bytes!(
             ["A", self.a, cpu_registers.accumulator],
             ["F", self.f, cpu_registers.flags],
@@ -119,7 +124,7 @@ impl ExpectedState {
         );
 
         for (&address, &expected) in &self.memory {
-            let actual = address_space.read_address_u8(address);
+            let actual = address_space.read_address_u8(address, ppu_state);
             if expected != actual {
                 match_fails.push(format!("Mismatch at memory address 0x{address:04X}: expected = 0x{expected:02X}, actual = 0x{actual:02X}"));
             }
@@ -161,19 +166,20 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
     let mut address_space =
         AddressSpace::new(Cartridge::new(rom).expect("synthesized test ROM should be valid"));
     let mut cpu_registers = CpuRegisters::new();
+    let ppu_state = PpuState::new();
 
     while cpu_registers.pc >= 0x0100 && cpu_registers.pc < rom_len {
         let (instruction, pc) =
-            instructions::parse_next_instruction(&address_space, cpu_registers.pc)
+            instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)
                 .expect("all instructions in program should be valid");
         cpu_registers.pc = pc;
 
         instruction
-            .execute(&mut address_space, &mut cpu_registers)
+            .execute(&mut address_space, &mut cpu_registers, &ppu_state)
             .expect("all instructions in program should successfully execute");
     }
 
-    expected_state.assert_matches(&cpu_registers, &address_space);
+    expected_state.assert_matches(&cpu_registers, &address_space, &ppu_state);
 }
 
 const ALL_REGISTERS: [CpuRegister; 7] = [
@@ -212,4 +218,5 @@ macro_rules! hash_map {
     }
 }
 
+use crate::ppu::PpuState;
 use hash_map;

@@ -13,6 +13,7 @@ use crate::memory::AddressSpace;
 use std::error::Error;
 use thiserror::Error;
 
+use crate::ppu::PpuState;
 pub use config::{PersistentConfig, RunConfig};
 
 #[derive(Error, Debug)]
@@ -21,6 +22,7 @@ pub enum RunError {}
 pub struct EmulationState {
     address_space: AddressSpace,
     cpu_registers: CpuRegisters,
+    ppu_state: PpuState,
 }
 
 pub fn run(

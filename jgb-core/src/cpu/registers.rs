@@ -62,22 +62,6 @@ pub enum CpuRegisterPair {
     SP,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OamDmaStatus {
-    pub source_high_bits: u16,
-    pub current_low_bits: u16,
-}
-
-impl OamDmaStatus {
-    pub fn current_source_address(self) -> u16 {
-        self.source_high_bits | self.current_low_bits
-    }
-
-    pub fn current_dest_address(self) -> u16 {
-        address::OAM_START | self.current_low_bits
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CpuRegisters {
     pub accumulator: u8,
@@ -93,7 +77,6 @@ pub struct CpuRegisters {
     pub ime: bool,
     // Tracks whether the previous instruction was EI
     pub interrupt_delay: bool,
-    pub oam_dma_status: Option<OamDmaStatus>,
 }
 
 impl CpuRegisters {
@@ -111,7 +94,6 @@ impl CpuRegisters {
             sp: address::HRAM_END,
             ime: false,
             interrupt_delay: false,
-            oam_dma_status: None,
         }
     }
 

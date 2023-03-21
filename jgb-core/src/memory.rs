@@ -2,6 +2,7 @@ pub mod address;
 pub mod ioregisters;
 
 use crate::memory::ioregisters::IoRegisters;
+use crate::ppu::{Mode, PpuState};
 use std::path::Path;
 use std::{fs, io};
 use thiserror::Error;
@@ -282,7 +283,40 @@ impl AddressSpace {
         }
     }
 
-    pub fn read_address_u8(&self, address: u16) -> u8 {
+    fn is_cpu_access_allowed(&self, address: u16, ppu_state: &PpuState) -> bool {
+        // Non-HRAM access not allowed while an OAM DMA transfer is active, even if the PPU is disabled
+        if ppu_state.oam_dma_status().is_some()
+            && !(address::HRAM_START..=address::HRAM_END).contains(&address)
+        {
+            return false;
+        }
+
+        // OAM access not allowed while PPU is scanning OAM or rendering a scanline
+        if ppu_state.enabled()
+            && matches!(
+                ppu_state.mode(),
+                Mode::ScanningOAM | Mode::RenderingScanline
+            )
+            && (address::OAM_START..=address::OAM_END).contains(&address)
+        {
+            return false;
+        }
+
+        // VRAM access not allowed while PPU is rendering a scanline
+        !(ppu_state.enabled()
+            && matches!(ppu_state.mode(), Mode::RenderingScanline)
+            && (address::VRAM_START..=address::VRAM_END).contains(&address))
+    }
+
+    pub fn read_address_u8(&self, address: u16, ppu_state: &PpuState) -> u8 {
+        if !self.is_cpu_access_allowed(address, ppu_state) {
+            return 0xFF;
+        }
+
+        self.read_address_u8_no_access_check(address, ppu_state)
+    }
+
+    pub fn read_address_u8_no_access_check(&self, address: u16, ppu_state: &PpuState) -> u8 {
         match address {
             address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.read_rom_address(address)
@@ -302,9 +336,10 @@ impl AddressSpace {
             address @ address::OAM_START..=address::OAM_END => {
                 self.oam[(address - address::OAM_START) as usize]
             }
-            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => {
-                todo!("should return 0xFF if OAM is blocked, 0x00 otherwise")
-            }
+            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => match ppu_state.mode() {
+                Mode::ScanningOAM | Mode::RenderingScanline => 0xFF,
+                _ => 0x00,
+            },
             address @ address::IO_REGISTERS_START..=address::IO_REGISTERS_END => {
                 self.io_registers.read_address(address)
             }
@@ -315,13 +350,21 @@ impl AddressSpace {
         }
     }
 
-    pub fn read_address_u16(&self, address: u16) -> u16 {
-        let lsb = self.read_address_u8(address);
-        let msb = self.read_address_u8(address + 1);
+    pub fn read_address_u16(&self, address: u16, ppu_state: &PpuState) -> u16 {
+        let lsb = self.read_address_u8(address, ppu_state);
+        let msb = self.read_address_u8(address + 1, ppu_state);
         u16::from_le_bytes([lsb, msb])
     }
 
-    pub fn write_address_u8(&mut self, address: u16, value: u8) {
+    pub fn write_address_u8(&mut self, address: u16, value: u8, ppu_state: &PpuState) {
+        if !self.is_cpu_access_allowed(address, ppu_state) {
+            return;
+        }
+
+        self.write_address_u8_no_access_check(address, value);
+    }
+
+    pub fn write_address_u8_no_access_check(&mut self, address: u16, value: u8) {
         match address {
             address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.write_rom_address(address, value);
@@ -341,9 +384,7 @@ impl AddressSpace {
             address @ address::OAM_START..=address::OAM_END => {
                 self.oam[(address - address::OAM_START) as usize] = value;
             }
-            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => {
-                todo!("should return 0xFF if OAM is blocked, 0x00 otherwise")
-            }
+            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => {}
             address @ address::IO_REGISTERS_START..=address::IO_REGISTERS_END => {
                 self.io_registers.write_address(address, value);
             }
@@ -356,14 +397,22 @@ impl AddressSpace {
         }
     }
 
-    pub fn write_address_u16(&mut self, address: u16, value: u16) {
+    pub fn write_address_u16(&mut self, address: u16, value: u16, ppu_state: &PpuState) {
         let [lsb, msb] = value.to_le_bytes();
-        self.write_address_u8(address, lsb);
-        self.write_address_u8(address + 1, msb);
+        self.write_address_u8(address, lsb, ppu_state);
+        self.write_address_u8(address + 1, msb, ppu_state);
+    }
+
+    pub fn get_io_registers(&self) -> &IoRegisters {
+        &self.io_registers
     }
 
     pub fn get_io_registers_mut(&mut self) -> &mut IoRegisters {
         &mut self.io_registers
+    }
+
+    pub fn get_ie_register(&self) -> u8 {
+        self.ie_register
     }
 }
 
