@@ -232,6 +232,10 @@ impl<'a> InterruptFlags<'a> {
         }
     }
 
+    pub fn get(&self, interrupt_type: InterruptType) -> bool {
+        *self.0 & bit_for_interrupt_type(interrupt_type) != 0
+    }
+
     pub fn set(&mut self, interrupt_type: InterruptType) {
         *self.0 |= bit_for_interrupt_type(interrupt_type);
     }
@@ -248,6 +252,7 @@ pub struct IoRegisters {
 
 impl IoRegisters {
     const JOYP_RELATIVE_ADDR: usize = 0x00;
+    const DIV_RELATIVE_ADDR: usize = 0x04;
     const IF_RELATIVE_ADDR: usize = 0x0F;
     const LCDC_RELATIVE_ADDR: usize = 0x40;
     const STAT_RELATIVE_ADDR: usize = 0x41;
@@ -358,6 +363,10 @@ impl IoRegisters {
 
     pub fn privileged_set_ly(&mut self, value: u8) {
         self.contents[Self::LY_RELATIVE_ADDR] = value;
+    }
+
+    pub fn privileged_set_div(&mut self, value: u8) {
+        self.contents[Self::DIV_RELATIVE_ADDR] = value;
     }
 
     pub fn lcdc(&self) -> Lcdc {
