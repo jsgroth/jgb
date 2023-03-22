@@ -36,7 +36,7 @@ pub fn update_timer_registers(
     }
 
     let timer_control = io_registers.read_register(IoRegister::TAC);
-    if timer_control & 0x40 != 0 {
+    if timer_control & 0x40 == 0 {
         // TIMA updates are disabled
         return;
     }
