@@ -4,9 +4,11 @@
 mod config;
 mod cpu;
 mod eventloop;
+mod input;
 mod memory;
 mod ppu;
 mod startup;
+mod timer;
 
 use crate::cpu::CpuRegisters;
 use crate::memory::AddressSpace;

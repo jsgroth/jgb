@@ -1,4 +1,6 @@
-use crate::memory::address;
+use crate::memory::{address, AddressSpace};
+use crate::ppu::queue::ArrayQueue;
+use tinyvec::ArrayVec;
 
 mod queue;
 
@@ -10,12 +12,39 @@ pub enum Mode {
     RenderingScanline,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct OamSpriteData {
+    x_pos: u8,
+    y_pos: u8,
+    tile_index: u8,
+    flags: u8,
+}
+
+const SPRITES_PER_SCANLINE: usize = 10;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
-    HBlank { scanline: u8, cycle: u32 },
-    VBlank { cycle: u32 },
-    ScanningOAM { scanline: u8, cycle: u32 },
-    RenderingScanline { scanline: u8, pixel: u8, cycle: u32 },
+    HBlank {
+        scanline: u8,
+        cycle: u32,
+    },
+    VBlank {
+        scanline: u8,
+        cycle: u32,
+    },
+    ScanningOAM {
+        scanline: u8,
+        cycle: u32,
+        sprites: ArrayVec<[OamSpriteData; SPRITES_PER_SCANLINE]>,
+    },
+    RenderingScanline {
+        scanline: u8,
+        pixel: u8,
+        cycle: u32,
+        sprites: ArrayVec<[OamSpriteData; SPRITES_PER_SCANLINE]>,
+        bg_pixel_buffer: ArrayQueue<u8>,
+        sprite_pixel_buffer: ArrayQueue<u8>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,8 +89,8 @@ impl PpuState {
     pub fn new() -> Self {
         Self {
             enabled: true,
-            state: State::ScanningOAM {
-                scanline: 0,
+            state: State::VBlank {
+                scanline: SCREEN_HEIGHT + 1,
                 cycle: 0,
             },
             oam_dma_status: None,
@@ -85,4 +114,20 @@ impl PpuState {
     pub fn oam_dma_status(&self) -> Option<OamDmaStatus> {
         self.oam_dma_status
     }
+}
+
+const DOTS_PER_M_CYCLE: u32 = 4;
+const CYCLES_PER_SCANLINE: u32 = 456;
+
+pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
+    let lcdc = address_space.get_io_registers().lcdc();
+
+    let enabled = lcdc.lcd_enabled();
+    ppu_state.enabled = enabled;
+
+    if !enabled {
+        return;
+    }
+
+    todo!()
 }

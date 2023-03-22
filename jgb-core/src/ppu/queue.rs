@@ -1,6 +1,6 @@
 const CAPACITY: usize = 16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ArrayQueue<T> {
     arr: [T; CAPACITY],
     start: usize,

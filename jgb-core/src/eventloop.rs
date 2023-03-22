@@ -1,8 +1,9 @@
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
-use crate::memory::ioregisters::IoRegisters;
+use crate::input::JoypadState;
 use crate::startup::SdlState;
-use crate::EmulationState;
+use crate::timer::TimerCounter;
+use crate::{input, timer, EmulationState};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use thiserror::Error;
@@ -21,61 +22,6 @@ pub enum RunError {
     },
 }
 
-#[derive(Debug, Clone)]
-struct JoypadState {
-    up: bool,
-    down: bool,
-    left: bool,
-    right: bool,
-    a: bool,
-    b: bool,
-    start: bool,
-    select: bool,
-}
-
-impl JoypadState {
-    fn new() -> Self {
-        Self {
-            up: false,
-            down: false,
-            left: false,
-            right: false,
-            a: false,
-            b: false,
-            start: false,
-            select: false,
-        }
-    }
-
-    fn get_field_mut(&mut self, keycode: Keycode) -> Option<&mut bool> {
-        match keycode {
-            Keycode::Up => Some(&mut self.up),
-            Keycode::Down => Some(&mut self.down),
-            Keycode::Left => Some(&mut self.left),
-            Keycode::Right => Some(&mut self.right),
-            Keycode::Z => Some(&mut self.a),
-            Keycode::X => Some(&mut self.b),
-            Keycode::Return => Some(&mut self.start),
-            Keycode::RShift => Some(&mut self.select),
-            _ => None,
-        }
-    }
-
-    fn key_down(&mut self, keycode: Keycode) {
-        if let Some(field) = self.get_field_mut(keycode) {
-            *field = true;
-        }
-        log::debug!("Key pressed: {keycode}, current state: {self:?}")
-    }
-
-    fn key_up(&mut self, keycode: Keycode) {
-        if let Some(field) = self.get_field_mut(keycode) {
-            *field = false;
-        }
-        log::debug!("Key released: {keycode}, current state: {self:?}")
-    }
-}
-
 pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), RunError> {
     let EmulationState {
         mut address_space,
@@ -92,6 +38,7 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     } = sdl_state;
 
     let mut joypad_state = JoypadState::new();
+    let mut timer_counter = TimerCounter::new();
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -119,7 +66,10 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
             }
         }
 
-        update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
+        input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
+
+        // Read TMA register before executing anything in case the instruction updates the register
+        let timer_modulo = timer::read_timer_modulo(address_space.get_io_registers());
 
         // TODO check interrupts here
 
@@ -135,8 +85,14 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
         instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state)?;
 
         // TODO execute PPU here
+        // TODO OAM DMA transfer - here or in PPU code?
 
-        // TODO update timer registers here
+        timer::update_timer_registers(
+            address_space.get_io_registers_mut(),
+            &mut timer_counter,
+            timer_modulo,
+            cycles_required.into(),
+        );
 
         // TODO if frame completed, sleep here until next frametime
 
@@ -159,22 +115,4 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     }
 
     Ok(())
-}
-
-fn update_joyp_register(joypad_state: &JoypadState, io_registers: &mut IoRegisters) {
-    let joyp = io_registers.privileged_read_joyp();
-    let actions_select = joyp & 0x20 == 0;
-    let directions_select = joyp & 0x10 == 0;
-
-    let bit_3 = !(actions_select && joypad_state.start || directions_select && joypad_state.down);
-    let bit_2 = !(actions_select && joypad_state.select || directions_select && joypad_state.up);
-    let bit_1 = !(actions_select && joypad_state.b || directions_select && joypad_state.left);
-    let bit_0 = !(actions_select && joypad_state.a || directions_select && joypad_state.right);
-
-    let new_joyp = (joyp & 0x30)
-        | (u8::from(bit_3) << 3)
-        | (u8::from(bit_2) << 2)
-        | (u8::from(bit_1) << 1)
-        | u8::from(bit_0);
-    io_registers.privileged_set_joyp(new_joyp);
 }

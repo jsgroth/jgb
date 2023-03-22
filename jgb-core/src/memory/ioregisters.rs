@@ -1,3 +1,8 @@
+mod lcdc;
+
+use crate::cpu::InterruptType;
+pub use lcdc::{AddressRange, Lcdc};
+
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IoRegister {
@@ -200,13 +205,51 @@ impl IoRegister {
     }
 }
 
-#[derive(Debug)]
+fn bit_for_interrupt_type(interrupt_type: InterruptType) -> u8 {
+    match interrupt_type {
+        InterruptType::VBlank => 0x01,
+        InterruptType::LcdStatus => 0x02,
+        InterruptType::Timer => 0x04,
+        InterruptType::Joypad => 0x10,
+    }
+}
+
+pub struct InterruptFlags<'a>(&'a mut u8);
+
+impl<'a> InterruptFlags<'a> {
+    pub fn highest_priority_interrupt(&self, ie_value: u8) -> Option<InterruptType> {
+        let masked_if = *self.0 & ie_value;
+        if masked_if & 0x01 != 0 {
+            Some(InterruptType::VBlank)
+        } else if masked_if & 0x02 != 0 {
+            Some(InterruptType::LcdStatus)
+        } else if masked_if & 0x04 != 0 {
+            Some(InterruptType::Timer)
+        } else if masked_if & 0x10 != 0 {
+            Some(InterruptType::Joypad)
+        } else {
+            None
+        }
+    }
+
+    pub fn set(&mut self, interrupt_type: InterruptType) {
+        *self.0 |= bit_for_interrupt_type(interrupt_type);
+    }
+
+    pub fn clear(&mut self, interrupt_type: InterruptType) {
+        *self.0 &= !bit_for_interrupt_type(interrupt_type);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IoRegisters {
     contents: [u8; 0x80],
 }
 
 impl IoRegisters {
     const JOYP_RELATIVE_ADDR: usize = 0x00;
+    const IF_RELATIVE_ADDR: usize = 0x0F;
+    const LCDC_RELATIVE_ADDR: usize = 0x40;
     const STAT_RELATIVE_ADDR: usize = 0x41;
     const LY_RELATIVE_ADDR: usize = 0x44;
 
@@ -267,6 +310,10 @@ impl IoRegisters {
 
         let relative_addr = (address - 0xFF00) as usize;
         match register {
+            IoRegister::DIV => {
+                // All writes to DIV reset the value to 0
+                self.contents[relative_addr] = 0x00;
+            }
             IoRegister::JOYP => {
                 let existing_value = self.contents[relative_addr];
                 let new_value = existing_value & (value | 0xCF);
@@ -311,6 +358,14 @@ impl IoRegisters {
 
     pub fn privileged_set_ly(&mut self, value: u8) {
         self.contents[Self::LY_RELATIVE_ADDR] = value;
+    }
+
+    pub fn lcdc(&self) -> Lcdc {
+        Lcdc(&self.contents[Self::LCDC_RELATIVE_ADDR])
+    }
+
+    pub fn interrupt_flags(&mut self) -> InterruptFlags {
+        InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
     }
 }
 
