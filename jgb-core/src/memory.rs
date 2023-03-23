@@ -347,6 +347,18 @@ impl AddressSpace {
         }
     }
 
+    pub fn ppu_read_address_u8(&self, address: u16) -> u8 {
+        match address {
+            address @ address::OAM_START..=address::OAM_END => {
+                self.oam[(address - address::OAM_START) as usize]
+            }
+            address @ address::VRAM_START..=address::VRAM_END => {
+                self.vram[(address - address::VRAM_START) as usize]
+            }
+            _ => panic!("PPU read method is only allowed to read OAM and VRAM"),
+        }
+    }
+
     pub fn read_address_u16(&self, address: u16, ppu_state: &PpuState) -> u16 {
         let lsb = self.read_address_u8(address, ppu_state);
         let msb = self.read_address_u8(address + 1, ppu_state);

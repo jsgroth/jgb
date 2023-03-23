@@ -60,8 +60,12 @@ impl<'a> Lcdc<'a> {
         }
     }
 
-    pub fn sprite_stacking_enabled(self) -> bool {
-        *self.0 & 0x04 != 0
+    pub fn sprite_height(self) -> u8 {
+        if *self.0 & 0x04 != 0 {
+            16
+        } else {
+            8
+        }
     }
 
     pub fn sprites_enabled(self) -> bool {
