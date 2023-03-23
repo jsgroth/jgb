@@ -206,22 +206,7 @@ fn process_state(
             dot,
             sprites,
         } => process_scanning_oam_state(scanline, dot, sprites, address_space, oam_dma_status),
-        State::RenderingScanline {
-            scanline,
-            pixel,
-            dot,
-            sprites,
-            bg_pixel_queue,
-            sprite_pixel_queue,
-        } => process_render_state(
-            scanline,
-            pixel,
-            dot,
-            sprites,
-            bg_pixel_queue,
-            sprite_pixel_queue,
-            pixel_buffer,
-        ),
+        State::RenderingScanline { .. } => process_render_state(state, address_space, pixel_buffer),
     }
 }
 
@@ -323,9 +308,9 @@ fn scan_oam(
 
     let sprite_height = address_space.get_io_registers().lcdc().sprite_height();
 
-    let top_scanline = i32::from(y_pos) - i32::from(sprite_height);
-    let bottom_scanline = i32::from(y_pos) - 1;
-    if (top_scanline..=bottom_scanline).contains(&scanline.into()) {
+    let top_scanline = i32::from(y_pos) - 16;
+    let bottom_scanline = top_scanline + i32::from(sprite_height);
+    if (top_scanline..bottom_scanline).contains(&scanline.into()) {
         let x_pos = address_space.ppu_read_address_u8(obj_address + 1);
         let tile_index = address_space.ppu_read_address_u8(obj_address + 2);
         let flags = address_space.ppu_read_address_u8(obj_address + 3);
@@ -340,13 +325,20 @@ fn scan_oam(
 }
 
 fn process_render_state(
-    scanline: u8,
-    pixel: u8,
-    dot: u32,
-    sprites: SortedOamData,
-    bg_pixel_buffer: VecDeque<u8>,
-    sprite_pixel_buffer: VecDeque<u8>,
+    state: State,
+    address_space: &AddressSpace,
     frame_buffer: &mut FrameBuffer,
 ) -> State {
+    let State::RenderingScanline {
+        scanline,
+        pixel,
+        dot,
+        sprites,
+        bg_pixel_queue,
+        sprite_pixel_queue,
+    } = state else {
+        panic!("process render_state only accepts RenderingScanline state, was: {state:?}");
+    };
+
     todo!()
 }
