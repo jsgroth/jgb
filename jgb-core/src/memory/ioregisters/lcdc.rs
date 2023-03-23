@@ -73,7 +73,7 @@ impl<'a> Lcdc<'a> {
     }
 
     pub fn bg_tile_map_area(self) -> AddressRange {
-        if *self.0 & 0x80 != 0 {
+        if *self.0 & 0x08 != 0 {
             BG_TILE_MAP_AREA_1
         } else {
             BG_TILE_MAP_AREA_0

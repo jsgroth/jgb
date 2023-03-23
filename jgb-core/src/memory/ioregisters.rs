@@ -205,15 +205,6 @@ impl IoRegister {
     }
 }
 
-fn bit_for_interrupt_type(interrupt_type: InterruptType) -> u8 {
-    match interrupt_type {
-        InterruptType::VBlank => 0x01,
-        InterruptType::LcdStatus => 0x02,
-        InterruptType::Timer => 0x04,
-        InterruptType::Joypad => 0x10,
-    }
-}
-
 pub struct InterruptFlags<'a>(&'a mut u8);
 
 impl<'a> InterruptFlags<'a> {
@@ -233,21 +224,22 @@ impl<'a> InterruptFlags<'a> {
     }
 
     pub fn get(&self, interrupt_type: InterruptType) -> bool {
-        *self.0 & bit_for_interrupt_type(interrupt_type) != 0
+        *self.0 & interrupt_type.bit() != 0
     }
 
     pub fn set(&mut self, interrupt_type: InterruptType) {
-        *self.0 |= bit_for_interrupt_type(interrupt_type);
+        *self.0 |= interrupt_type.bit();
     }
 
     pub fn clear(&mut self, interrupt_type: InterruptType) {
-        *self.0 &= !bit_for_interrupt_type(interrupt_type);
+        *self.0 &= !interrupt_type.bit();
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IoRegisters {
     contents: [u8; 0x80],
+    oam_dma_transfer_requested: bool,
 }
 
 impl IoRegisters {
@@ -288,7 +280,10 @@ impl IoRegisters {
         // BGP
         contents[0x47] = 0xFC;
 
-        Self { contents }
+        Self {
+            contents,
+            oam_dma_transfer_requested: false,
+        }
     }
 
     pub fn read_address(&self, address: u16) -> u8 {
@@ -330,6 +325,10 @@ impl IoRegisters {
                 let new_value = existing_value & (value | 0x87);
                 let new_value = new_value | (value & 0x78);
                 self.contents[relative_addr] = new_value;
+            }
+            IoRegister::DMA => {
+                self.oam_dma_transfer_requested = true;
+                self.contents[relative_addr] = value;
             }
             _ => {
                 self.contents[relative_addr] = value;
@@ -376,6 +375,14 @@ impl IoRegisters {
     pub fn interrupt_flags(&mut self) -> InterruptFlags {
         InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
     }
+
+    pub fn oam_dma_transfer_requested(&self) -> bool {
+        self.oam_dma_transfer_requested
+    }
+
+    pub fn clear_oam_dma_transfer_request(&mut self) {
+        self.oam_dma_transfer_requested = false;
+    }
 }
 
 #[cfg(test)]
@@ -385,6 +392,7 @@ mod tests {
     fn empty_io_registers() -> IoRegisters {
         IoRegisters {
             contents: [0; 0x80],
+            oam_dma_transfer_requested: false,
         }
     }
 

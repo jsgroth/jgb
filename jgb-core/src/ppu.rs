@@ -1,5 +1,5 @@
 use crate::cpu::InterruptType;
-use crate::memory::ioregisters::{IoRegister, SpriteMode, TileDataRange};
+use crate::memory::ioregisters::{IoRegister, IoRegisters, SpriteMode, TileDataRange};
 use crate::memory::{address, AddressSpace};
 use std::collections::VecDeque;
 
@@ -13,6 +13,17 @@ pub enum Mode {
     VBlank,
     ScanningOAM,
     RenderingScanline,
+}
+
+impl Mode {
+    fn flag_bits(self) -> u8 {
+        match self {
+            Self::HBlank => 0x00,
+            Self::VBlank => 0x01,
+            Self::ScanningOAM => 0x02,
+            Self::RenderingScanline => 0x03,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -62,7 +73,7 @@ impl QueuedObjPixel {
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
     HBlank {
         scanline: u8,
@@ -96,6 +107,15 @@ impl State {
             | &Self::HBlank { scanline, .. }
             | &Self::ScanningOAM { scanline, .. }
             | &Self::RenderingScanline { scanline, .. } => scanline,
+        }
+    }
+
+    pub fn mode(&self) -> Mode {
+        match self {
+            State::HBlank { .. } => Mode::HBlank,
+            State::VBlank { .. } => Mode::VBlank,
+            State::ScanningOAM { .. } => Mode::ScanningOAM,
+            State::RenderingScanline { .. } => Mode::RenderingScanline,
         }
     }
 }
@@ -155,16 +175,15 @@ impl PpuState {
     }
 
     pub fn mode(&self) -> Mode {
-        match self.state {
-            State::HBlank { .. } => Mode::HBlank,
-            State::VBlank { .. } => Mode::VBlank,
-            State::ScanningOAM { .. } => Mode::ScanningOAM,
-            State::RenderingScanline { .. } => Mode::RenderingScanline,
-        }
+        self.state.mode()
     }
 
     pub fn oam_dma_status(&self) -> Option<OamDmaStatus> {
         self.oam_dma_status
+    }
+
+    pub fn frame_buffer(&self) -> &FrameBuffer {
+        &self.frame_buffer
     }
 }
 
@@ -185,6 +204,41 @@ const DUMMY_STATE: State = State::VBlank {
     dot: 0,
 };
 
+const VBLANK_START: State = State::VBlank {
+    scanline: SCREEN_HEIGHT,
+    dot: 0,
+};
+
+pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
+    if ppu_state.oam_dma_status.is_none()
+        && address_space
+            .get_io_registers()
+            .oam_dma_transfer_requested()
+    {
+        address_space
+            .get_io_registers_mut()
+            .clear_oam_dma_transfer_request();
+
+        let source_high_bits = address_space
+            .get_io_registers()
+            .read_register(IoRegister::DMA);
+        if source_high_bits <= 0xDF {
+            ppu_state.oam_dma_status = Some(OamDmaStatus {
+                source_high_bits: source_high_bits.into(),
+                current_low_bits: 0x00,
+            });
+        }
+    }
+
+    let Some(oam_dma_status) = ppu_state.oam_dma_status else { return; };
+
+    address_space.copy_byte(
+        oam_dma_status.current_source_address(),
+        oam_dma_status.current_dest_address(),
+    );
+    ppu_state.oam_dma_status = oam_dma_status.increment();
+}
+
 pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
     let enabled = address_space.get_io_registers().lcdc().lcd_enabled();
     ppu_state.enabled = enabled;
@@ -201,26 +255,62 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         &mut ppu_state.frame_buffer,
     );
 
+    log::trace!("new PPU state: {new_state:?}");
+
     let scanline = new_state.scanline();
+    let new_mode = new_state.mode();
 
     address_space
         .get_io_registers_mut()
         .privileged_set_ly(scanline);
 
-    if let &State::VBlank {
-        scanline: 144,
-        dot: 0,
-    } = &new_state
-    {
+    update_stat_register(address_space.get_io_registers_mut(), scanline, new_mode);
+
+    if new_state == VBLANK_START {
         address_space
             .get_io_registers_mut()
             .interrupt_flags()
             .set(InterruptType::VBlank);
     }
 
-    ppu_state.state = new_state;
+    let stat_interrupt_line =
+        compute_stat_interrupt_line(address_space.get_io_registers(), scanline, new_mode);
+    if !ppu_state.last_stat_interrupt_line && stat_interrupt_line {
+        address_space
+            .get_io_registers_mut()
+            .interrupt_flags()
+            .set(InterruptType::LcdStatus);
+    }
 
-    todo!("update LY, STAT, IF")
+    ppu_state.state = new_state;
+    ppu_state.last_stat_interrupt_line = stat_interrupt_line;
+}
+
+fn update_stat_register(io_registers: &mut IoRegisters, scanline: u8, mode: Mode) {
+    let lyc_match = scanline == io_registers.read_register(IoRegister::LYC);
+
+    let mode_bits = mode.flag_bits();
+
+    let existing_stat = io_registers.privileged_read_stat() & 0xF8;
+    let new_stat = existing_stat | (u8::from(lyc_match) << 2) | mode_bits;
+
+    io_registers.privileged_set_stat(new_stat);
+}
+
+fn compute_stat_interrupt_line(io_registers: &IoRegisters, scanline: u8, mode: Mode) -> bool {
+    let stat = io_registers.privileged_read_stat();
+
+    let lyc_source = stat & 0x40 != 0;
+    let scanning_oam_source = stat & 0x20 != 0;
+    let vblank_source = stat & 0x10 != 0;
+    let hblank_source = stat & 0x08 != 0;
+
+    let lyc_match = scanline == io_registers.read_register(IoRegister::LYC);
+
+    (lyc_source && lyc_match)
+        || (scanning_oam_source && mode == Mode::ScanningOAM)
+        || (vblank_source && mode == Mode::VBlank)
+        || (hblank_source && mode == Mode::HBlank)
 }
 
 fn process_state(
@@ -400,6 +490,13 @@ fn process_render_state(
         };
     }
 
+    log::trace!(
+        "LCDC: {:02X}",
+        address_space
+            .get_io_registers()
+            .read_register(IoRegister::LCDC)
+    );
+
     let lcdc = address_space.get_io_registers().lcdc();
     let bg_enabled = lcdc.bg_enabled();
     let sprites_enabled = lcdc.sprites_enabled();
@@ -437,6 +534,8 @@ fn process_render_state(
                 get_bg_pixel_color(bg_pixel, bg_palette)
             };
 
+            log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
+
             frame_buffer[scanline as usize][pixel as usize] = pixel_color;
             pixel += 1;
         }
@@ -462,6 +561,8 @@ fn process_render_state(
 
     while bg_pixel_queue.len() < 8 {
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
+            log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}");
+
             // Clear any existing BG pixels if we just entered the window
             if bg_fetcher_x + 7 == window_x_plus_7 {
                 bg_pixel_queue.clear();
@@ -495,6 +596,8 @@ fn process_render_state(
                 .get_io_registers()
                 .read_register(IoRegister::SCX);
 
+            log::trace!("Viewport at x={viewport_x}, y={viewport_y}");
+
             let bg_y = viewport_y.wrapping_add(scanline);
             let bg_x = viewport_x.wrapping_add(bg_fetcher_x);
 
@@ -504,7 +607,14 @@ fn process_render_state(
             let tile_index =
                 address_space.ppu_read_address_u8(bg_tile_map_area.start + tile_map_offset);
 
+            log::trace!(
+                "Reading tile index at x={bg_tile_x}, y={bg_tile_y} using tile map address {:04X}",
+                bg_tile_map_area.start + tile_map_offset
+            );
+
             let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
+
+            log::trace!("Reading tile data from address {tile_address:04X}");
 
             let y: u16 = (bg_y % 8).into();
             let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);

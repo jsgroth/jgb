@@ -1,11 +1,15 @@
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::input::JoypadState;
+use crate::memory::ioregisters::IoRegister;
+use crate::ppu::Mode;
 use crate::startup::SdlState;
 use crate::timer::TimerCounter;
-use crate::{input, timer, EmulationState};
+use crate::{cpu, input, ppu, timer, EmulationState};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::render::TextureValueError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -20,22 +24,32 @@ pub enum RunError {
         #[from]
         source: ExecutionError,
     },
+    #[error("error creating SDL2 texture: {source}")]
+    TextureCreation {
+        #[from]
+        source: TextureValueError,
+    },
+    #[error("SDL2 rendering error: {msg}")]
+    Rendering { msg: String },
 }
 
 pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), RunError> {
     let EmulationState {
         mut address_space,
         mut cpu_registers,
-        ppu_state,
+        mut ppu_state,
     } = emulation_state;
 
     let SdlState {
         sdl,
         video,
-        canvas,
+        mut canvas,
         game_controller,
         mut event_pump,
     } = sdl_state;
+
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, 160, 144)?;
 
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
@@ -73,19 +87,49 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
 
         // TODO check interrupts here
 
-        let (instruction, pc) =
-            instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)?;
+        let cycles_required = if cpu::interrupt_triggered(&cpu_registers, &address_space) {
+            cpu::execute_interrupt_service_routine(
+                &mut cpu_registers,
+                &mut address_space,
+                &ppu_state,
+            );
 
-        log::trace!("Updating PC from 0x{:04X} to {:04X}", cpu_registers.pc, pc);
-        cpu_registers.pc = pc;
+            cpu::ISR_CYCLES_REQUIRED
+        } else {
+            let (instruction, pc) =
+                instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)?;
 
-        let cycles_required = instruction.cycles_required(&cpu_registers);
+            log::trace!("Updating PC from 0x{:04X} to {:04X}", cpu_registers.pc, pc);
+            cpu_registers.pc = pc;
 
-        log::trace!("Executing instruction {instruction:04X?}, will take {cycles_required} cycles");
-        instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state)?;
+            let cycles_required = instruction.cycles_required(&cpu_registers);
 
-        // TODO execute PPU here
-        // TODO OAM DMA transfer - here or in PPU code?
+            log::trace!(
+                "Executing instruction {instruction:04X?}, will take {cycles_required} cycles"
+            );
+            log::trace!("CPU registers before instruction execution: {cpu_registers:04X?}");
+            log::trace!(
+                "IE register before instruction execution: {:02X}",
+                address_space.get_ie_register()
+            );
+            log::trace!(
+                "IF register before instruction execution: {:02X}",
+                address_space
+                    .get_io_registers()
+                    .read_register(IoRegister::IF)
+            );
+            instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state)?;
+
+            cycles_required
+        };
+
+        assert!(cycles_required > 0 && cycles_required % 4 == 0);
+
+        let prev_mode = ppu_state.mode();
+        for _ in (0..cycles_required).step_by(4) {
+            ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+            ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
+        }
 
         timer::update_timer_registers(
             address_space.get_io_registers_mut(),
@@ -93,6 +137,31 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
             timer_modulo,
             cycles_required.into(),
         );
+
+        if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
+            let frame_buffer = ppu_state.frame_buffer();
+            canvas.clear();
+            texture
+                .with_lock(None, |pixels, pitch| {
+                    for i in 0..144 {
+                        for j in 0..160 {
+                            let gb_color = frame_buffer[i][j];
+                            let color = (f64::from(gb_color) / 3.0 * 255.0).round() as u8;
+
+                            log::trace!("Setting pixel at ({i}, {j}) to {color} from {gb_color}");
+
+                            pixels[i * pitch + j * 3] = color;
+                            pixels[i * pitch + j * 3 + 1] = color;
+                            pixels[i * pitch + j * 3 + 2] = color;
+                        }
+                    }
+                })
+                .map_err(|msg| RunError::Rendering { msg })?;
+            canvas
+                .copy(&texture, None, None)
+                .map_err(|msg| RunError::Rendering { msg })?;
+            canvas.present();
+        }
 
         // TODO if frame completed, sleep here until next frametime
 
