@@ -1,7 +1,7 @@
 mod lcdc;
 
 use crate::cpu::InterruptType;
-pub use lcdc::{AddressRange, Lcdc};
+pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

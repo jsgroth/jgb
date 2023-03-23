@@ -1,4 +1,5 @@
 use crate::cpu::InterruptType;
+use crate::memory::ioregisters::{IoRegister, SpriteMode, TileDataRange};
 use crate::memory::{address, AddressSpace};
 use std::collections::VecDeque;
 
@@ -22,15 +23,43 @@ struct OamSpriteData {
     flags: u8,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct SortedOamData(Vec<OamSpriteData>);
 
 impl SortedOamData {
-    fn from_array_vec(mut v: Vec<OamSpriteData>) -> Self {
+    fn from_vec(mut v: Vec<OamSpriteData>) -> Self {
         v.sort_by_key(|data| data.x_pos);
 
         Self(v)
     }
+
+    fn find_first_overlapping_sprite(&self, x: u8) -> Option<OamSpriteData> {
+        self.0
+            .iter()
+            .find(|&sprite_data| (sprite_data.x_pos..sprite_data.x_pos + 8).contains(&(x + 8)))
+            .copied()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpritePalette {
+    ObjPalette0,
+    ObjPalette1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct QueuedObjPixel {
+    pixel: u8,
+    obj_palette: SpritePalette,
+    bg_over_obj: bool,
+}
+
+impl QueuedObjPixel {
+    const TRANSPARENT: Self = Self {
+        pixel: 0x00,
+        obj_palette: SpritePalette::ObjPalette0,
+        bg_over_obj: true,
+    };
 }
 
 #[derive(Debug, Clone)]
@@ -51,10 +80,12 @@ enum State {
     RenderingScanline {
         scanline: u8,
         pixel: u8,
+        bg_fetcher_x: u8,
+        sprite_fetcher_x: u8,
         dot: u32,
         sprites: SortedOamData,
         bg_pixel_queue: VecDeque<u8>,
-        sprite_pixel_queue: VecDeque<u8>,
+        sprite_pixel_queue: VecDeque<QueuedObjPixel>,
     },
 }
 
@@ -275,8 +306,10 @@ fn process_scanning_oam_state(
         State::RenderingScanline {
             scanline,
             pixel: 0,
+            bg_fetcher_x: 0,
+            sprite_fetcher_x: 0,
             dot: new_dot,
-            sprites: SortedOamData::from_array_vec(sprites),
+            sprites: SortedOamData::from_vec(sprites),
             bg_pixel_queue: VecDeque::new(),
             sprite_pixel_queue: VecDeque::new(),
         }
@@ -306,7 +339,11 @@ fn scan_oam(
 
     let y_pos = address_space.ppu_read_address_u8(obj_address);
 
-    let sprite_height = address_space.get_io_registers().lcdc().sprite_height();
+    let sprite_height = address_space
+        .get_io_registers()
+        .lcdc()
+        .sprite_mode()
+        .height();
 
     let top_scanline = i32::from(y_pos) - 16;
     let bottom_scanline = top_scanline + i32::from(sprite_height);
@@ -324,6 +361,8 @@ fn scan_oam(
     }
 }
 
+// This function is not even remotely cycle-accurate but it attempts to approximate the pixel queue
+// behavior of actual hardware
 fn process_render_state(
     state: State,
     address_space: &AddressSpace,
@@ -331,14 +370,278 @@ fn process_render_state(
 ) -> State {
     let State::RenderingScanline {
         scanline,
-        pixel,
+        mut pixel,
+        mut bg_fetcher_x,
+        mut sprite_fetcher_x,
         dot,
         sprites,
-        bg_pixel_queue,
-        sprite_pixel_queue,
+        mut bg_pixel_queue,
+        mut sprite_pixel_queue,
     } = state else {
         panic!("process render_state only accepts RenderingScanline state, was: {state:?}");
     };
 
-    todo!()
+    if pixel == SCREEN_WIDTH {
+        if dot >= MIN_RENDER_DOTS {
+            return State::HBlank {
+                scanline,
+                dot: dot + DOTS_PER_M_CYCLE,
+            };
+        }
+        return State::RenderingScanline {
+            scanline,
+            pixel,
+            bg_fetcher_x,
+            sprite_fetcher_x,
+            dot: dot + DOTS_PER_M_CYCLE,
+            sprites,
+            bg_pixel_queue,
+            sprite_pixel_queue,
+        };
+    }
+
+    let lcdc = address_space.get_io_registers().lcdc();
+    let bg_enabled = lcdc.bg_enabled();
+    let sprites_enabled = lcdc.sprites_enabled();
+    let window_tile_map_area = lcdc.window_tile_map_area();
+    let bg_tile_data_area = lcdc.bg_tile_data_area();
+    let bg_tile_map_area = lcdc.bg_tile_map_area();
+    let window_enabled = lcdc.window_enabled();
+    let sprite_mode = lcdc.sprite_mode();
+
+    let bg_palette = address_space
+        .get_io_registers()
+        .read_register(IoRegister::BGP);
+    let obj_palette_0 = address_space
+        .get_io_registers()
+        .read_register(IoRegister::OBP0);
+    let obj_palette_1 = address_space
+        .get_io_registers()
+        .read_register(IoRegister::OBP1);
+
+    if bg_pixel_queue.len() >= 8 && sprite_pixel_queue.len() >= 8 {
+        while !bg_pixel_queue.is_empty() && !sprite_pixel_queue.is_empty() && pixel < SCREEN_WIDTH {
+            let bg_pixel = bg_pixel_queue.pop_front().unwrap();
+            let sprite_pixel = sprite_pixel_queue.pop_front().unwrap();
+
+            // Discard BG pixel if BG is disabled
+            let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
+
+            let pixel_color = if sprite_pixel.pixel != 0x00 && !sprite_pixel.bg_over_obj {
+                let palette = match sprite_pixel.obj_palette {
+                    SpritePalette::ObjPalette0 => obj_palette_0,
+                    SpritePalette::ObjPalette1 => obj_palette_1,
+                };
+                get_obj_pixel_color(sprite_pixel.pixel, palette)
+            } else {
+                get_bg_pixel_color(bg_pixel, bg_palette)
+            };
+
+            frame_buffer[scanline as usize][pixel as usize] = pixel_color;
+            pixel += 1;
+        }
+
+        return State::RenderingScanline {
+            scanline,
+            pixel,
+            bg_fetcher_x,
+            sprite_fetcher_x,
+            dot: dot + DOTS_PER_M_CYCLE,
+            sprites,
+            bg_pixel_queue,
+            sprite_pixel_queue,
+        };
+    }
+
+    let window_y = address_space
+        .get_io_registers()
+        .read_register(IoRegister::WY);
+    let window_x_plus_7 = address_space
+        .get_io_registers()
+        .read_register(IoRegister::WX);
+
+    while bg_pixel_queue.len() < 8 {
+        if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
+            // Clear any existing BG pixels if we just entered the window
+            if bg_fetcher_x + 7 == window_x_plus_7 {
+                bg_pixel_queue.clear();
+            }
+
+            let window_tile_x: u16 = ((window_x_plus_7 - (bg_fetcher_x + 7)) / 8).into();
+            let window_tile_y: u16 = ((window_y - scanline) / 8).into();
+            let tile_map_offset = 32 * window_tile_y + window_tile_x;
+            let tile_index =
+                address_space.ppu_read_address_u8(window_tile_map_area.start + tile_map_offset);
+
+            let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
+
+            let y: u16 = ((window_y - scanline) % 8).into();
+            let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
+            let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+
+            let mut x = (window_x_plus_7 - (bg_fetcher_x + 7)) % 8;
+            while x < 8 {
+                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
+                bg_pixel_queue.push_back(pixel_color_id);
+
+                x += 1;
+                bg_fetcher_x += 1;
+            }
+        } else {
+            let viewport_y = address_space
+                .get_io_registers()
+                .read_register(IoRegister::SCY);
+            let viewport_x = address_space
+                .get_io_registers()
+                .read_register(IoRegister::SCX);
+
+            let bg_y = viewport_y.wrapping_add(scanline);
+            let bg_x = viewport_x.wrapping_add(bg_fetcher_x);
+
+            let bg_tile_y: u16 = (bg_y / 8).into();
+            let bg_tile_x: u16 = (bg_x / 8).into();
+            let tile_map_offset = 32 * bg_tile_y + bg_tile_x;
+            let tile_index =
+                address_space.ppu_read_address_u8(bg_tile_map_area.start + tile_map_offset);
+
+            let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
+
+            let y: u16 = (bg_y % 8).into();
+            let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
+            let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+
+            let mut x = bg_x % 8;
+            while x < 8
+                && (!window_enabled || scanline < window_y || (bg_fetcher_x + 7) < window_x_plus_7)
+            {
+                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
+                bg_pixel_queue.push_back(pixel_color_id);
+
+                x += 1;
+                bg_fetcher_x += 1;
+            }
+        }
+    }
+
+    while sprite_pixel_queue.len() < 8 {
+        if !sprites_enabled {
+            sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
+            sprite_fetcher_x += 1;
+            continue;
+        }
+
+        let Some(sprite) = sprites.find_first_overlapping_sprite(sprite_fetcher_x) else {
+            sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
+            sprite_fetcher_x += 1;
+            continue;
+        };
+
+        let bg_over_obj = sprite.flags & 0x80 != 0;
+        let flip_y = sprite.flags & 0x40 != 0;
+        let flip_x = sprite.flags & 0x20 != 0;
+        let obj_palette = if sprite.flags & 0x10 != 0 {
+            SpritePalette::ObjPalette1
+        } else {
+            SpritePalette::ObjPalette0
+        };
+
+        let sprite_y = scanline + 16 - sprite.y_pos;
+        let sprite_x = sprite_fetcher_x + 8 - sprite.x_pos;
+
+        let (tile_index, y) = match sprite_mode {
+            SpriteMode::Single => {
+                let y = if flip_y { 7 - sprite_y } else { sprite_y };
+                (sprite.tile_index, y)
+            }
+            SpriteMode::Stacked => {
+                let y = if flip_y { 15 - sprite_y } else { sprite_y };
+                let tile_index = if y < 8 {
+                    sprite.tile_index & 0xFE
+                } else {
+                    (sprite.tile_index & 0xFE) + 1
+                };
+                (tile_index, y)
+            }
+        };
+
+        let y: u16 = y.into();
+
+        let tile_address = 0x8000 + 16 * u16::from(tile_index);
+
+        let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
+        let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+
+        if flip_x {
+            let mut x = sprite_x;
+            while x < 8 {
+                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
+                sprite_pixel_queue.push_back(QueuedObjPixel {
+                    pixel: pixel_color_id,
+                    obj_palette,
+                    bg_over_obj,
+                });
+
+                x += 1;
+                sprite_fetcher_x += 1;
+            }
+        } else {
+            let mut x = 7 - sprite_x;
+            loop {
+                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
+                sprite_pixel_queue.push_back(QueuedObjPixel {
+                    pixel: pixel_color_id,
+                    obj_palette,
+                    bg_over_obj,
+                });
+
+                if x == 0 {
+                    break;
+                }
+
+                x -= 1;
+                sprite_fetcher_x += 1;
+            }
+        }
+    }
+
+    State::RenderingScanline {
+        scanline,
+        pixel,
+        bg_fetcher_x,
+        sprite_fetcher_x,
+        dot: dot + DOTS_PER_M_CYCLE,
+        sprites,
+        bg_pixel_queue,
+        sprite_pixel_queue,
+    }
+}
+
+fn get_bg_tile_address(bg_tile_data_area: TileDataRange, tile_index: u8) -> u16 {
+    match bg_tile_data_area {
+        TileDataRange::Block0 => bg_tile_data_area.start_address() + 16 * u16::from(tile_index),
+        TileDataRange::Block1 => {
+            // Intentionally wrap [128, 255] to [-128, -1]
+            let signed_tile_index = tile_index as i8;
+            (i32::from(bg_tile_data_area.start_address()) + 16 * i32::from(signed_tile_index))
+                as u16
+        }
+    }
+}
+
+fn get_bg_pixel_color(pixel: u8, palette: u8) -> u8 {
+    (palette >> (pixel * 2)) & 0x03
+}
+
+fn get_obj_pixel_color(pixel: u8, palette: u8) -> u8 {
+    // 0x00 in OBJ pixels means transparent, ignore palette
+    if pixel == 0x00 {
+        0x00
+    } else {
+        (palette >> (pixel * 2)) & 0x03
+    }
+}
+
+fn get_pixel_color_id(tile_data_0: u8, tile_data_1: u8, x: u8) -> u8 {
+    let bit_mask = 1 << (7 - x);
+    u8::from(tile_data_1 & bit_mask != 0) << 1 | u8::from(tile_data_0 & bit_mask != 0)
 }

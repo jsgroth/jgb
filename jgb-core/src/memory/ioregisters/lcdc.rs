@@ -14,15 +14,35 @@ const BG_TILE_MAP_AREA_1: AddressRange = AddressRange {
     end_inclusive: 0x9FFF,
 };
 
-const BG_TILE_DATA_AREA_0: AddressRange = AddressRange {
-    start: 0x8800,
-    end_inclusive: 0x97FF,
-};
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TileDataRange {
+    Block0,
+    Block1,
+}
 
-const BG_TILE_DATA_AREA_1: AddressRange = AddressRange {
-    start: 0x8000,
-    end_inclusive: 0x8FFF,
-};
+impl TileDataRange {
+    pub fn start_address(self) -> u16 {
+        match self {
+            Self::Block0 => 0x8000,
+            Self::Block1 => 0x9000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpriteMode {
+    Stacked,
+    Single,
+}
+
+impl SpriteMode {
+    pub fn height(self) -> u8 {
+        match self {
+            Self::Stacked => 16,
+            Self::Single => 8,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lcdc<'a>(pub(super) &'a u8);
@@ -44,11 +64,11 @@ impl<'a> Lcdc<'a> {
         *self.0 & 0x20 != 0
     }
 
-    pub fn bg_tile_data_area(self) -> AddressRange {
+    pub fn bg_tile_data_area(self) -> TileDataRange {
         if *self.0 & 0x10 != 0 {
-            BG_TILE_DATA_AREA_1
+            TileDataRange::Block1
         } else {
-            BG_TILE_DATA_AREA_0
+            TileDataRange::Block0
         }
     }
 
@@ -56,15 +76,15 @@ impl<'a> Lcdc<'a> {
         if *self.0 & 0x80 != 0 {
             BG_TILE_MAP_AREA_1
         } else {
-            BG_TILE_DATA_AREA_0
+            BG_TILE_MAP_AREA_0
         }
     }
 
-    pub fn sprite_height(self) -> u8 {
+    pub fn sprite_mode(self) -> SpriteMode {
         if *self.0 & 0x04 != 0 {
-            16
+            SpriteMode::Stacked
         } else {
-            8
+            SpriteMode::Single
         }
     }
 
