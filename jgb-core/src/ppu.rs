@@ -852,6 +852,9 @@ mod tests {
         assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(42));
         assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(45));
         assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(49));
-        assert_eq!(vec![], sorted_data.find_overlapping_sprites(50));
+        assert_eq!(
+            Vec::<OamSpriteData>::new(),
+            sorted_data.find_overlapping_sprites(50)
+        );
     }
 }
