@@ -34,9 +34,10 @@ pub fn render_frame(
             for i in 0..144 {
                 for j in 0..160 {
                     let gb_color = frame_buffer[i][j];
-                    let color = (f64::from(gb_color) / 3.0 * 255.0).round() as u8;
 
-                    log::trace!("Setting pixel at ({i}, {j}) to {color} from {gb_color}");
+                    // GB colors range from 0-3 with 0 being white and 3 being black
+                    // In this pixel format, 0/0/0 = white and 255/255/255 = black, so map [0,3] to [255,0]
+                    let color = 255 - (f64::from(gb_color) / 3.0 * 255.0).round() as u8;
 
                     pixels[i * pitch + j * 3] = color;
                     pixels[i * pitch + j * 3 + 1] = color;
