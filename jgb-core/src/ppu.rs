@@ -3,8 +3,6 @@ use crate::memory::ioregisters::{IoRegister, IoRegisters, SpriteMode, TileDataRa
 use crate::memory::{address, AddressSpace};
 use std::collections::VecDeque;
 
-mod queue;
-
 type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
