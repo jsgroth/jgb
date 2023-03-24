@@ -37,7 +37,7 @@ pub fn render_frame(
                     let gb_color = frame_buffer[i][j];
 
                     // GB colors range from 0-3 with 0 being white and 3 being black
-                    // In this pixel format, 0/0/0 = white and 255/255/255 = black, so map [0,3] to [255,0]
+                    // In this pixel format, 0/0/0 = black and 255/255/255 = white, so map [0,3] to [255,0]
                     let color = 255 - (f64::from(gb_color) / 3.0 * 255.0).round() as u8;
 
                     pixels[i * pitch + j * 3] = color;
