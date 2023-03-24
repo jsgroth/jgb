@@ -77,4 +77,5 @@ pub fn execute_interrupt_service_routine(
         .interrupt_flags()
         .clear(interrupt_type);
     cpu_registers.ime = false;
+    cpu_registers.halted = false;
 }

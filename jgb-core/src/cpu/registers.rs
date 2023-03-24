@@ -77,6 +77,7 @@ pub struct CpuRegisters {
     pub ime: bool,
     // Tracks whether the previous instruction was EI
     pub interrupt_delay: bool,
+    pub halted: bool,
 }
 
 impl CpuRegisters {
@@ -94,6 +95,7 @@ impl CpuRegisters {
             sp: address::HRAM_END,
             ime: false,
             interrupt_delay: false,
+            halted: false,
         }
     }
 

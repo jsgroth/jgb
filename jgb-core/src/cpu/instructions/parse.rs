@@ -108,7 +108,7 @@ pub fn parse_next_instruction(
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
             Ok((Instruction::LoadIndirectHLRegister(r), pc + 1))
         }
-        0x76 => Ok((Instruction::HaltClock, pc + 1)),
+        0x76 => Ok((Instruction::Halt, pc + 1)),
         0x80 | 0x81 | 0x82 | 0x83 | 0x84 | 0x85 | 0x87 => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");

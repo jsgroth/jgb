@@ -96,8 +96,8 @@ pub fn init_sdl_state(
         .build()?;
 
     let mut canvas = window.into_canvas().present_vsync().build()?;
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
-    canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.present();
 
     let event_pump = sdl.event_pump()?;

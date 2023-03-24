@@ -235,7 +235,7 @@ pub enum Instruction {
     // RST n
     RestartCall(u8),
     // HALT
-    HaltClock,
+    Halt,
     // STOP
     StopClocks,
     // DI
@@ -804,8 +804,8 @@ impl Instruction {
                 address_space.write_address_u16(cpu_registers.sp, cpu_registers.pc, ppu_state);
                 cpu_registers.pc = rst_address.into();
             }
-            Self::HaltClock => {
-                todo!("HALT is not implemented")
+            Self::Halt => {
+                cpu_registers.halted = true;
             }
             Self::StopClocks => {
                 todo!("STOP is not implemented")
@@ -956,7 +956,7 @@ impl Instruction {
                     8
                 }
             }
-            Self::HaltClock => todo!("HALT is not implemented"),
+            Self::Halt => 4,
             Self::StopClocks => todo!("STOP is not implemented"),
         }
     }

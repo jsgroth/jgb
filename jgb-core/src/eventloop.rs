@@ -95,7 +95,7 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
             );
 
             cpu::ISR_CYCLES_REQUIRED
-        } else {
+        } else if !cpu_registers.halted {
             let (instruction, pc) =
                 instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)?;
 
@@ -121,6 +121,9 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
             instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state)?;
 
             cycles_required
+        } else {
+            // Do nothing, let PPU and timer execute for 1 M-cycle
+            4
         };
 
         assert!(cycles_required > 0 && cycles_required % 4 == 0);

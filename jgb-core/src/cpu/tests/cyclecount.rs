@@ -151,6 +151,7 @@ fn validate_cycles_required() {
     assert_eq!(4, I::DisableInterrupts.cycles_required(&cr));
     assert_eq!(4, I::EnableInterrupts.cycles_required(&cr));
     assert_eq!(4, I::NoOp.cycles_required(&cr));
+    assert_eq!(4, I::Halt.cycles_required(&cr));
 
     // Conditional control flow instructions
     let all_flags_false = CpuRegisters {
