@@ -1,4 +1,3 @@
-use crate::ppu;
 use crate::ppu::PpuState;
 use sdl2::pixels::Color;
 use sdl2::render::{Texture, WindowCanvas};
@@ -29,24 +28,24 @@ pub fn render_frame(
     texture: &mut Texture,
 ) -> Result<(), RenderError> {
     let frame_buffer = ppu_state.frame_buffer();
-    canvas.clear();
+
     texture
         .with_lock(None, |pixels, pitch| {
-            for i in 0..ppu::SCREEN_HEIGHT.into() {
-                for j in 0..ppu::SCREEN_WIDTH.into() {
-                    let gb_color = frame_buffer[i][j];
-
+            for (i, scanline) in frame_buffer.iter().enumerate() {
+                for (j, gb_color) in scanline.iter().copied().enumerate() {
                     // GB colors range from 0-3 with 0 being white and 3 being black
                     // In this pixel format, 0/0/0 = black and 255/255/255 = white, so map [0,3] to [255,0]
                     let color = 255 - (f64::from(gb_color) / 3.0 * 255.0).round() as u8;
 
-                    pixels[i * pitch + j * 3] = color;
-                    pixels[i * pitch + j * 3 + 1] = color;
-                    pixels[i * pitch + j * 3 + 2] = color;
+                    pixels[i * pitch + 3 * j] = color;
+                    pixels[i * pitch + 3 * j + 1] = color;
+                    pixels[i * pitch + 3 * j + 2] = color;
                 }
             }
         })
         .map_err(|msg| RenderError::Texture { msg })?;
+
+    canvas.clear();
     canvas
         .copy(texture, None, None)
         .map_err(|msg| RenderError::CopyToCanvas { msg })?;
