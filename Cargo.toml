@@ -4,3 +4,6 @@ members = [
     "jgb-core",
     "jgb-cli",
 ]
+
+[profile.release]
+debug = 1

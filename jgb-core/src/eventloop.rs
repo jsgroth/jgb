@@ -59,31 +59,6 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     let mut timer_counter = TimerCounter::new();
 
     'running: loop {
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => {
-                    break 'running;
-                }
-                Event::KeyDown {
-                    keycode: Some(keycode),
-                    ..
-                } => {
-                    joypad_state.key_down(keycode);
-                }
-                Event::KeyUp {
-                    keycode: Some(keycode),
-                    ..
-                } => {
-                    joypad_state.key_up(keycode);
-                }
-                _ => {}
-            }
-        }
-
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
 
         // Read TMA register before executing anything in case the instruction updates the register
@@ -145,6 +120,31 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
 
         if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture)?;
+
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => {
+                        break 'running;
+                    }
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        joypad_state.key_down(keycode);
+                    }
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        joypad_state.key_up(keycode);
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 
