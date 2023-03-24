@@ -185,8 +185,8 @@ impl PpuState {
     }
 }
 
-const SCREEN_WIDTH: u8 = 160;
-const SCREEN_HEIGHT: u8 = 144;
+pub const SCREEN_WIDTH: u8 = 160;
+pub const SCREEN_HEIGHT: u8 = 144;
 
 const DOTS_PER_M_CYCLE: u32 = 4;
 const DOTS_PER_SCANLINE: u32 = 456;

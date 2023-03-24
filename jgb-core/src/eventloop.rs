@@ -51,7 +51,11 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     } = sdl_state;
 
     let texture_creator = canvas.texture_creator();
-    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, 160, 144)?;
+    let mut texture = texture_creator.create_texture_streaming(
+        PixelFormatEnum::RGB24,
+        ppu::SCREEN_WIDTH.into(),
+        ppu::SCREEN_HEIGHT.into(),
+    )?;
 
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();

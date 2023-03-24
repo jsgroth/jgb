@@ -1,3 +1,4 @@
+use crate::ppu;
 use crate::ppu::PpuState;
 use sdl2::pixels::Color;
 use sdl2::render::{Texture, WindowCanvas};
@@ -31,8 +32,8 @@ pub fn render_frame(
     canvas.clear();
     texture
         .with_lock(None, |pixels, pitch| {
-            for i in 0..144 {
-                for j in 0..160 {
+            for i in 0..ppu::SCREEN_HEIGHT.into() {
+                for j in 0..ppu::SCREEN_WIDTH.into() {
                     let gb_color = frame_buffer[i][j];
 
                     // GB colors range from 0-3 with 0 being white and 3 being black
