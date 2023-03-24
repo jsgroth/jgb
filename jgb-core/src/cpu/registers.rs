@@ -39,19 +39,6 @@ impl CpuRegister {
             _ => None,
         }
     }
-
-    #[cfg(test)]
-    pub fn to_opcode_bits(self) -> u8 {
-        match self {
-            Self::A => 0x07,
-            Self::B => 0x00,
-            Self::C => 0x01,
-            Self::D => 0x02,
-            Self::E => 0x03,
-            Self::H => 0x04,
-            Self::L => 0x05,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
