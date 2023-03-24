@@ -4,6 +4,7 @@
 mod config;
 mod cpu;
 mod eventloop;
+mod graphics;
 mod input;
 mod memory;
 mod ppu;

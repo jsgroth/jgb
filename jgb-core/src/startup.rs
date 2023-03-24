@@ -2,9 +2,8 @@ use crate::config::{PersistentConfig, RunConfig};
 use crate::cpu::CpuRegisters;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
-use crate::EmulationState;
-use sdl2::pixels::Color;
-use sdl2::render::{TextureValueError, WindowCanvas};
+use crate::{graphics, EmulationState};
+use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
 use sdl2::{EventPump, GameControllerSubsystem, IntegerOrSdlError, Sdl, VideoSubsystem};
 use std::path::Path;
@@ -31,11 +30,6 @@ pub enum StartupError {
     SdlCanvasBuild {
         #[from]
         source: IntegerOrSdlError,
-    },
-    #[error("error creating SDL2 window texture: {source}")]
-    SdlTextureValue {
-        #[from]
-        source: TextureValueError,
     },
 }
 
@@ -95,10 +89,7 @@ pub fn init_sdl_state(
         )
         .build()?;
 
-    let mut canvas = window.into_canvas().present_vsync().build()?;
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    canvas.clear();
-    canvas.present();
+    let canvas = graphics::create_renderer(window)?;
 
     let event_pump = sdl.event_pump()?;
 
