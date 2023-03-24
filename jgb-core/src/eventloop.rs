@@ -121,6 +121,7 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
         if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture)?;
 
+            // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit { .. }
