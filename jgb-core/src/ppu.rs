@@ -522,14 +522,19 @@ fn process_render_state(
             // Discard BG pixel if BG is disabled
             let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
 
-            let pixel_color = if sprite_pixel.pixel != 0x00 && !sprite_pixel.bg_over_obj {
-                let palette = match sprite_pixel.obj_palette {
-                    SpritePalette::ObjPalette0 => obj_palette_0,
-                    SpritePalette::ObjPalette1 => obj_palette_1,
-                };
-                get_obj_pixel_color(sprite_pixel.pixel, palette)
+            let bg_pixel_color = get_bg_pixel_color(bg_pixel, bg_palette);
+            let sprite_palette = match sprite_pixel.obj_palette {
+                SpritePalette::ObjPalette0 => obj_palette_0,
+                SpritePalette::ObjPalette1 => obj_palette_1,
+            };
+            let sprite_pixel_color = get_obj_pixel_color(sprite_pixel.pixel, sprite_palette);
+
+            let pixel_color = if sprite_pixel_color == 0x00
+                || (sprite_pixel.bg_over_obj && bg_pixel_color != 0x00)
+            {
+                bg_pixel_color
             } else {
-                get_bg_pixel_color(bg_pixel, bg_palette)
+                sprite_pixel_color
             };
 
             log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
@@ -566,19 +571,19 @@ fn process_render_state(
                 bg_pixel_queue.clear();
             }
 
-            let window_tile_x: u16 = ((window_x_plus_7 - (bg_fetcher_x + 7)) / 8).into();
-            let window_tile_y: u16 = ((window_y - scanline) / 8).into();
+            let window_tile_x: u16 = ((bg_fetcher_x + 7 - window_x_plus_7) / 8).into();
+            let window_tile_y: u16 = ((scanline - window_y) / 8).into();
             let tile_map_offset = 32 * window_tile_y + window_tile_x;
             let tile_index =
                 address_space.ppu_read_address_u8(window_tile_map_area.start + tile_map_offset);
 
             let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
 
-            let y: u16 = ((window_y - scanline) % 8).into();
+            let y: u16 = ((scanline - window_y) % 8).into();
             let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
             let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
 
-            let mut x = (window_x_plus_7 - (bg_fetcher_x + 7)) % 8;
+            let mut x = (bg_fetcher_x + 7 - window_x_plus_7) % 8;
             while x < 8 {
                 let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
                 bg_pixel_queue.push_back(pixel_color_id);
