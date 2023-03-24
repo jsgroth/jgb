@@ -522,19 +522,16 @@ fn process_render_state(
             // Discard BG pixel if BG is disabled
             let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
 
-            let bg_pixel_color = get_bg_pixel_color(bg_pixel, bg_palette);
-
-            let pixel_color = if sprite_pixel.pixel == 0x00
-                || (sprite_pixel.bg_over_obj && bg_pixel_color != 0x00)
-            {
-                bg_pixel_color
-            } else {
-                let sprite_palette = match sprite_pixel.obj_palette {
-                    SpritePalette::ObjPalette0 => obj_palette_0,
-                    SpritePalette::ObjPalette1 => obj_palette_1,
+            let pixel_color =
+                if sprite_pixel.pixel == 0x00 || (sprite_pixel.bg_over_obj && bg_pixel != 0x00) {
+                    get_bg_pixel_color(bg_pixel, bg_palette)
+                } else {
+                    let sprite_palette = match sprite_pixel.obj_palette {
+                        SpritePalette::ObjPalette0 => obj_palette_0,
+                        SpritePalette::ObjPalette1 => obj_palette_1,
+                    };
+                    get_obj_pixel_color(sprite_pixel.pixel, sprite_palette)
                 };
-                get_obj_pixel_color(sprite_pixel.pixel, sprite_palette)
-            };
 
             log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
 
