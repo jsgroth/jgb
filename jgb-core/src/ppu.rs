@@ -125,6 +125,13 @@ pub struct OamDmaStatus {
 }
 
 impl OamDmaStatus {
+    pub fn new(source_high_bits: u8) -> Self {
+        Self {
+            source_high_bits: u16::from(source_high_bits) << 8,
+            current_low_bits: 0x00,
+        }
+    }
+
     pub fn current_source_address(self) -> u16 {
         self.source_high_bits | self.current_low_bits
     }
@@ -221,10 +228,7 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
             .get_io_registers()
             .read_register(IoRegister::DMA);
         if source_high_bits <= 0xDF {
-            ppu_state.oam_dma_status = Some(OamDmaStatus {
-                source_high_bits: source_high_bits.into(),
-                current_low_bits: 0x00,
-            });
+            ppu_state.oam_dma_status = Some(OamDmaStatus::new(source_high_bits));
         }
     }
 
@@ -649,6 +653,8 @@ fn process_render_state(
             continue;
         };
 
+        log::trace!("Found overlapping sprite: {sprite:?}");
+
         let bg_over_obj = sprite.flags & 0x80 != 0;
         let flip_y = sprite.flags & 0x40 != 0;
         let flip_x = sprite.flags & 0x20 != 0;
@@ -757,4 +763,66 @@ fn get_obj_pixel_color(pixel: u8, palette: u8) -> u8 {
 fn get_pixel_color_id(tile_data_0: u8, tile_data_1: u8, x: u8) -> u8 {
     let bit_mask = 1 << (7 - x);
     u8::from(tile_data_1 & bit_mask != 0) << 1 | u8::from(tile_data_0 & bit_mask != 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::memory::Cartridge;
+
+    #[test]
+    fn scan_oam_basic_test() {
+        let mut address_space = AddressSpace::new(Cartridge::new(vec![0; 0x150]).unwrap());
+        let ppu_state = PpuState::new();
+
+        address_space.write_address_u8(address::OAM_START + 40, 53, &ppu_state);
+        address_space.write_address_u8(address::OAM_START + 41, 20, &ppu_state);
+        address_space.write_address_u8(address::OAM_START + 42, 0xC3, &ppu_state);
+        address_space.write_address_u8(address::OAM_START + 43, 0x30, &ppu_state);
+
+        let mut sprites = Vec::new();
+
+        scan_oam(&mut sprites, &address_space, 40, 20);
+
+        assert_eq!(
+            sprites,
+            vec![OamSpriteData {
+                y_pos: 53,
+                x_pos: 20,
+                tile_index: 0xC3,
+                flags: 0x30,
+            }]
+        );
+
+        // Scanline 45 is past the bottom of the sprite
+        scan_oam(&mut sprites, &address_space, 45, 20);
+        assert_eq!(1, sprites.len());
+    }
+
+    #[test]
+    fn find_overlapping_sprites_basic_test() {
+        let sprite_data = OamSpriteData {
+            y_pos: 20,
+            x_pos: 50,
+            tile_index: 0x00,
+            flags: 0x00,
+        };
+
+        let sorted_data = SortedOamData::from_vec(vec![sprite_data]);
+
+        assert_eq!(
+            Some(sprite_data),
+            sorted_data.find_first_overlapping_sprite(42)
+        );
+        assert_eq!(
+            Some(sprite_data),
+            sorted_data.find_first_overlapping_sprite(45)
+        );
+        assert_eq!(
+            Some(sprite_data),
+            sorted_data.find_first_overlapping_sprite(49)
+        );
+        assert_eq!(None, sorted_data.find_first_overlapping_sprite(50));
+    }
 }
