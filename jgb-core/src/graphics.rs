@@ -13,6 +13,8 @@ pub enum RenderError {
     CopyToCanvas { msg: String },
 }
 
+/// Create an SDL2 renderer from the given SDL2 window, with VSync enabled and with the display area
+/// initialized to all white pixels.
 pub fn create_renderer(window: Window) -> Result<WindowCanvas, IntegerOrSdlError> {
     let mut canvas = window.into_canvas().present_vsync().build()?;
     canvas.set_draw_color(Color::RGB(255, 255, 255));
@@ -22,6 +24,9 @@ pub fn create_renderer(window: Window) -> Result<WindowCanvas, IntegerOrSdlError
     Ok(canvas)
 }
 
+/// Render the current frame to the SDL2 window, overwriting all previously displayed data.
+///
+/// With VSync enabled this function will block until the next screen refresh.
 pub fn render_frame(
     ppu_state: &PpuState,
     canvas: &mut WindowCanvas,

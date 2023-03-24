@@ -247,6 +247,10 @@ pub enum Instruction {
 }
 
 impl Instruction {
+    /// Execute the given CPU instruction, modifying CPU registers/flags and memory as needed.
+    ///
+    /// This method does *not* update the PC register for the given instruction. It expects that the
+    /// PC register was updated before this method was called.
     pub fn execute(
         self,
         address_space: &mut AddressSpace,
@@ -829,6 +833,10 @@ impl Instruction {
         Ok(())
     }
 
+    /// Return the number of clock cycles that are required to execute this instruction.
+    ///
+    /// Requires CPU registers as a parameter because conditional control flow instructions can
+    /// take different numbers of cycles depending on whether the condition is true or false.
     pub fn cycles_required(self, cpu_registers: &CpuRegisters) -> u32 {
         match self {
             Self::LoadRegisterRegister(..)

@@ -44,6 +44,7 @@ impl SpriteMode {
     }
 }
 
+/// A read-only view around the LCDC register (LCD control).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lcdc<'a>(pub(super) &'a u8);
 

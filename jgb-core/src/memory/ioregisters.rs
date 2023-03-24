@@ -66,6 +66,7 @@ pub enum IoRegister {
 }
 
 impl IoRegister {
+    /// Return the hardware register corresponding to the given address.
     pub fn from_address(address: u16) -> Option<Self> {
         let register = match address {
             0xFF00 => Self::JOYP,
@@ -131,6 +132,7 @@ impl IoRegister {
         Some(register)
     }
 
+    /// Return the address for this hardware register.
     pub fn to_address(self) -> u16 {
         match self {
             Self::JOYP => 0xFF00,
@@ -193,6 +195,7 @@ impl IoRegister {
         }
     }
 
+    /// Return whether or not the CPU is allowed to read this hardware register.
     pub fn is_readable(self) -> bool {
         !matches!(
             self,
@@ -200,14 +203,18 @@ impl IoRegister {
         )
     }
 
+    /// Return whether or not the CPU is allowed to write to this hardware register.
     pub fn is_writable(self) -> bool {
         !matches!(self, Self::LY)
     }
 }
 
+/// A convenience view around the IF register.
 pub struct InterruptFlags<'a>(&'a mut u8);
 
 impl<'a> InterruptFlags<'a> {
+    /// Returns the highest priority requested + enabled interrupt, or None if no enabled interrupts
+    /// have been requested.
     pub fn highest_priority_interrupt(&self, ie_value: u8) -> Option<InterruptType> {
         let masked_if = *self.0 & ie_value;
         if masked_if & 0x01 != 0 {
@@ -228,10 +235,12 @@ impl<'a> InterruptFlags<'a> {
         *self.0 & interrupt_type.bit() != 0
     }
 
+    /// Sets the bit for the given interrupt type.
     pub fn set(&mut self, interrupt_type: InterruptType) {
         *self.0 |= interrupt_type.bit();
     }
 
+    /// Clears the bit for the given interrupt type.
     pub fn clear(&mut self, interrupt_type: InterruptType) {
         *self.0 &= !interrupt_type.bit();
     }
@@ -287,6 +296,8 @@ impl IoRegisters {
         }
     }
 
+    /// Read the value from the hardware register at the given address. Returns 0xFF if the address
+    /// is invalid or the register is not readable by the CPU.
     pub fn read_address(&self, address: u16) -> u8 {
         let Some(register) = IoRegister::from_address(address) else { return 0xFF; };
 
@@ -302,6 +313,8 @@ impl IoRegisters {
         }
     }
 
+    /// Assign a value to the hardware register at the given address. Does nothing if the address
+    /// is invalid or the register is not writable by the CPU.
     pub fn write_address(&mut self, address: u16, value: u8) {
         let Some(register) = IoRegister::from_address(address) else { return; };
 
@@ -337,50 +350,64 @@ impl IoRegisters {
         }
     }
 
+    /// Read the value from the given hardware register. Returns 0xFF if the register is not
+    /// readable by the CPU.
     pub fn read_register(&self, register: IoRegister) -> u8 {
         self.read_address(register.to_address())
     }
 
+    /// Assign a value to the given hardware register. Does nothing if the register is not
+    /// writable by the CPU.
     pub fn write_register(&mut self, register: IoRegister, value: u8) {
         self.write_address(register.to_address(), value);
     }
 
+    /// Read the value of the JOYP register, including bits that the CPU cannot read. Intended to
+    /// be used in the code that updates the JOYP register based on current inputs.
     pub fn privileged_read_joyp(&self) -> u8 {
         self.contents[Self::JOYP_RELATIVE_ADDR] | 0xC0
     }
 
-    pub fn privileged_read_stat(&self) -> u8 {
-        self.contents[Self::STAT_RELATIVE_ADDR] | 0x80
-    }
-
+    /// Assign a value to the JOYP register, including bits that the CPU cannot write.
     pub fn privileged_set_joyp(&mut self, value: u8) {
         self.contents[Self::JOYP_RELATIVE_ADDR] = value & 0x3F;
     }
 
+    /// Assign a value to the STAT register (LCD status), including bits that the CPU cannot write.
+    /// Should only be used by the PPU.
     pub fn privileged_set_stat(&mut self, value: u8) {
         self.contents[Self::STAT_RELATIVE_ADDR] = value & 0x7F;
     }
 
+    /// Assign a value to the LY register (current scanline), which the CPU cannot normally write
+    /// to. Should only be used by the PPU.
     pub fn privileged_set_ly(&mut self, value: u8) {
         self.contents[Self::LY_RELATIVE_ADDR] = value;
     }
 
+    /// Assign a value to the DIV register (timer divider), which is normally always reset to 0x00
+    /// when the CPU writes to it. Should only be used by the timer code.
     pub fn privileged_set_div(&mut self, value: u8) {
         self.contents[Self::DIV_RELATIVE_ADDR] = value;
     }
 
+    /// Obtain a read-only view around the LCDC register (LCD control).
     pub fn lcdc(&self) -> Lcdc {
         Lcdc(&self.contents[Self::LCDC_RELATIVE_ADDR])
     }
 
+    /// Obtain a read/write view around the IF register (interrupt request flags).
     pub fn interrupt_flags(&mut self) -> InterruptFlags {
         InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
     }
 
+    /// Return whether the DMA hardware register has been written to, indicating that the hardware
+    /// should initiate an OAM DMA transfer.
     pub fn oam_dma_transfer_requested(&self) -> bool {
         self.oam_dma_transfer_requested
     }
 
+    /// Clear the OAM DMA transfer request flag.
     pub fn clear_oam_dma_transfer_request(&mut self) {
         self.oam_dma_transfer_requested = false;
     }
@@ -441,7 +468,6 @@ mod tests {
 
         registers.write_address(stat_address, 0x07);
         assert_eq!(0x80, registers.read_address(stat_address));
-        assert_eq!(0x00, registers.privileged_read_stat() & 0x7F);
 
         registers.write_address(stat_address, 0x28);
         assert_eq!(0xA8, registers.read_address(stat_address));

@@ -25,6 +25,7 @@ pub struct EmulationState {
     ppu_state: PpuState,
 }
 
+/// Initialize the emulator using the given configs and then run until it terminates.
 pub fn run(
     persistent_config: PersistentConfig,
     run_config: RunConfig,

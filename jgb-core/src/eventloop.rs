@@ -37,6 +37,7 @@ pub enum RunError {
     },
 }
 
+/// Start and run the emulator until it terminates, either by closing it or due to an error.
 pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), RunError> {
     let EmulationState {
         mut address_space,
@@ -120,6 +121,8 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
             cycles_required.into(),
         );
 
+        // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
+        // to render
         if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture)?;
 

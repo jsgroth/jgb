@@ -12,7 +12,9 @@ pub enum CpuRegister {
 }
 
 impl CpuRegister {
-    // From bits 3-5
+    /// Parses a CPU register out of bits 3-5 in the given byte.
+    ///
+    /// Returns None if those bits are 110 which is not a valid register code.
     pub fn from_mid_opcode_bits(bits: u8) -> Option<Self> {
         match bits & 0x38 {
             0x00 => Some(Self::B),
@@ -26,7 +28,9 @@ impl CpuRegister {
         }
     }
 
-    // From bits 0-2
+    /// Parses a CPU register out of bits 0-2 in the given byte.
+    ///
+    /// Returns None if those bits are 110 which is not a valid register code.
     pub fn from_low_opcode_bits(bits: u8) -> Option<Self> {
         match bits & 0x07 {
             0x00 => Some(Self::B),
@@ -69,6 +73,10 @@ pub struct CpuRegisters {
 }
 
 impl CpuRegisters {
+    /// Creates a new CpuRegisters value with all fields initialized to reasonable values.
+    ///
+    /// In particular, the program counter is initialized to 0x0100 (entry point in cartridge ROM),
+    /// and the stack pointer is initialized to 0xFFFE (last address in HRAM).
     pub fn new() -> Self {
         Self {
             accumulator: 0x01,
@@ -87,28 +95,35 @@ impl CpuRegisters {
         }
     }
 
+    /// Read the A and F registers together as a 16-bit value.
     pub fn af(&self) -> u16 {
         u16::from_be_bytes([self.accumulator, self.flags])
     }
 
+    /// Read the B and C registers together as a 16-bit value.
     pub fn bc(&self) -> u16 {
         u16::from_be_bytes([self.b, self.c])
     }
 
+    /// Read the D and E registers together as a 16-bit value.
     pub fn de(&self) -> u16 {
         u16::from_be_bytes([self.d, self.e])
     }
 
+    /// Read the H and L registers together as a 16-bit value.
     pub fn hl(&self) -> u16 {
         u16::from_be_bytes([self.h, self.l])
     }
 
+    /// Set the H and L registers together as a 16-bit value. The first byte is assigned to H
+    /// and the second byte is assigned to L.
     pub fn set_hl(&mut self, hl: u16) {
         let [h, l] = hl.to_be_bytes();
         self.h = h;
         self.l = l;
     }
 
+    /// Read the value from the given register.
     pub fn read_register(&self, register: CpuRegister) -> u8 {
         match register {
             CpuRegister::A => self.accumulator,
@@ -121,6 +136,7 @@ impl CpuRegisters {
         }
     }
 
+    /// Assign a value to the given register.
     pub fn set_register(&mut self, register: CpuRegister, value: u8) {
         match register {
             CpuRegister::A => {
@@ -147,6 +163,7 @@ impl CpuRegisters {
         }
     }
 
+    /// Obtain a mutable reference to the given register's value.
     pub fn get_register_mut(&mut self, register: CpuRegister) -> &mut u8 {
         match register {
             CpuRegister::A => &mut self.accumulator,
@@ -159,6 +176,8 @@ impl CpuRegisters {
         }
     }
 
+    /// Read the given pair of registers as a 16-bit value, except for SP which is a 16-bit
+    /// register and is read directly.
     pub fn read_register_pair(&self, register_pair: CpuRegisterPair) -> u16 {
         match register_pair {
             CpuRegisterPair::AF => self.af(),
@@ -169,6 +188,8 @@ impl CpuRegisters {
         }
     }
 
+    /// Assign a 16-bit value to the given pair of registers, except for SP which is a 16-bit
+    /// register and is assigned directly.
     pub fn set_register_pair(&mut self, register_pair: CpuRegisterPair, value: u16) {
         match register_pair {
             CpuRegisterPair::AF => {
@@ -195,11 +216,16 @@ impl CpuRegisters {
         }
     }
 
+    /// Set all four flags in the F register.
     pub fn set_flags(&mut self, z: bool, n: bool, h: bool, c: bool) {
         self.flags =
             (u8::from(z) << 7) | (u8::from(n) << 6) | (u8::from(h) << 5) | (u8::from(c) << 4);
     }
 
+    /// Set any number of flags in the F register.
+    ///
+    /// Some(true) will set the flag to 1, Some(false) will set the flag to 0, and None will leave
+    /// the flag unchanged.
     pub fn set_some_flags(
         &mut self,
         z: Option<bool>,
@@ -248,18 +274,22 @@ impl CpuRegisters {
         }
     }
 
+    /// Return whether or not the Z flag (last result zero) is currently set in the F register.
     pub fn zero_flag(&self) -> bool {
         self.flags & 0x80 != 0
     }
 
+    /// Return whether or not the N flag (last op subtraction) is currently set in the F register.
     pub fn n_flag(&self) -> bool {
         self.flags & 0x40 != 0
     }
 
+    /// Return whether or not the H flag (half carry) is currently set in the F register.
     pub fn half_carry_flag(&self) -> bool {
         self.flags & 0x20 != 0
     }
 
+    /// Return whether or not the C flag (carry) is currently set in the F register.
     pub fn carry_flag(&self) -> bool {
         self.flags & 0x10 != 0
     }

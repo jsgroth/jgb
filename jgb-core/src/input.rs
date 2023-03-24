@@ -66,6 +66,12 @@ fn should_flag_interrupt(old_joyp: u8, new_joyp: u8) -> bool {
     false
 }
 
+/// Update the contents of the JOYP hardware register based on the current joypad state, and request
+/// a joypad interrupt if any selected buttons have been pressed.
+///
+/// This needs to be called after every CPU instruction because the CPU can write to the JOYP
+/// register to specify whether it wants to read directions or button presses, and the same register
+/// bits are used for both.
 pub fn update_joyp_register(joypad_state: &JoypadState, io_registers: &mut IoRegisters) {
     let joyp = io_registers.privileged_read_joyp();
     let actions_select = joyp & 0x20 == 0;

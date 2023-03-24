@@ -111,6 +111,8 @@ impl Mapper {
         }
     }
 
+    // ROM writes don't actually modify the ROM (it is read-only after all) but they do modify
+    // cartridge registers
     fn write_rom_address(&mut self, address: u16, value: u8) {
         match self {
             Self::None => {}
@@ -176,6 +178,14 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
+    /// Create a new Cartridge value from the given ROM.
+    ///
+    /// # CartridgeLoadError
+    ///
+    /// This function will return an error in the following scenarios:
+    /// * The ROM is too short (must be at least 0x150 bytes)
+    /// * The mapper byte in the cartridge header is invalid (or not implemented yet)
+    /// * The RAM size byte in the cartridge header is invalid
     pub fn new(rom: Vec<u8>) -> Result<Self, CartridgeLoadError> {
         log::info!("Initializing cartridge using {} bytes of data", rom.len());
 
@@ -235,15 +245,28 @@ impl Cartridge {
         Self::new(raw_data)
     }
 
+    /// Read a value from the given ROM address.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if the ROM address is invalid. ROM addresses must be in the range
+    /// \[0x0000, 0x7FFF\].
     pub fn read_rom_address(&self, address: u16) -> u8 {
         let mapped_address = self.mapper.map_rom_address(address);
         self.rom[mapped_address as usize]
     }
 
+    /// Write a value to the given ROM address (or in reality, set a cartridge register).
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if the ROM address is invalid. ROM addresses must be in the range
+    /// \[0x0000, 0x7FFF\].
     pub fn write_rom_address(&mut self, address: u16, value: u8) {
         self.mapper.write_rom_address(address, value);
     }
 
+    /// Read a value from the given cartridge RAM address. Returns 0xFF if the address is not valid.
     pub fn read_ram_address(&self, address: u16) -> u8 {
         match self.mapper.map_ram_address(address) {
             Some(mapped_address) => self
@@ -255,6 +278,7 @@ impl Cartridge {
         }
     }
 
+    /// Write a value to the given cartridge RAM address. Does nothing if the address is not valid.
     pub fn write_ram_address(&mut self, address: u16, value: u8) {
         if let Some(mapped_address) = self.mapper.map_ram_address(address) {
             if let Some(ram_value) = self.ram.get_mut(mapped_address as usize) {
@@ -312,6 +336,8 @@ impl AddressSpace {
             && (address::VRAM_START..=address::VRAM_END).contains(&address))
     }
 
+    /// Read the value at the given address from the perspective of the CPU. Returns 0xFF if the
+    /// CPU is not able to access the given address because of PPU state.
     pub fn read_address_u8(&self, address: u16, ppu_state: &PpuState) -> u8 {
         if !self.is_cpu_access_allowed(address, ppu_state) {
             return 0xFF;
@@ -351,6 +377,12 @@ impl AddressSpace {
         }
     }
 
+    /// Read the OAM/VRAM value at the given address from the perspective of the PPU, bypassing the
+    /// CPU access check.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if the address is not an OAM or VRAM address.
     pub fn ppu_read_address_u8(&self, address: u16) -> u8 {
         match address {
             address @ address::OAM_START..=address::OAM_END => {
@@ -363,12 +395,16 @@ impl AddressSpace {
         }
     }
 
+    /// Read the value at the given address and the following address as a little-endian 16-bit
+    /// value.
     pub fn read_address_u16(&self, address: u16, ppu_state: &PpuState) -> u16 {
         let lsb = self.read_address_u8(address, ppu_state);
         let msb = self.read_address_u8(address + 1, ppu_state);
         u16::from_le_bytes([lsb, msb])
     }
 
+    /// Assign a value to the given address from the perspective of the CPU. The write is ignored
+    /// if the CPU is not allowed to access the given address due to PPU state.
     pub fn write_address_u8(&mut self, address: u16, value: u8, ppu_state: &PpuState) {
         if !self.is_cpu_access_allowed(address, ppu_state) {
             return;
@@ -410,6 +446,8 @@ impl AddressSpace {
         }
     }
 
+    /// Assign a given 16-bit value to the given address and the following address, using
+    /// little-endian.
     pub fn write_address_u16(&mut self, address: u16, value: u16, ppu_state: &PpuState) {
         let [lsb, msb] = value.to_le_bytes();
         self.write_address_u8(address, lsb, ppu_state);
@@ -424,10 +462,13 @@ impl AddressSpace {
         &mut self.io_registers
     }
 
+    /// Retrieve the current value of the IE register (interrupts enabled).
     pub fn get_ie_register(&self) -> u8 {
         self.ie_register
     }
 
+    /// Copy a byte from the given source address to the given destination address, bypassing
+    /// access checks related to PPU state. Intended for use in OAM DMA transfer.
     pub fn copy_byte(&mut self, src_address: u16, dst_address: u16) {
         let byte = self.read_address_u8_no_access_check(src_address);
         self.write_address_u8_no_access_check(dst_address, byte);

@@ -207,6 +207,12 @@ const VBLANK_START: State = State::VBlank {
     dot: 0,
 };
 
+/// If an OAM DMA transfer is in progress, progress it by 1 M-cycle (4 clock cycles) which means
+/// copying one byte and incrementing the OAM DMA status. If the transfer has completed then the
+/// OAM DMA status will be set to None.
+///
+/// If an OAM DMA transfer is not in progress but has been requested, the transfer will be
+/// initialized and the first byte will be copied.
 pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
     if ppu_state.oam_dma_status.is_none()
         && address_space
@@ -234,6 +240,11 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
     ppu_state.oam_dma_status = oam_dma_status.increment();
 }
 
+/// Advance the PPU by 1 M-cycle (4 clock cycles / dots). Nothing is directly rendered to the screen
+/// here, only to the internal frame buffer.
+///
+/// This function will request a VBlank interrupt on the first M-cycle of the VBlank mode. It will
+/// also request a STAT interrupt if the STAT interrupt line changes from low to high.
 pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
     let enabled = address_space.get_io_registers().lcdc().lcd_enabled();
     ppu_state.enabled = enabled;
@@ -286,14 +297,14 @@ fn update_stat_register(io_registers: &mut IoRegisters, scanline: u8, mode: Mode
 
     let mode_bits = mode.flag_bits();
 
-    let existing_stat = io_registers.privileged_read_stat() & 0xF8;
+    let existing_stat = io_registers.read_register(IoRegister::STAT) & 0xF8;
     let new_stat = existing_stat | (u8::from(lyc_match) << 2) | mode_bits;
 
     io_registers.privileged_set_stat(new_stat);
 }
 
 fn compute_stat_interrupt_line(io_registers: &IoRegisters, scanline: u8, mode: Mode) -> bool {
-    let stat = io_registers.privileged_read_stat();
+    let stat = io_registers.read_register(IoRegister::STAT);
 
     let lyc_source = stat & 0x40 != 0;
     let scanning_oam_source = stat & 0x20 != 0;
@@ -469,6 +480,7 @@ fn process_render_state(
         panic!("process render_state only accepts RenderingScanline state, was: {state:?}");
     };
 
+    // If we've finished this scanline, do nothing and simply advance to HBlank (if possible)
     if pixel == SCREEN_WIDTH {
         if dot >= MIN_RENDER_DOTS {
             return State::HBlank {
@@ -513,6 +525,8 @@ fn process_render_state(
         .get_io_registers()
         .read_register(IoRegister::OBP1);
 
+    // If both pixel queues are full enough, render pixels to the frame buffer until one of the
+    // queues is empty or we've finished this scanline
     if bg_pixel_queue.len() >= 8 && sprite_pixel_queue.len() >= 8 {
         while !bg_pixel_queue.is_empty() && !sprite_pixel_queue.is_empty() && pixel < SCREEN_WIDTH {
             let bg_pixel = bg_pixel_queue.pop_front().unwrap();
@@ -521,6 +535,8 @@ fn process_render_state(
             // Discard BG pixel if BG is disabled
             let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
 
+            // BG pixel takes priority if the sprite pixel is transparent, or if the sprite's
+            // BG-over-OBJ flag is set and the BG color id is not 0
             let pixel_color = if sprite_pixel.color_id == 0x00
                 || (sprite_pixel.bg_over_obj && bg_pixel != 0x00)
             {
@@ -558,7 +574,9 @@ fn process_render_state(
         .get_io_registers()
         .read_register(IoRegister::WX);
 
+    // Populate the BG pixel queue
     while bg_pixel_queue.len() < 8 {
+        // If the window is enabled and we're inside it, populate the BG pixel queue with window pixels
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
             log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}");
 
@@ -632,10 +650,12 @@ fn process_render_state(
         }
     }
 
+    // Populate the sprite pixel queue
     let sprite_tiles = lookup_sprite_tiles(&sprites.0, address_space, scanline);
     let sprites_with_tiles: Vec<_> = sprites.0.iter().copied().zip(sprite_tiles).collect();
     while sprite_pixel_queue.len() < 8 {
         if !sprites_enabled {
+            // If sprites are disabled, push transparent pixels onto the queue
             sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
             sprite_fetcher_x += 1;
             continue;
@@ -643,11 +663,17 @@ fn process_render_state(
 
         let overlapping_sprites = find_overlapping_sprites(&sprites_with_tiles, sprite_fetcher_x);
         if overlapping_sprites.is_empty() {
+            // If no sprites overlap this coordinate, push transparent pixels onto the queue
             sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
             sprite_fetcher_x += 1;
             continue;
         }
 
+        // Queue the first non-transparent pixel from the sprites in this coordinate,
+        // assuming that the sprites are already sorted by X position.
+        //
+        // If all sprites have a transparent pixel in this coordinate then queue a transparent
+        // pixel.
         let pixel_to_queue = overlapping_sprites
             .into_iter()
             .find_map(|(sprite_data, tile_data)| {

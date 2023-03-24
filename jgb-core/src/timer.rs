@@ -12,10 +12,16 @@ impl TimerCounter {
 
 const DIV_UPDATE_FREQUENCY: u64 = 256;
 
+/// Read the current value of the TMA hardware register (timer modulo).
 pub fn read_timer_modulo(io_registers: &IoRegisters) -> u8 {
     io_registers.read_register(IoRegister::TMA)
 }
 
+/// Update the DIV and TIMA registers for the given number of clock cycles and the current value of
+/// the TAC hardware register (timer control). The DIV register is always updated, but the TIMA
+/// register may or may not be updated depending on whether the timer is enabled in TAC.
+///
+/// This function will request a timer interrupt if the TIMA register overflows.
 pub fn update_timer_registers(
     io_registers: &mut IoRegisters,
     counter: &mut TimerCounter,
