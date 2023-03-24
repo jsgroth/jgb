@@ -41,16 +41,6 @@ impl SortedOamData {
 
         Self(v)
     }
-
-    fn find_overlapping_sprites(&self, x: u8) -> Vec<OamSpriteData> {
-        self.0
-            .iter()
-            .filter(|&sprite_data| {
-                (sprite_data.x_pos..sprite_data.x_pos.saturating_add(8)).contains(&(x + 8))
-            })
-            .copied()
-            .collect()
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -456,6 +446,9 @@ fn scan_oam(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TileData(u8, u8);
+
 // This function is not even remotely cycle-accurate but it attempts to approximate the pixel queue
 // behavior of actual hardware
 fn process_render_state(
@@ -591,7 +584,7 @@ fn process_render_state(
 
             let mut x = (bg_fetcher_x + 7 - window_x_plus_7) % 8;
             while x < 8 {
-                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
+                let pixel_color_id = get_pixel_color_id(TileData(tile_data_0, tile_data_1), x);
                 bg_pixel_queue.push_back(pixel_color_id);
 
                 x += 1;
@@ -633,7 +626,7 @@ fn process_render_state(
             while x < 8
                 && (!window_enabled || scanline < window_y || (bg_fetcher_x + 7) < window_x_plus_7)
             {
-                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
+                let pixel_color_id = get_pixel_color_id(TileData(tile_data_0, tile_data_1), x);
                 bg_pixel_queue.push_back(pixel_color_id);
 
                 x += 1;
@@ -642,6 +635,8 @@ fn process_render_state(
         }
     }
 
+    let sprite_tiles = lookup_sprite_tiles(&sprites.0, address_space, scanline);
+    let sprites_with_tiles: Vec<_> = sprites.0.iter().copied().zip(sprite_tiles).collect();
     while sprite_pixel_queue.len() < 8 {
         if !sprites_enabled {
             sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
@@ -649,27 +644,71 @@ fn process_render_state(
             continue;
         }
 
-        let overlapping_sprites = sprites.find_overlapping_sprites(sprite_fetcher_x);
+        let overlapping_sprites = find_overlapping_sprites(&sprites_with_tiles, sprite_fetcher_x);
         if overlapping_sprites.is_empty() {
             sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
             sprite_fetcher_x += 1;
             continue;
         }
 
-        // TODO fix this, need to look at every overlapping sprite because of transparent pixels
-        let sprite = overlapping_sprites.first().copied().unwrap();
+        let pixel_to_queue = overlapping_sprites
+            .into_iter()
+            .find_map(|(sprite_data, tile_data)| {
+                let bg_over_obj = sprite_data.flags & 0x80 != 0;
+                let flip_x = sprite_data.flags & 0x20 != 0;
+                let obj_palette = if sprite_data.flags & 0x10 != 0 {
+                    SpritePalette::ObjPalette1
+                } else {
+                    SpritePalette::ObjPalette0
+                };
 
-        let bg_over_obj = sprite.flags & 0x80 != 0;
+                let x = if flip_x {
+                    7 - (sprite_fetcher_x + 8 - sprite_data.x_pos)
+                } else {
+                    sprite_fetcher_x + 8 - sprite_data.x_pos
+                };
+
+                let pixel_color_id = get_pixel_color_id(tile_data, x);
+                if pixel_color_id != 0x00 {
+                    Some(QueuedObjPixel {
+                        pixel: pixel_color_id,
+                        obj_palette,
+                        bg_over_obj,
+                    })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(QueuedObjPixel::TRANSPARENT);
+
+        sprite_pixel_queue.push_back(pixel_to_queue);
+        sprite_fetcher_x += 1;
+    }
+
+    State::RenderingScanline {
+        scanline,
+        pixel,
+        bg_fetcher_x,
+        sprite_fetcher_x,
+        dot: dot + DOTS_PER_M_CYCLE,
+        sprites,
+        bg_pixel_queue,
+        sprite_pixel_queue,
+    }
+}
+
+fn lookup_sprite_tiles(
+    sprites: &[OamSpriteData],
+    address_space: &AddressSpace,
+    scanline: u8,
+) -> Vec<TileData> {
+    let sprite_mode = address_space.get_io_registers().lcdc().sprite_mode();
+
+    let mut sprite_tiles = Vec::with_capacity(sprites.len());
+    for sprite in sprites {
         let flip_y = sprite.flags & 0x40 != 0;
-        let flip_x = sprite.flags & 0x20 != 0;
-        let obj_palette = if sprite.flags & 0x10 != 0 {
-            SpritePalette::ObjPalette1
-        } else {
-            SpritePalette::ObjPalette0
-        };
 
         let sprite_y = scanline + 16 - sprite.y_pos;
-        let sprite_x = sprite_fetcher_x + 8 - sprite.x_pos;
 
         let (tile_index, y) = match sprite_mode {
             SpriteMode::Single => {
@@ -694,50 +733,22 @@ fn process_render_state(
         let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
         let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
 
-        if !flip_x {
-            let mut x = sprite_x;
-            while x < 8 {
-                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
-                sprite_pixel_queue.push_back(QueuedObjPixel {
-                    pixel: pixel_color_id,
-                    obj_palette,
-                    bg_over_obj,
-                });
-
-                x += 1;
-                sprite_fetcher_x += 1;
-            }
-        } else {
-            let mut x = 7 - sprite_x;
-            loop {
-                let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
-                sprite_pixel_queue.push_back(QueuedObjPixel {
-                    pixel: pixel_color_id,
-                    obj_palette,
-                    bg_over_obj,
-                });
-
-                sprite_fetcher_x += 1;
-
-                if x == 0 {
-                    break;
-                }
-
-                x -= 1;
-            }
-        }
+        sprite_tiles.push(TileData(tile_data_0, tile_data_1));
     }
+    sprite_tiles
+}
 
-    State::RenderingScanline {
-        scanline,
-        pixel,
-        bg_fetcher_x,
-        sprite_fetcher_x,
-        dot: dot + DOTS_PER_M_CYCLE,
-        sprites,
-        bg_pixel_queue,
-        sprite_pixel_queue,
-    }
+fn find_overlapping_sprites(
+    sprites: &[(OamSpriteData, TileData)],
+    x: u8,
+) -> Vec<(OamSpriteData, TileData)> {
+    sprites
+        .iter()
+        .filter(|&(sprite_data, _)| {
+            (sprite_data.x_pos..sprite_data.x_pos.saturating_add(8)).contains(&(x + 8))
+        })
+        .copied()
+        .collect()
 }
 
 fn get_bg_tile_address(bg_tile_data_area: TileDataRange, tile_index: u8) -> u16 {
@@ -765,9 +776,9 @@ fn get_obj_pixel_color(pixel: u8, palette: u8) -> u8 {
     }
 }
 
-fn get_pixel_color_id(tile_data_0: u8, tile_data_1: u8, x: u8) -> u8 {
+fn get_pixel_color_id(tile_data: TileData, x: u8) -> u8 {
     let bit_mask = 1 << (7 - x);
-    u8::from(tile_data_1 & bit_mask != 0) << 1 | u8::from(tile_data_0 & bit_mask != 0)
+    u8::from(tile_data.1 & bit_mask != 0) << 1 | u8::from(tile_data.0 & bit_mask != 0)
 }
 
 #[cfg(test)]
@@ -836,25 +847,5 @@ mod tests {
         // Scanline 45 is past the bottom of the sprite
         scan_oam(&mut sprites, &address_space, 45, 20);
         assert_eq!(1, sprites.len());
-    }
-
-    #[test]
-    fn find_overlapping_sprites_basic_test() {
-        let sprite_data = OamSpriteData {
-            y_pos: 20,
-            x_pos: 50,
-            tile_index: 0x00,
-            flags: 0x00,
-        };
-
-        let sorted_data = SortedOamData::from_vec(vec![sprite_data]);
-
-        assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(42));
-        assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(45));
-        assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(49));
-        assert_eq!(
-            Vec::<OamSpriteData>::new(),
-            sorted_data.find_overlapping_sprites(50)
-        );
     }
 }
