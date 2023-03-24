@@ -502,7 +502,6 @@ fn process_render_state(
     let bg_tile_data_area = lcdc.bg_tile_data_area();
     let bg_tile_map_area = lcdc.bg_tile_map_area();
     let window_enabled = lcdc.window_enabled();
-    let sprite_mode = lcdc.sprite_mode();
 
     let bg_palette = address_space
         .get_io_registers()

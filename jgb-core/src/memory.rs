@@ -76,7 +76,6 @@ impl Mapper {
             Self::None => u32::from(address),
             &Self::MBC1 {
                 rom_bank_bit_mask,
-                ram_bank_bit_mask,
                 rom_bank_number,
                 ram_bank_number,
                 banking_mode_select,
@@ -174,7 +173,6 @@ pub struct Cartridge {
     rom: Vec<u8>,
     mapper: Mapper,
     ram: Vec<u8>,
-    has_battery: bool,
 }
 
 impl Cartridge {
@@ -222,7 +220,7 @@ impl Cartridge {
             rom,
             mapper,
             ram,
-            has_battery,
+            // has_battery,
         })
     }
 

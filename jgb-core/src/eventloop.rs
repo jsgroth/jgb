@@ -45,11 +45,9 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     } = emulation_state;
 
     let SdlState {
-        sdl,
-        video,
         mut canvas,
-        game_controller,
         mut event_pump,
+        ..
     } = sdl_state;
 
     let texture_creator = canvas.texture_creator();

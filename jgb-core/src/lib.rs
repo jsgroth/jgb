@@ -1,6 +1,3 @@
-// TODO remove this once this project is closer to working
-#![allow(unused_variables, dead_code)]
-
 mod config;
 mod cpu;
 mod eventloop;

@@ -40,6 +40,7 @@ impl CpuRegister {
         }
     }
 
+    #[cfg(test)]
     pub fn to_opcode_bits(self) -> u8 {
         match self {
             Self::A => 0x07,

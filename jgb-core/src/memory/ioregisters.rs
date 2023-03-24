@@ -223,6 +223,7 @@ impl<'a> InterruptFlags<'a> {
         }
     }
 
+    #[cfg(test)]
     pub fn get(&self, interrupt_type: InterruptType) -> bool {
         *self.0 & interrupt_type.bit() != 0
     }
@@ -454,8 +455,6 @@ mod tests {
         // CPU should be allowed to read LY but not write LY
 
         let mut registers = empty_io_registers();
-
-        let ly_address = IoRegister::LY.to_address();
 
         registers.privileged_set_ly(0x57);
         assert_eq!(0x57, registers.read_register(IoRegister::LY));
