@@ -772,6 +772,39 @@ mod tests {
     use crate::memory::Cartridge;
 
     #[test]
+    fn oam_dma_transfer_basic_test() {
+        let mut address_space = AddressSpace::new(Cartridge::new(vec![0; 0x150]).unwrap());
+        let mut ppu_state = PpuState::new();
+
+        progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+        assert_eq!(None, ppu_state.oam_dma_status);
+
+        address_space.write_address_u8(0xC500, 0x78, &ppu_state);
+        address_space.write_address_u8(0xC555, 0x12, &ppu_state);
+        address_space.write_address_u8(0xC59F, 0x34, &ppu_state);
+        address_space.write_address_u8(0xC5A0, 0x56, &ppu_state);
+
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::DMA, 0xC5);
+
+        progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+        assert!(ppu_state.oam_dma_status.is_some());
+
+        for _ in 0..158 {
+            progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+            assert!(ppu_state.oam_dma_status.is_some());
+        }
+
+        progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+        assert_eq!(None, ppu_state.oam_dma_status);
+
+        assert_eq!(0x78, address_space.read_address_u8(0xFE00, &ppu_state));
+        assert_eq!(0x12, address_space.read_address_u8(0xFE55, &ppu_state));
+        assert_eq!(0x34, address_space.read_address_u8(0xFE9F, &ppu_state));
+    }
+
+    #[test]
     fn scan_oam_basic_test() {
         let mut address_space = AddressSpace::new(Cartridge::new(vec![0; 0x150]).unwrap());
         let ppu_state = PpuState::new();
