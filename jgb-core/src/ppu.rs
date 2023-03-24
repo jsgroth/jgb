@@ -42,13 +42,14 @@ impl SortedOamData {
         Self(v)
     }
 
-    fn find_first_overlapping_sprite(&self, x: u8) -> Option<OamSpriteData> {
+    fn find_overlapping_sprites(&self, x: u8) -> Vec<OamSpriteData> {
         self.0
             .iter()
-            .find(|&sprite_data| {
+            .filter(|&sprite_data| {
                 (sprite_data.x_pos..sprite_data.x_pos.saturating_add(8)).contains(&(x + 8))
             })
             .copied()
+            .collect()
     }
 }
 
@@ -648,13 +649,15 @@ fn process_render_state(
             continue;
         }
 
-        let Some(sprite) = sprites.find_first_overlapping_sprite(sprite_fetcher_x) else {
+        let overlapping_sprites = sprites.find_overlapping_sprites(sprite_fetcher_x);
+        if overlapping_sprites.is_empty() {
             sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
             sprite_fetcher_x += 1;
             continue;
-        };
+        }
 
-        log::trace!("Found overlapping sprite: {sprite:?}");
+        // TODO fix this, need to look at every overlapping sprite because of transparent pixels
+        let sprite = overlapping_sprites.first().copied().unwrap();
 
         let bg_over_obj = sprite.flags & 0x80 != 0;
         let flip_y = sprite.flags & 0x40 != 0;
@@ -846,18 +849,9 @@ mod tests {
 
         let sorted_data = SortedOamData::from_vec(vec![sprite_data]);
 
-        assert_eq!(
-            Some(sprite_data),
-            sorted_data.find_first_overlapping_sprite(42)
-        );
-        assert_eq!(
-            Some(sprite_data),
-            sorted_data.find_first_overlapping_sprite(45)
-        );
-        assert_eq!(
-            Some(sprite_data),
-            sorted_data.find_first_overlapping_sprite(49)
-        );
-        assert_eq!(None, sorted_data.find_first_overlapping_sprite(50));
+        assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(42));
+        assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(45));
+        assert_eq!(vec![sprite_data], sorted_data.find_overlapping_sprites(49));
+        assert_eq!(vec![], sorted_data.find_overlapping_sprites(50));
     }
 }
