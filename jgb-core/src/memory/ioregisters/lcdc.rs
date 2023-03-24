@@ -23,8 +23,8 @@ pub enum TileDataRange {
 impl TileDataRange {
     pub fn start_address(self) -> u16 {
         match self {
-            Self::Block0 => 0x8000,
-            Self::Block1 => 0x9000,
+            Self::Block0 => 0x9000,
+            Self::Block1 => 0x8000,
         }
     }
 }

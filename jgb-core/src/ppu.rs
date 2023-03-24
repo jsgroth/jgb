@@ -726,8 +726,8 @@ fn process_render_state(
 
 fn get_bg_tile_address(bg_tile_data_area: TileDataRange, tile_index: u8) -> u16 {
     match bg_tile_data_area {
-        TileDataRange::Block0 => bg_tile_data_area.start_address() + 16 * u16::from(tile_index),
-        TileDataRange::Block1 => {
+        TileDataRange::Block1 => bg_tile_data_area.start_address() + 16 * u16::from(tile_index),
+        TileDataRange::Block0 => {
             // Intentionally wrap [128, 255] to [-128, -1]
             let signed_tile_index = tile_index as i8;
             (i32::from(bg_tile_data_area.start_address()) + 16 * i32::from(signed_tile_index))
