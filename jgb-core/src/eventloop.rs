@@ -146,25 +146,6 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
         if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture)?;
         }
-
-        // TODO if frame completed, sleep here until next frametime
-
-        // *CPU/PPU main loop (continue until complete frame is rendered, then sleep until next frametime)*
-        //
-        // update JOYP register based on user inputs and JOYP request bits
-        //
-        // if OAM DMA is executing:
-        //   ???
-        // else if IME && !interrupt_delay && (IE & IF != 0):
-        //   execute interrupt service routine
-        // else:
-        //   fetch next instruction
-        //   update PC
-        //   execute next instruction
-        //
-        // update timer registers based on # of cycles required to execute last instruction
-        //
-        // execute PPU based on # of cycles required to execute last instruction
     }
 
     Ok(())

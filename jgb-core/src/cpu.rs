@@ -65,7 +65,7 @@ pub fn execute_interrupt_service_routine(
         .expect("execute_interrupt_service_routine should only be called when an interrupt has triggered");
 
     log::trace!(
-        "Interrupt type {interrupt_type:?} triggered, replacing previous PC of {:04X} with {:04x}",
+        "Interrupt type {interrupt_type:?} triggered, replacing previous PC of {:04X} with {:04X}",
         cpu_registers.pc,
         interrupt_type.handler_address()
     );
