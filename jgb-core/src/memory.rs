@@ -509,4 +509,17 @@ mod tests {
         assert_eq!(0x105234, mapper.map_rom_address(0x5234));
         assert_eq!(0x107FFF, mapper.map_rom_address(0x7FFF));
     }
+
+    #[test]
+    fn mbc1_mapper_ram() {
+        // 256KB ROM, 8KB RAM
+        let mut mapper = Mapper::new(MapperType::MBC1, 1 << 18, 8192);
+
+        // Enable RAM
+        mapper.write_rom_address(0x0000, 0x0A);
+
+        assert_eq!(Some(0x0000), mapper.map_ram_address(0xA000));
+        assert_eq!(Some(0x1000), mapper.map_ram_address(0xB000));
+        assert_eq!(Some(0x1234), mapper.map_ram_address(0xB234));
+    }
 }
