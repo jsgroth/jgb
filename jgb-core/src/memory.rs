@@ -123,15 +123,19 @@ impl Mapper {
                 ..
             } => match address {
                 _address @ 0x0000..=0x1FFF => {
+                    log::trace!("ram_enable changed to {value:02X}");
                     *ram_enable = value;
                 }
                 _address @ 0x2000..=0x3FFF => {
+                    log::trace!("rom_bank_number changed to {value:02X}");
                     *rom_bank_number = value & 0x1F;
                 }
                 _address @ 0x4000..=0x5FFF => {
+                    log::trace!("ram_bank_number changed to {value:02X}");
                     *ram_bank_number = value & 0x03;
                 }
                 _address @ 0x6000..=0x7FFF => {
+                    log::trace!("banking_mode_select changed to {value:02X}");
                     *banking_mode_select = value & 0x01;
                 }
                 _ => panic!("invalid ROM write address in MBC1 mapper: {address:04X}"),
@@ -140,8 +144,10 @@ impl Mapper {
     }
 
     fn map_ram_address(&self, address: u16) -> Option<u32> {
+        let relative_address = address - address::EXTERNAL_RAM_START;
+
         match self {
-            Self::None => Some(u32::from(address)),
+            Self::None => Some(u32::from(relative_address)),
             &Self::MBC1 {
                 ram_bank_bit_mask,
                 ram_enable,
@@ -151,10 +157,10 @@ impl Mapper {
             } => {
                 if ram_enable & 0x0A == 0x0A {
                     if banking_mode_select == 0x00 {
-                        Some(u32::from(address))
+                        Some(u32::from(relative_address))
                     } else {
                         let bank_number = ram_bank_number & ram_bank_bit_mask;
-                        Some(u32::from(address) + (u32::from(bank_number) << 13))
+                        Some(u32::from(relative_address) + (u32::from(bank_number) << 13))
                     }
                 } else {
                     None
