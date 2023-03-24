@@ -15,7 +15,7 @@ pub enum RenderError {
 
 pub fn create_renderer(window: Window) -> Result<WindowCanvas, IntegerOrSdlError> {
     let mut canvas = window.into_canvas().present_vsync().build()?;
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
     canvas.present();
 
