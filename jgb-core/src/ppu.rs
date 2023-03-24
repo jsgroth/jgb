@@ -45,7 +45,9 @@ impl SortedOamData {
     fn find_first_overlapping_sprite(&self, x: u8) -> Option<OamSpriteData> {
         self.0
             .iter()
-            .find(|&sprite_data| (sprite_data.x_pos..sprite_data.x_pos + 8).contains(&(x + 8)))
+            .find(|&sprite_data| {
+                (sprite_data.x_pos..sprite_data.x_pos.saturating_add(8)).contains(&(x + 8))
+            })
             .copied()
     }
 }
@@ -527,18 +529,17 @@ fn process_render_state(
             let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
 
             let bg_pixel_color = get_bg_pixel_color(bg_pixel, bg_palette);
-            let sprite_palette = match sprite_pixel.obj_palette {
-                SpritePalette::ObjPalette0 => obj_palette_0,
-                SpritePalette::ObjPalette1 => obj_palette_1,
-            };
-            let sprite_pixel_color = get_obj_pixel_color(sprite_pixel.pixel, sprite_palette);
 
-            let pixel_color = if sprite_pixel_color == 0x00
+            let pixel_color = if sprite_pixel.pixel == 0x00
                 || (sprite_pixel.bg_over_obj && bg_pixel_color != 0x00)
             {
                 bg_pixel_color
             } else {
-                sprite_pixel_color
+                let sprite_palette = match sprite_pixel.obj_palette {
+                    SpritePalette::ObjPalette0 => obj_palette_0,
+                    SpritePalette::ObjPalette1 => obj_palette_1,
+                };
+                get_obj_pixel_color(sprite_pixel.pixel, sprite_palette)
             };
 
             log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
@@ -679,7 +680,7 @@ fn process_render_state(
                 } else {
                     (sprite.tile_index & 0xFE) + 1
                 };
-                (tile_index, y)
+                (tile_index, y % 8)
             }
         };
 
@@ -690,7 +691,7 @@ fn process_render_state(
         let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
         let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
 
-        if flip_x {
+        if !flip_x {
             let mut x = sprite_x;
             while x < 8 {
                 let pixel_color_id = get_pixel_color_id(tile_data_0, tile_data_1, x);
@@ -713,12 +714,13 @@ fn process_render_state(
                     bg_over_obj,
                 });
 
+                sprite_fetcher_x += 1;
+
                 if x == 0 {
                     break;
                 }
 
                 x -= 1;
-                sprite_fetcher_x += 1;
             }
         }
     }
