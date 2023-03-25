@@ -237,6 +237,7 @@ impl IoRegisters {
     const JOYP_RELATIVE_ADDR: usize = 0x00;
     const DIV_RELATIVE_ADDR: usize = 0x04;
     const IF_RELATIVE_ADDR: usize = 0x0F;
+    const NR52_RELATIVE_ADDR: usize = 0x26;
     const LCDC_RELATIVE_ADDR: usize = 0x40;
     const STAT_RELATIVE_ADDR: usize = 0x41;
     const LY_RELATIVE_ADDR: usize = 0x44;
@@ -317,7 +318,7 @@ impl IoRegisters {
         }
 
         // Audio registers other than NR52 are not writable while the APU is disabled
-        let apu_enabled = self.read_address(IoRegister::NR52.to_address()) & 0x80 != 0;
+        let apu_enabled = self.contents[Self::NR52_RELATIVE_ADDR] & 0x80 != 0;
         if !apu_enabled && register.is_audio_register() && register != IoRegister::NR52 {
             return;
         }
