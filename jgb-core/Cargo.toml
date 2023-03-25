@@ -9,7 +9,6 @@ edition = "2021"
 log = "0.4"
 sdl2 = "0.35"
 thiserror = "1.0"
-tinyvec = "1.6"
 
 [dev-dependencies]
 rand = "0.8"
