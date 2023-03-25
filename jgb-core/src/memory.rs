@@ -446,7 +446,7 @@ impl AddressSpace {
         }
     }
 
-    /// Assign a given 16-bit value to the given address and the following address, using
+    /// Assign a 16-bit value to the given address and the following address, using
     /// little-endian.
     pub fn write_address_u16(&mut self, address: u16, value: u16, ppu_state: &PpuState) {
         let [lsb, msb] = value.to_le_bytes();
