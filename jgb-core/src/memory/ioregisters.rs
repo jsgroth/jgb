@@ -1,6 +1,7 @@
 mod lcdc;
 
 use crate::cpu::InterruptType;
+use crate::memory::address;
 pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
 
 #[allow(clippy::upper_case_acronyms)]
@@ -35,22 +36,6 @@ pub enum IoRegister {
     NR50,
     NR51,
     NR52,
-    WAVE0,
-    WAVE1,
-    WAVE2,
-    WAVE3,
-    WAVE4,
-    WAVE5,
-    WAVE6,
-    WAVE7,
-    WAVE8,
-    WAVE9,
-    WAVE10,
-    WAVE11,
-    WAVE12,
-    WAVE13,
-    WAVE14,
-    WAVE15,
     LCDC,
     STAT,
     SCY,
@@ -98,22 +83,6 @@ impl IoRegister {
             0xFF24 => Self::NR50,
             0xFF25 => Self::NR51,
             0xFF26 => Self::NR52,
-            0xFF30 => Self::WAVE0,
-            0xFF31 => Self::WAVE1,
-            0xFF32 => Self::WAVE2,
-            0xFF33 => Self::WAVE3,
-            0xFF34 => Self::WAVE4,
-            0xFF35 => Self::WAVE5,
-            0xFF36 => Self::WAVE6,
-            0xFF37 => Self::WAVE7,
-            0xFF38 => Self::WAVE8,
-            0xFF39 => Self::WAVE9,
-            0xFF3A => Self::WAVE10,
-            0xFF3B => Self::WAVE11,
-            0xFF3C => Self::WAVE12,
-            0xFF3D => Self::WAVE13,
-            0xFF3E => Self::WAVE14,
-            0xFF3F => Self::WAVE15,
             0xFF40 => Self::LCDC,
             0xFF41 => Self::STAT,
             0xFF42 => Self::SCY,
@@ -164,22 +133,6 @@ impl IoRegister {
             Self::NR50 => 0xFF24,
             Self::NR51 => 0xFF25,
             Self::NR52 => 0xFF26,
-            Self::WAVE0 => 0xFF30,
-            Self::WAVE1 => 0xFF31,
-            Self::WAVE2 => 0xFF32,
-            Self::WAVE3 => 0xFF33,
-            Self::WAVE4 => 0xFF34,
-            Self::WAVE5 => 0xFF35,
-            Self::WAVE6 => 0xFF36,
-            Self::WAVE7 => 0xFF37,
-            Self::WAVE8 => 0xFF38,
-            Self::WAVE9 => 0xFF39,
-            Self::WAVE10 => 0xFF3A,
-            Self::WAVE11 => 0xFF3B,
-            Self::WAVE12 => 0xFF3C,
-            Self::WAVE13 => 0xFF3D,
-            Self::WAVE14 => 0xFF3E,
-            Self::WAVE15 => 0xFF3F,
             Self::LCDC => 0xFF40,
             Self::STAT => 0xFF41,
             Self::SCY => 0xFF42,
@@ -196,7 +149,7 @@ impl IoRegister {
     }
 
     /// Return whether or not the CPU is allowed to read this hardware register.
-    pub fn is_readable(self) -> bool {
+    pub fn is_cpu_readable(self) -> bool {
         !matches!(
             self,
             Self::NR13 | Self::NR23 | Self::NR31 | Self::NR33 | Self::NR41
@@ -204,8 +157,36 @@ impl IoRegister {
     }
 
     /// Return whether or not the CPU is allowed to write to this hardware register.
-    pub fn is_writable(self) -> bool {
+    pub fn is_cpu_writable(self) -> bool {
         !matches!(self, Self::LY)
+    }
+
+    /// Return whether or not this is an audio register.
+    pub fn is_audio_register(self) -> bool {
+        matches!(
+            self,
+            Self::NR10
+                | Self::NR11
+                | Self::NR12
+                | Self::NR13
+                | Self::NR14
+                | Self::NR21
+                | Self::NR22
+                | Self::NR23
+                | Self::NR24
+                | Self::NR30
+                | Self::NR31
+                | Self::NR32
+                | Self::NR33
+                | Self::NR34
+                | Self::NR41
+                | Self::NR42
+                | Self::NR43
+                | Self::NR44
+                | Self::NR50
+                | Self::NR51
+                | Self::NR52
+        )
     }
 }
 
@@ -299,16 +280,24 @@ impl IoRegisters {
     /// Read the value from the hardware register at the given address. Returns 0xFF if the address
     /// is invalid or the register is not readable by the CPU.
     pub fn read_address(&self, address: u16) -> u8 {
+        if is_waveform_address(address) {
+            return self.contents[(address - address::IO_REGISTERS_START) as usize];
+        }
+
         let Some(register) = IoRegister::from_address(address) else { return 0xFF; };
 
-        if !register.is_readable() {
+        if !register.is_cpu_readable() {
             return 0xFF;
         }
 
-        let byte = self.contents[(address - 0xFF00) as usize];
+        let byte = self.contents[(address - address::IO_REGISTERS_START) as usize];
         match register {
             IoRegister::JOYP => (byte & 0x0F) | 0xC0,
             IoRegister::STAT => byte | 0x80,
+            IoRegister::NR11 | IoRegister::NR21 => byte & 0xC0,
+            IoRegister::NR14 | IoRegister::NR24 | IoRegister::NR34 | IoRegister::NR44 => {
+                byte & 0x40
+            }
             _ => byte,
         }
     }
@@ -316,9 +305,20 @@ impl IoRegisters {
     /// Assign a value to the hardware register at the given address. Does nothing if the address
     /// is invalid or the register is not writable by the CPU.
     pub fn write_address(&mut self, address: u16, value: u8) {
+        if is_waveform_address(address) {
+            self.contents[(address - address::IO_REGISTERS_START) as usize] = value;
+            return;
+        }
+
         let Some(register) = IoRegister::from_address(address) else { return; };
 
-        if !register.is_writable() {
+        if !register.is_cpu_writable() {
+            return;
+        }
+
+        // Audio registers other than NR52 are not writable while the APU is disabled
+        let apu_enabled = self.read_address(IoRegister::NR52.to_address()) & 0x80 != 0;
+        if !apu_enabled && register.is_audio_register() && register != IoRegister::NR52 {
             return;
         }
 
@@ -343,6 +343,10 @@ impl IoRegisters {
             IoRegister::DMA => {
                 self.oam_dma_transfer_requested = true;
                 self.contents[relative_addr] = value;
+            }
+            IoRegister::NR52 => {
+                let existing_value = self.contents[relative_addr];
+                self.contents[relative_addr] = (value & 0x80) | (existing_value & 0x0F);
             }
             _ => {
                 self.contents[relative_addr] = value;
@@ -391,6 +395,36 @@ impl IoRegisters {
         self.contents[Self::DIV_RELATIVE_ADDR] = value;
     }
 
+    /// Read an audio register from the perspective of the APU, bypassing CPU access checks (both
+    /// register-level and bit-level).
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if passed a non-audio register.
+    pub fn apu_read_register(&mut self, register: IoRegister) -> u8 {
+        if !register.is_audio_register() {
+            panic!("apu_read_register can only be used to read audio registers, was: {register:?}");
+        }
+
+        self.read_address(register.to_address())
+    }
+
+    /// Assign a value to an audio register from the perspective of the APU, bypassing CPU access
+    /// checks (both register-level and bit-level).
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if passed a non-audio register.
+    pub fn apu_write_register(&mut self, register: IoRegister, value: u8) {
+        if !register.is_audio_register() {
+            panic!(
+                "apu_write_register can only be used to write audio registers, was: {register:?}"
+            );
+        }
+
+        self.write_address(register.to_address(), value);
+    }
+
     /// Obtain a read-only view around the LCDC register (LCD control).
     pub fn lcdc(&self) -> Lcdc {
         Lcdc(&self.contents[Self::LCDC_RELATIVE_ADDR])
@@ -411,6 +445,10 @@ impl IoRegisters {
     pub fn clear_oam_dma_transfer_request(&mut self) {
         self.oam_dma_transfer_requested = false;
     }
+}
+
+fn is_waveform_address(address: u16) -> bool {
+    (0xFF30..=0xFF3F).contains(&address)
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+use crate::apu::ApuState;
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::graphics::RenderError;
@@ -6,7 +7,7 @@ use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
 use crate::startup::SdlState;
 use crate::timer::TimerCounter;
-use crate::{cpu, graphics, input, ppu, timer, EmulationState};
+use crate::{apu, cpu, graphics, input, ppu, timer, EmulationState};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -58,6 +59,7 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
         ppu::SCREEN_HEIGHT.into(),
     )?;
 
+    let mut apu_state = ApuState::new();
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
 
@@ -112,6 +114,8 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
         for _ in (0..cycles_required).step_by(4) {
             ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
+
+            apu::tick_m_cycle(&mut apu_state, address_space.get_io_registers_mut());
         }
 
         timer::update_timer_registers(
