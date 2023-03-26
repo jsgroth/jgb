@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod apu;
+mod audio;
 mod config;
 mod cpu;
 mod eventloop;

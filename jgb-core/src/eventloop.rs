@@ -7,7 +7,7 @@ use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
 use crate::startup::SdlState;
 use crate::timer::TimerCounter;
-use crate::{apu, cpu, graphics, input, ppu, timer, EmulationState};
+use crate::{apu, audio, cpu, graphics, input, ppu, timer, EmulationState};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -47,6 +47,7 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     } = emulation_state;
 
     let SdlState {
+        audio,
         mut canvas,
         mut event_pump,
         ..
@@ -62,6 +63,8 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
     let mut apu_state = ApuState::new();
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
+
+    let _audio_device = audio::initialize_audio(&audio, &apu_state);
 
     'running: loop {
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());

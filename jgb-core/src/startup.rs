@@ -5,7 +5,9 @@ use crate::ppu::PpuState;
 use crate::{graphics, EmulationState};
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
-use sdl2::{EventPump, GameControllerSubsystem, IntegerOrSdlError, Sdl, VideoSubsystem};
+use sdl2::{
+    AudioSubsystem, EventPump, GameControllerSubsystem, IntegerOrSdlError, Sdl, VideoSubsystem,
+};
 use std::path::Path;
 use thiserror::Error;
 
@@ -42,6 +44,7 @@ impl From<String> for StartupError {
 pub struct SdlState {
     pub sdl: Sdl,
     pub video: VideoSubsystem,
+    pub audio: AudioSubsystem,
     pub game_controller: GameControllerSubsystem,
     pub canvas: WindowCanvas,
     pub event_pump: EventPump,
@@ -78,6 +81,7 @@ pub fn init_sdl_state(
 ) -> Result<SdlState, StartupError> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
+    let audio = sdl.audio()?;
     let game_controller = sdl.game_controller()?;
 
     let window_title = get_window_title(&run_config.gb_file_path)?;
@@ -96,6 +100,7 @@ pub fn init_sdl_state(
     Ok(SdlState {
         sdl,
         video,
+        audio,
         game_controller,
         canvas,
         event_pump,

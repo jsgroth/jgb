@@ -227,10 +227,30 @@ impl<'a> InterruptFlags<'a> {
     }
 }
 
+fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
+    let bit = match io_register {
+        IoRegister::NR11 => 1 << 0,
+        IoRegister::NR13 => 1 << 1,
+        IoRegister::NR14 => 1 << 2,
+        IoRegister::NR21 => 1 << 3,
+        IoRegister::NR23 => 1 << 4,
+        IoRegister::NR24 => 1 << 5,
+        IoRegister::NR31 => 1 << 6,
+        IoRegister::NR33 => 1 << 7,
+        IoRegister::NR34 => 1 << 8,
+        IoRegister::NR41 => 1 << 9,
+        IoRegister::NR44 => 1 << 10,
+        IoRegister::DMA => 1 << 11,
+        _ => return None,
+    };
+
+    Some(bit)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IoRegisters {
     contents: [u8; 0x80],
-    oam_dma_transfer_requested: bool,
+    dirty_bits: u16,
 }
 
 impl IoRegisters {
@@ -274,7 +294,7 @@ impl IoRegisters {
 
         Self {
             contents,
-            oam_dma_transfer_requested: false,
+            dirty_bits: 0x00,
         }
     }
 
@@ -323,6 +343,10 @@ impl IoRegisters {
             return;
         }
 
+        if let Some(bit) = dirty_bit_for_register(register) {
+            self.dirty_bits |= bit;
+        }
+
         let relative_addr = (address - 0xFF00) as usize;
         match register {
             IoRegister::DIV => {
@@ -340,10 +364,6 @@ impl IoRegisters {
                 let new_value = existing_value & (value | 0x87);
                 let new_value = new_value | (value & 0x78);
                 self.contents[relative_addr] = new_value;
-            }
-            IoRegister::DMA => {
-                self.oam_dma_transfer_requested = true;
-                self.contents[relative_addr] = value;
             }
             IoRegister::NR52 => {
                 let existing_value = self.contents[relative_addr];
@@ -407,7 +427,7 @@ impl IoRegisters {
             panic!("apu_read_register can only be used to read audio registers, was: {register:?}");
         }
 
-        self.read_address(register.to_address())
+        self.contents[(register.to_address() - address::IO_REGISTERS_START) as usize]
     }
 
     /// Assign a value to an audio register from the perspective of the APU, bypassing CPU access
@@ -423,7 +443,7 @@ impl IoRegisters {
             );
         }
 
-        self.write_address(register.to_address(), value);
+        self.contents[(register.to_address() - address::IO_REGISTERS_START) as usize] = value;
     }
 
     /// Obtain a read-only view around the LCDC register (LCD control).
@@ -436,15 +456,32 @@ impl IoRegisters {
         InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
     }
 
-    /// Return whether the DMA hardware register has been written to, indicating that the hardware
-    /// should initiate an OAM DMA transfer.
-    pub fn oam_dma_transfer_requested(&self) -> bool {
-        self.oam_dma_transfer_requested
+    /// Returns whether or not the given register has been written to.
+    ///
+    /// # Panics
+    ///
+    /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
+    /// will panic if called for a register for which the dirty bit is not tracked.
+    pub fn is_register_dirty(&self, register: IoRegister) -> bool {
+        let Some(bit) = dirty_bit_for_register(register) else {
+            panic!("dirty bit not tracked for register: {register:?}");
+        };
+
+        self.dirty_bits & bit != 0
     }
 
-    /// Clear the OAM DMA transfer request flag.
-    pub fn clear_oam_dma_transfer_request(&mut self) {
-        self.oam_dma_transfer_requested = false;
+    /// Clears the dirty bit for the given register.
+    ///
+    /// # Panics
+    ///
+    /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
+    /// will panic if called for a register for which the dirty bit is not tracked.
+    pub fn clear_dirty_bit(&mut self, register: IoRegister) {
+        let Some(bit) = dirty_bit_for_register(register) else {
+            panic!("dirty bit not tracked for register: {register:?}");
+        };
+
+        self.dirty_bits &= !bit;
     }
 }
 
@@ -459,7 +496,7 @@ mod tests {
     fn empty_io_registers() -> IoRegisters {
         IoRegisters {
             contents: [0; 0x80],
-            oam_dma_transfer_requested: false,
+            dirty_bits: 0x00,
         }
     }
 

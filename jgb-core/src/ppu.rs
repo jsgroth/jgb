@@ -217,11 +217,11 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
     if ppu_state.oam_dma_status.is_none()
         && address_space
             .get_io_registers()
-            .oam_dma_transfer_requested()
+            .is_register_dirty(IoRegister::DMA)
     {
         address_space
             .get_io_registers_mut()
-            .clear_oam_dma_transfer_request();
+            .clear_dirty_bit(IoRegister::DMA);
 
         let source_high_bits = address_space
             .get_io_registers()
