@@ -4,6 +4,8 @@ use sdl2::audio::{AudioCallback, AudioDevice, AudioSpecDesired};
 use sdl2::AudioSubsystem;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 pub struct ApuCallback {
     sample_queue: Arc<Mutex<VecDeque<i16>>>,
@@ -40,4 +42,16 @@ pub fn initialize_audio(
     device.resume();
 
     Ok(device)
+}
+
+/// If the audio sample queue has more than 4096 entries, block until it is drained.
+pub fn sync(apu_state: &ApuState) {
+    loop {
+        let queue_size = apu_state.get_sample_queue().lock().unwrap().len();
+        if queue_size <= 4096 {
+            break;
+        }
+
+        thread::sleep(Duration::from_millis(1));
+    }
 }

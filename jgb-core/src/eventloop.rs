@@ -134,6 +134,9 @@ pub fn run(
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
             apu::tick_m_cycle(&mut apu_state, address_space.get_io_registers_mut());
+            if run_config.audio_enabled {
+                audio::sync(&apu_state);
+            }
         }
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
