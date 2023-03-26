@@ -93,7 +93,7 @@ pub fn init_sdl_state(
         )
         .build()?;
 
-    let canvas = graphics::create_renderer(window)?;
+    let canvas = graphics::create_renderer(window, run_config)?;
 
     let event_pump = sdl.event_pump()?;
 

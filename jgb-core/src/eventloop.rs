@@ -44,6 +44,8 @@ pub fn run(
     sdl_state: SdlState,
     run_config: &RunConfig,
 ) -> Result<(), RunError> {
+    log::info!("Running with config:\n{run_config}");
+
     let EmulationState {
         mut address_space,
         mut cpu_registers,
@@ -134,7 +136,7 @@ pub fn run(
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
             apu::tick_m_cycle(&mut apu_state, address_space.get_io_registers_mut());
-            if run_config.audio_enabled {
+            if run_config.audio_enabled && run_config.sync_to_audio {
                 audio::sync(&apu_state);
             }
         }

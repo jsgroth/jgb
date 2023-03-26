@@ -1,4 +1,5 @@
 use crate::ppu::PpuState;
+use crate::RunConfig;
 use sdl2::pixels::Color;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::video::Window;
@@ -15,8 +16,16 @@ pub enum RenderError {
 
 /// Create an SDL2 renderer from the given SDL2 window, with VSync enabled and with the display area
 /// initialized to all white pixels.
-pub fn create_renderer(window: Window) -> Result<WindowCanvas, IntegerOrSdlError> {
-    let mut canvas = window.into_canvas().present_vsync().build()?;
+pub fn create_renderer(
+    window: Window,
+    run_config: &RunConfig,
+) -> Result<WindowCanvas, IntegerOrSdlError> {
+    let mut canvas_builder = window.into_canvas();
+    if run_config.vsync_enabled {
+        canvas_builder = canvas_builder.present_vsync();
+    }
+
+    let mut canvas = canvas_builder.build()?;
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
     canvas.present();
