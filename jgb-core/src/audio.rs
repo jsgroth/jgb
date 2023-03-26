@@ -35,10 +35,7 @@ pub fn initialize_audio(
             channels: Some(2),
             samples: Some(2048),
         },
-        |spec| {
-            println!("{}", spec.samples);
-            callback
-        },
+        |_spec| callback,
     )?;
     device.resume();
 
