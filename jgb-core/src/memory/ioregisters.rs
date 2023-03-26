@@ -314,11 +314,14 @@ impl IoRegisters {
         let byte = self.contents[(address - address::IO_REGISTERS_START) as usize];
         match register {
             IoRegister::JOYP => (byte & 0x0F) | 0xC0,
-            IoRegister::STAT => byte | 0x80,
-            IoRegister::NR11 | IoRegister::NR21 => byte & 0xC0,
+            IoRegister::STAT | IoRegister::NR10 => byte | 0x80,
+            IoRegister::NR11 | IoRegister::NR21 => byte | 0x3F,
+            IoRegister::NR30 => byte | 0x7F,
+            IoRegister::NR32 => byte | 0x9F,
             IoRegister::NR14 | IoRegister::NR24 | IoRegister::NR34 | IoRegister::NR44 => {
-                byte & 0x40
+                byte | 0xBF
             }
+            IoRegister::NR52 => byte | 0x70,
             _ => byte,
         }
     }
