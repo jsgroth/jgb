@@ -178,20 +178,28 @@ impl PulseChannel {
                 self.next_sweep = None;
             }
 
+            if self.length_timer == 0 {
+                self.length_timer = 64;
+            }
+
             self.divider_ticks = 0;
 
             self.base_phase_position = self.current_phase_position();
             self.clock_ticks = 0;
 
+            self.wavelength = ((u16::from(nr4_value) & 0x07) << 8) | u16::from(nr3_value);
+
             self.generation_on = true;
+        }
+
+        if nr0.is_some() {
+            self.wavelength = ((u16::from(nr4_value) & 0x07) << 8) | u16::from(nr3_value);
         }
 
         self.dac_on = nr2_value & 0xF8 != 0;
         if !self.dac_on {
             self.generation_on = false;
         }
-
-        self.wavelength = ((u16::from(nr4_value) & 0x07) << 8) | u16::from(nr3_value);
 
         self.length_timer_enabled = nr4_value & 0x40 != 0;
     }
@@ -354,6 +362,10 @@ impl WaveChannel {
             self.divider_ticks = 0;
             self.clock_ticks = 0;
 
+            if self.length_timer == 0 {
+                self.length_timer = 256;
+            }
+
             if let Some(next_wavelength) = self.next_wavelength {
                 self.wavelength = next_wavelength;
                 self.next_wavelength = None;
@@ -497,6 +509,9 @@ impl NoiseChannel {
         if triggered && self.dac_on {
             io_registers.apu_write_register(IoRegister::NR44, nr44_value & 0x7F);
 
+            if self.length_timer == 0 {
+                self.length_timer = 64;
+            }
             self.divider_ticks = 0;
             self.clock_ticks = 0;
             self.lfsr = 0;
