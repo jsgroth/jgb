@@ -714,7 +714,8 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
     let prev_clock = apu_state.clock_ticks;
     apu_state.tick_clock(io_registers);
 
-    let apu_enabled = io_registers.apu_read_register(IoRegister::NR52) & 0x80 != 0;
+    let nr52_value = io_registers.apu_read_register(IoRegister::NR52);
+    let apu_enabled = nr52_value & 0x80 != 0;
 
     if !apu_enabled {
         if apu_state.enabled {
@@ -766,6 +767,13 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
     );
     apu_state.channel_3.process_register_updates(io_registers);
     apu_state.channel_4.process_register_updates(io_registers);
+
+    let new_nr52_value = (nr52_value & 0x80)
+        | (u8::from(apu_state.channel_4.generation_on) << 3)
+        | (u8::from(apu_state.channel_3.generation_on) << 2)
+        | (u8::from(apu_state.channel_2.generation_on) << 1)
+        | u8::from(apu_state.channel_1.generation_on);
+    io_registers.apu_write_register(IoRegister::NR52, new_nr52_value);
 
     if should_sample(apu_state, prev_clock) {
         let (sample_l, sample_r) =
