@@ -6,6 +6,8 @@ use std::error::Error;
 struct Cli {
     #[arg(short = 'f', long = "gb_file_path")]
     gb_file_path: String,
+    #[arg(short = 'a', long = "audio_enabled", default_value_t = false)]
+    audio_enabled: bool,
     #[arg(short = 'w', long = "window_width", default_value_t = 640)]
     window_width: u32,
     #[arg(short = 'l', long = "window_height", default_value_t = 576)]
@@ -20,6 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let persistent_config = PersistentConfig {};
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
+        audio_enabled: args.audio_enabled,
         window_width: args.window_width,
         window_height: args.window_height,
     };

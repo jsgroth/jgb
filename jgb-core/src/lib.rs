@@ -38,7 +38,7 @@ pub fn run(
 
     let sdl_state = startup::init_sdl_state(&persistent_config, &run_config)?;
 
-    eventloop::run(emulation_state, sdl_state)?;
+    eventloop::run(emulation_state, sdl_state, &run_config)?;
 
     Ok(())
 }
