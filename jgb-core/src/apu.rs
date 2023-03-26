@@ -287,7 +287,7 @@ struct WaveChannel {
     dac_on: bool,
     wavelength: u16,
     next_wavelength: Option<u16>,
-    length_timer: u8,
+    length_timer: u16,
     length_timer_enabled: bool,
     volume_shift: u8,
     sample_index: u8,
@@ -329,7 +329,7 @@ impl WaveChannel {
 
         if io_registers.is_register_dirty(IoRegister::NR31) || triggered {
             io_registers.clear_dirty_bit(IoRegister::NR31);
-            self.length_timer = nr31_value & 0x3F;
+            self.length_timer = nr31_value.into();
         }
 
         self.volume_shift = match nr32_value & 0x60 {
@@ -372,7 +372,7 @@ impl WaveChannel {
 
         if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
             self.length_timer = self.length_timer.saturating_add(1);
-            if self.length_timer >= 64 {
+            if self.length_timer >= 256 {
                 self.generation_on = false;
             }
         }
