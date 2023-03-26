@@ -156,7 +156,7 @@ impl PulseChannel {
 
         if triggered || io_registers.is_register_dirty(nr1) {
             io_registers.clear_dirty_bit(nr1);
-            self.length_timer = nr1_value & 0x3F;
+            self.length_timer = 64 - (nr1_value & 0x3F);
         }
 
         if triggered || !self.generation_on {
@@ -236,8 +236,8 @@ impl PulseChannel {
 
         // Length timer frequency is 256Hz
         if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
-            self.length_timer = self.length_timer.saturating_add(1);
-            if self.length_timer >= 64 {
+            self.length_timer = self.length_timer.saturating_sub(1);
+            if self.length_timer == 0 {
                 self.generation_on = false;
             }
         }
@@ -329,7 +329,7 @@ impl WaveChannel {
 
         if io_registers.is_register_dirty(IoRegister::NR31) || triggered {
             io_registers.clear_dirty_bit(IoRegister::NR31);
-            self.length_timer = nr31_value.into();
+            self.length_timer = 256 - u16::from(nr31_value);
         }
 
         self.volume_shift = match nr32_value & 0x60 {
@@ -371,8 +371,8 @@ impl WaveChannel {
         self.divider_ticks += 1;
 
         if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
-            self.length_timer = self.length_timer.saturating_add(1);
-            if self.length_timer >= 256 {
+            self.length_timer = self.length_timer.saturating_sub(1);
+            if self.length_timer == 0 {
                 self.generation_on = false;
             }
         }
@@ -465,7 +465,7 @@ impl NoiseChannel {
 
         if io_registers.is_register_dirty(IoRegister::NR41) || triggered {
             io_registers.clear_dirty_bit(IoRegister::NR41);
-            self.length_timer = nr41_value & 0x3F;
+            self.length_timer = 64 - (nr41_value & 0x3F);
         }
 
         self.dac_on = nr42_value & 0xF8 != 0;
@@ -512,8 +512,8 @@ impl NoiseChannel {
         self.divider_ticks += 1;
 
         if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
-            self.length_timer = self.length_timer.saturating_add(1);
-            if self.length_timer >= 64 {
+            self.length_timer = self.length_timer.saturating_sub(1);
+            if self.length_timer == 0 {
                 self.generation_on = false;
             }
         }
