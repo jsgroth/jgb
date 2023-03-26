@@ -8,7 +8,7 @@ struct Cli {
     gb_file_path: String,
     #[arg(short = 'a', long = "audio_enabled", default_value_t = false)]
     audio_enabled: bool,
-    #[arg(long = "no-sync-to-audio", default_value_t = true, action = clap::ArgAction::SetFalse)]
+    #[arg(long = "no-audio-sync", default_value_t = true, action = clap::ArgAction::SetFalse)]
     sync_to_audio: bool,
     #[arg(long = "no-vsync", default_value_t = true, action = clap::ArgAction::SetFalse)]
     vsync_enabled: bool,

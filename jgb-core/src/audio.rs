@@ -52,6 +52,6 @@ pub fn sync(apu_state: &ApuState) {
             break;
         }
 
-        thread::sleep(Duration::from_millis(1));
+        thread::sleep(Duration::from_micros(250));
     }
 }

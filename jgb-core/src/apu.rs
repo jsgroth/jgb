@@ -704,8 +704,8 @@ fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64) -> bool {
     let current_period = apu_state.clock_ticks * OUTPUT_FREQUENCY / APU_CLOCK_SPEED;
 
     // Hack to make audio sample at ~60Hz instead of ~59.7Hz
-    let prev_period = (prev_period as f64 * 59.7 / 60.0).round() as u64;
-    let current_period = (current_period as f64 * 59.7 / 60.0).round() as u64;
+    let prev_period = (prev_period as f64 * 59.73 / 60.0).round() as u64;
+    let current_period = (current_period as f64 * 59.73 / 60.0).round() as u64;
 
     prev_period != current_period
 }
