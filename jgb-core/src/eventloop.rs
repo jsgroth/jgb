@@ -110,6 +110,13 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
 
         assert!(cycles_required > 0 && cycles_required % 4 == 0);
 
+        timer::update_timer_registers(
+            address_space.get_io_registers_mut(),
+            &mut timer_counter,
+            timer_modulo,
+            cycles_required.into(),
+        );
+
         let prev_mode = ppu_state.mode();
         for _ in (0..cycles_required).step_by(4) {
             ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
@@ -117,13 +124,6 @@ pub fn run(emulation_state: EmulationState, sdl_state: SdlState) -> Result<(), R
 
             apu::tick_m_cycle(&mut apu_state, address_space.get_io_registers_mut());
         }
-
-        timer::update_timer_registers(
-            address_space.get_io_registers_mut(),
-            &mut timer_counter,
-            timer_modulo,
-            cycles_required.into(),
-        );
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
         // to render
