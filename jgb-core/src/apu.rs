@@ -93,6 +93,7 @@ struct PulseChannel {
     length_timer_enabled: bool,
     volume_control: VolumeControl,
     wavelength: u16,
+    shadow_wavelength: u16,
     sweep: PulseSweep,
     next_sweep: Option<PulseSweep>,
     phase_position: u64,
@@ -120,6 +121,7 @@ impl PulseChannel {
             length_timer_enabled: false,
             volume_control: VolumeControl::new(),
             wavelength: 0,
+            shadow_wavelength: 0,
             sweep: PulseSweep::DISABLED,
             next_sweep: None,
             phase_position: 0,
@@ -217,12 +219,14 @@ impl PulseChannel {
                 self.length_timer = 64;
             }
 
+            self.shadow_wavelength = self.wavelength;
+
             self.frequency_timer = 0;
 
             self.generation_on = true;
 
             if self.sweep.pace > 0 {
-                self.process_sweep_iteration();
+                self.process_sweep_iteration(io_registers);
             }
         }
 
@@ -241,12 +245,8 @@ impl PulseChannel {
                 && self.wavelength > 0
                 && (divider_ticks % (4 * u64::from(self.sweep.pace))) == 2
             {
-                self.process_sweep_iteration();
+                self.process_sweep_iteration(io_registers);
             }
-
-            io_registers.apu_write_register(self.nr3, (self.wavelength & 0xFF) as u8);
-            let nr4 = io_registers.apu_read_register(self.nr4);
-            io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (self.wavelength >> 8) as u8);
         }
 
         // Length timer frequency is 256Hz
@@ -278,11 +278,12 @@ impl PulseChannel {
         }
     }
 
-    fn process_sweep_iteration(&mut self) {
-        let delta = self.wavelength >> self.sweep.slope_control;
+    fn process_sweep_iteration(&mut self, io_registers: &mut IoRegisters) {
+        let wavelength = self.shadow_wavelength;
+        let delta = wavelength >> self.sweep.slope_control;
         let new_wavelength = match self.sweep.direction {
-            SweepDirection::Increasing => self.wavelength + delta,
-            SweepDirection::Decreasing => self.wavelength.saturating_sub(delta),
+            SweepDirection::Increasing => wavelength + delta,
+            SweepDirection::Decreasing => wavelength.saturating_sub(delta),
         };
 
         if new_wavelength > 0x07FF {
@@ -290,12 +291,17 @@ impl PulseChannel {
             self.generation_on = false;
         } else if self.sweep.slope_control > 0 {
             self.wavelength = new_wavelength;
+            self.shadow_wavelength = new_wavelength;
         }
 
         if let Some(next_sweep) = self.next_sweep {
             self.sweep = next_sweep;
             self.next_sweep = None;
         }
+
+        io_registers.apu_write_register(self.nr3, (self.wavelength & 0xFF) as u8);
+        let nr4 = io_registers.apu_read_register(self.nr4);
+        io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (self.wavelength >> 8) as u8);
     }
 }
 
