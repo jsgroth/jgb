@@ -14,10 +14,10 @@ enum DutyCycle {
 impl DutyCycle {
     fn waveform(self) -> [u8; 8] {
         match self {
-            Self::OneEighth => [1, 1, 1, 1, 1, 1, 1, 0],
-            Self::OneFourth => [0, 1, 1, 1, 1, 1, 1, 0],
-            Self::OneHalf => [0, 1, 1, 1, 1, 0, 0, 0],
-            Self::ThreeFourths => [1, 0, 0, 0, 0, 0, 0, 1],
+            Self::OneEighth => [0, 0, 0, 0, 0, 0, 0, 1],
+            Self::OneFourth => [1, 0, 0, 0, 0, 0, 0, 1],
+            Self::OneHalf => [1, 0, 0, 0, 0, 1, 1, 1],
+            Self::ThreeFourths => [0, 1, 1, 1, 1, 1, 1, 0],
         }
     }
 }
@@ -74,13 +74,13 @@ impl PulseSweep {
 
 trait Channel {
     // Digital sample in the range [0, 15]
-    fn sample_digital(&self, clock_ticks: u64) -> Option<u8>;
+    fn sample_digital(&self) -> Option<u8>;
 
     // "Analog" sample in the range [-1, 1]
-    fn sample_analog(&self, clock_ticks: u64) -> f64 {
-        let Some(digital_sample) = self.sample_digital(clock_ticks) else { return 0.0; };
+    fn sample_analog(&self) -> f64 {
+        let Some(digital_sample) = self.sample_digital() else { return 0.0; };
 
-        (7.5 - f64::from(digital_sample)) / 7.5
+        (f64::from(digital_sample) - 7.5) / 7.5
     }
 }
 
@@ -300,7 +300,7 @@ impl PulseChannel {
 }
 
 impl Channel for PulseChannel {
-    fn sample_digital(&self, _: u64) -> Option<u8> {
+    fn sample_digital(&self) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -332,8 +332,7 @@ struct WaveChannel {
     volume_shift: u8,
     sample_index: u8,
     last_sample: u8,
-    divider_ticks: u64,
-    clock_ticks: u64,
+    frequency_timer: u64,
 }
 
 impl WaveChannel {
@@ -348,8 +347,7 @@ impl WaveChannel {
             volume_shift: 0,
             sample_index: 1,
             last_sample: 0,
-            divider_ticks: 0,
-            clock_ticks: 0,
+            frequency_timer: 0,
         }
     }
 
@@ -384,9 +382,8 @@ impl WaveChannel {
         if triggered {
             io_registers.apu_write_register(IoRegister::NR34, nr34_value & 0x7F);
 
+            self.frequency_timer = 0;
             self.sample_index = 1;
-            self.divider_ticks = 0;
-            self.clock_ticks = 0;
 
             if self.length_timer == 0 {
                 self.length_timer = 256;
@@ -415,12 +412,12 @@ impl WaveChannel {
         }
     }
 
-    fn tick_clock(&mut self, prev_clock: u64, current_clock: u64, io_registers: &IoRegisters) {
-        let step_frequency = 2097152.0 / (2048.0 - f64::from(self.wavelength));
-        let step_interval = (APU_CLOCK_SPEED as f64) / step_frequency;
-        if (prev_clock as f64 / step_interval).round() as u64
-            != (current_clock as f64 / step_interval).round() as u64
-        {
+    fn tick_clock(&mut self, io_registers: &IoRegisters) {
+        let prev_clock = self.frequency_timer;
+        self.frequency_timer += CLOCK_CYCLES_PER_M_CYCLE;
+
+        let step_period = u64::from(2 * (2048 - self.wavelength));
+        if prev_clock / step_period != self.frequency_timer / step_period {
             let samples = io_registers.read_address(0xFF30 + u16::from(self.sample_index / 2));
             let sample = if self.sample_index % 2 == 0 {
                 samples >> 4
@@ -440,7 +437,7 @@ impl WaveChannel {
 }
 
 impl Channel for WaveChannel {
-    fn sample_digital(&self, _: u64) -> Option<u8> {
+    fn sample_digital(&self) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -464,6 +461,7 @@ struct NoiseChannel {
     lfsr: u16,
     lfsr_width: u8,
     clock_divider: u8,
+    frequency_timer: u64,
 }
 
 impl NoiseChannel {
@@ -478,6 +476,7 @@ impl NoiseChannel {
             lfsr: 0,
             lfsr_width: 7,
             clock_divider: 0,
+            frequency_timer: 0,
         }
     }
 
@@ -501,6 +500,8 @@ impl NoiseChannel {
         let triggered = nr44_value & 0x80 != 0;
         if triggered {
             io_registers.apu_write_register(IoRegister::NR44, nr44_value & 0x7F);
+
+            self.frequency_timer = 0;
 
             self.volume_control = VolumeControl::from_byte(nr42_value);
 
@@ -538,18 +539,18 @@ impl NoiseChannel {
         }
     }
 
-    fn tick_clock(&mut self, prev_clock: u64, current_clock: u64) {
+    fn tick_clock(&mut self) {
+        let prev_clock = self.frequency_timer;
+        self.frequency_timer += CLOCK_CYCLES_PER_M_CYCLE;
+
         let divisor = if self.clock_divider != 0 {
             f64::from(u32::from(self.clock_divider) << self.clock_shift)
         } else {
             0.5 * 2_f64.powi(self.clock_shift.into())
         };
-        let lfsr_frequency = 262144.0 / divisor;
-        let lfsr_interval = (APU_CLOCK_SPEED as f64) / lfsr_frequency;
+        let lfsr_period = (16.0 * divisor).round() as u64;
 
-        if (prev_clock as f64 / lfsr_interval).round() as u64
-            != (current_clock as f64 / lfsr_interval).round() as u64
-        {
+        if prev_clock / lfsr_period != self.frequency_timer / lfsr_period {
             let bit_1 = (self.lfsr & 0x02) >> 1;
             let bit_0 = self.lfsr & 0x01;
             let new_bit = !(bit_1 ^ bit_0);
@@ -565,7 +566,7 @@ impl NoiseChannel {
 }
 
 impl Channel for NoiseChannel {
-    fn sample_digital(&self, _: u64) -> Option<u8> {
+    fn sample_digital(&self) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -637,15 +638,13 @@ impl ApuState {
     }
 
     fn tick_clock(&mut self, io_registers: &IoRegisters) {
-        let prev_clock = self.clock_ticks;
         self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
 
         if self.enabled {
             self.channel_1.tick_clock();
             self.channel_2.tick_clock();
-            self.channel_3
-                .tick_clock(prev_clock, self.clock_ticks, io_registers);
-            self.channel_4.tick_clock(prev_clock, self.clock_ticks);
+            self.channel_3.tick_clock(io_registers);
+            self.channel_4.tick_clock();
         }
     }
 
@@ -661,7 +660,7 @@ impl ApuState {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
-        let ch1_sample = self.channel_1.sample_analog(self.clock_ticks);
+        let ch1_sample = self.channel_1.sample_analog();
         if nr51_value & 0x10 != 0 {
             sample_l += ch1_sample;
         }
@@ -669,7 +668,7 @@ impl ApuState {
             sample_r += ch1_sample;
         }
 
-        let ch2_sample = self.channel_2.sample_analog(self.clock_ticks);
+        let ch2_sample = self.channel_2.sample_analog();
         if nr51_value & 0x20 != 0 {
             sample_l += ch2_sample;
         }
@@ -677,7 +676,7 @@ impl ApuState {
             sample_r += ch2_sample;
         }
 
-        let ch3_sample = self.channel_3.sample_analog(self.clock_ticks);
+        let ch3_sample = self.channel_3.sample_analog();
         if nr51_value & 0x40 != 0 {
             sample_l += ch3_sample;
         }
@@ -685,7 +684,7 @@ impl ApuState {
             sample_r += ch3_sample;
         }
 
-        let ch4_sample = self.channel_4.sample_analog(self.clock_ticks);
+        let ch4_sample = self.channel_4.sample_analog();
         if nr51_value & 0x80 != 0 {
             sample_l += ch4_sample;
         }
