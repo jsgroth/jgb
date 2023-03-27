@@ -290,7 +290,6 @@ impl PulseChannel {
             // Disable channel when sweep overflows wavelength
             self.generation_on = false;
         } else if self.sweep.slope_control > 0 {
-            self.wavelength = new_wavelength;
             self.shadow_wavelength = new_wavelength;
         }
 
@@ -298,6 +297,8 @@ impl PulseChannel {
             self.sweep = next_sweep;
             self.next_sweep = None;
         }
+
+        self.wavelength = self.shadow_wavelength;
 
         io_registers.apu_write_register(self.nr3, (self.wavelength & 0xFF) as u8);
         let nr4 = io_registers.apu_read_register(self.nr4);
