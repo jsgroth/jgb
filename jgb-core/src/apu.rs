@@ -43,6 +43,18 @@ impl VolumeControl {
             sweep_pace: 0,
         }
     }
+
+    fn from_byte(byte: u8) -> Self {
+        Self {
+            volume: byte >> 4,
+            sweep_direction: if byte & 0x08 != 0 {
+                SweepDirection::Increasing
+            } else {
+                SweepDirection::Decreasing
+            },
+            sweep_pace: byte & 0x07,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,11 +74,11 @@ impl PulseSweep {
 
 trait Channel {
     // Digital sample in the range [0, 15]
-    fn sample_digital(&self) -> Option<u8>;
+    fn sample_digital(&self, clock_ticks: u64) -> Option<u8>;
 
     // "Analog" sample in the range [-1, 1]
-    fn sample_analog(&self) -> f64 {
-        let Some(digital_sample) = self.sample_digital() else { return 0.0; };
+    fn sample_analog(&self, clock_ticks: u64) -> f64 {
+        let Some(digital_sample) = self.sample_digital(clock_ticks) else { return 0.0; };
 
         (7.5 - f64::from(digital_sample)) / 7.5
     }
@@ -83,13 +95,22 @@ struct PulseChannel {
     wavelength: u16,
     sweep: PulseSweep,
     next_sweep: Option<PulseSweep>,
-    divider_ticks: u64,
     base_phase_position: u64,
-    clock_ticks: u64,
+    nr0: Option<IoRegister>,
+    nr1: IoRegister,
+    nr2: IoRegister,
+    nr3: IoRegister,
+    nr4: IoRegister,
 }
 
 impl PulseChannel {
-    fn new() -> Self {
+    fn new(
+        nr0: Option<IoRegister>,
+        nr1: IoRegister,
+        nr2: IoRegister,
+        nr3: IoRegister,
+        nr4: IoRegister,
+    ) -> Self {
         Self {
             generation_on: false,
             dac_on: false,
@@ -100,27 +121,42 @@ impl PulseChannel {
             wavelength: 0,
             sweep: PulseSweep::DISABLED,
             next_sweep: None,
-            divider_ticks: 0,
             base_phase_position: 0,
-            clock_ticks: 0,
+            nr0,
+            nr1,
+            nr2,
+            nr3,
+            nr4,
         }
     }
 
-    fn process_register_updates(
-        &mut self,
-        io_registers: &mut IoRegisters,
-        nr0: Option<IoRegister>,
-        nr1: IoRegister,
-        nr2: IoRegister,
-        nr3: IoRegister,
-        nr4: IoRegister,
-    ) {
-        let nr1_value = io_registers.apu_read_register(nr1);
-        let nr2_value = io_registers.apu_read_register(nr2);
-        let nr3_value = io_registers.apu_read_register(nr3);
-        let nr4_value = io_registers.apu_read_register(nr4);
+    fn new_channel_1() -> Self {
+        Self::new(
+            Some(IoRegister::NR10),
+            IoRegister::NR11,
+            IoRegister::NR12,
+            IoRegister::NR13,
+            IoRegister::NR14,
+        )
+    }
 
-        if let Some(nr0) = nr0 {
+    fn new_channel_2() -> Self {
+        Self::new(
+            None,
+            IoRegister::NR21,
+            IoRegister::NR22,
+            IoRegister::NR23,
+            IoRegister::NR24,
+        )
+    }
+
+    fn process_register_updates(&mut self, io_registers: &mut IoRegisters, clock_ticks: u64) {
+        let nr1_value = io_registers.apu_read_register(self.nr1);
+        let nr2_value = io_registers.apu_read_register(self.nr2);
+        let nr4_value = io_registers.apu_read_register(self.nr4);
+
+        // Check if sweep has been updated
+        if let Some(nr0) = self.nr0 {
             let nr0_value = io_registers.apu_read_register(nr0);
 
             let sweep_pace = (nr0_value & 0x70) >> 4;
@@ -143,8 +179,7 @@ impl PulseChannel {
             }
         }
 
-        let triggered = nr4_value & 0x80 != 0;
-
+        // Check if duty cycle has been updated
         let duty_cycle = match nr1_value & 0xC0 {
             0x00 => DutyCycle::OneEighth,
             0x40 => DutyCycle::OneFourth,
@@ -154,24 +189,20 @@ impl PulseChannel {
         };
         self.duty_cycle = duty_cycle;
 
-        if triggered || io_registers.is_register_dirty(nr1) {
-            io_registers.clear_dirty_bit(nr1);
+        // Check if length timer has been reset
+        if io_registers.is_register_dirty(self.nr1) {
+            io_registers.clear_dirty_bit(self.nr1);
             self.length_timer = 64 - (nr1_value & 0x3F);
         }
 
-        if triggered || !self.generation_on {
-            self.volume_control.volume = nr2_value >> 4;
-            self.volume_control.sweep_direction = if nr2_value & 0x08 != 0 {
-                SweepDirection::Increasing
-            } else {
-                SweepDirection::Decreasing
-            };
-            self.volume_control.sweep_pace = nr2_value & 0x07;
-        }
+        self.length_timer_enabled = nr4_value & 0x40 != 0;
 
+        let triggered = nr4_value & 0x80 != 0;
         if triggered {
             // Clear trigger flag
-            io_registers.apu_write_register(nr4, nr4_value & 0x7F);
+            io_registers.apu_write_register(self.nr4, nr4_value & 0x7F);
+
+            self.volume_control = VolumeControl::from_byte(nr2_value);
 
             if let Some(next_sweep) = self.next_sweep {
                 self.sweep = next_sweep;
@@ -182,68 +213,42 @@ impl PulseChannel {
                 self.length_timer = 64;
             }
 
-            self.divider_ticks = 0;
+            self.base_phase_position = self.current_phase_position(clock_ticks);
 
-            self.base_phase_position = self.current_phase_position();
-            self.clock_ticks = 0;
-
-            self.wavelength = ((u16::from(nr4_value) & 0x07) << 8) | u16::from(nr3_value);
+            self.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
 
             self.generation_on = true;
-        }
 
-        if nr0.is_some() {
-            self.wavelength = ((u16::from(nr4_value) & 0x07) << 8) | u16::from(nr3_value);
+            if self.sweep.pace > 0 {
+                self.process_sweep_iteration();
+            }
         }
 
         self.dac_on = nr2_value & 0xF8 != 0;
         if !self.dac_on {
             self.generation_on = false;
         }
-
-        self.length_timer_enabled = nr4_value & 0x40 != 0;
     }
 
-    fn write_wavelength(&self, io_registers: &mut IoRegisters, nr3: IoRegister, nr4: IoRegister) {
-        io_registers.apu_write_register(nr3, (self.wavelength & 0xFF) as u8);
-
-        let existing_nr4 = io_registers.apu_read_register(nr4);
-        io_registers.apu_write_register(nr4, (existing_nr4 & 0xF8) | (self.wavelength >> 8) as u8);
-    }
-
-    fn tick_divider(&mut self) {
-        if !self.generation_on {
-            return;
-        }
-
-        self.divider_ticks += 1;
-
+    fn tick_divider(&mut self, divider_ticks: u64, io_registers: &mut IoRegisters) {
         // Pulse sweep frequency is 128/pace Hz
-        if self.sweep.pace > 0
-            && self.wavelength > 0
-            && self.divider_ticks % (4 * u64::from(self.sweep.pace)) == 0
-        {
-            let delta = self.wavelength / 2_u16.pow(self.sweep.slope_control.into());
-            let new_wavelength = match self.sweep.direction {
-                SweepDirection::Increasing => self.wavelength + delta,
-                SweepDirection::Decreasing => self.wavelength.saturating_sub(delta),
-            };
+        if self.nr0.is_some() {
+            self.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
 
-            if new_wavelength > 0x07FF {
-                // Disable channel when sweep overflows wavelength
-                self.generation_on = false;
-            } else if self.sweep.slope_control > 0 {
-                self.wavelength = new_wavelength;
+            if self.sweep.pace > 0
+                && self.wavelength > 0
+                && (divider_ticks % (4 * u64::from(self.sweep.pace))) == 2
+            {
+                self.process_sweep_iteration();
             }
 
-            if let Some(next_sweep) = self.next_sweep {
-                self.sweep = next_sweep;
-                self.next_sweep = None;
-            }
+            io_registers.apu_write_register(self.nr3, (self.wavelength & 0xFF) as u8);
+            let nr4 = io_registers.apu_read_register(self.nr4);
+            io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (self.wavelength >> 8) as u8);
         }
 
         // Length timer frequency is 256Hz
-        if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
+        if self.length_timer_enabled && divider_ticks % 2 == 0 {
             self.length_timer = self.length_timer.saturating_sub(1);
             if self.length_timer == 0 {
                 self.generation_on = false;
@@ -252,7 +257,7 @@ impl PulseChannel {
 
         // Envelope frequency is 64/pace Hz
         let envelope_pace = self.volume_control.sweep_pace;
-        if envelope_pace > 0 && self.divider_ticks % (8 * u64::from(envelope_pace)) == 0 {
+        if envelope_pace > 0 && (divider_ticks % (8 * u64::from(envelope_pace))) == 7 {
             let new_volume = match self.volume_control.sweep_direction {
                 SweepDirection::Increasing => cmp::min(0x0F, self.volume_control.volume + 1),
                 SweepDirection::Decreasing => self.volume_control.volume.saturating_sub(1),
@@ -261,21 +266,37 @@ impl PulseChannel {
         }
     }
 
-    fn tick_clock(&mut self) {
-        self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
+    fn process_sweep_iteration(&mut self) {
+        let delta = self.wavelength >> self.sweep.slope_control;
+        let new_wavelength = match self.sweep.direction {
+            SweepDirection::Increasing => self.wavelength + delta,
+            SweepDirection::Decreasing => self.wavelength.saturating_sub(delta),
+        };
+
+        if new_wavelength > 0x07FF {
+            // Disable channel when sweep overflows wavelength
+            self.generation_on = false;
+        } else if self.sweep.slope_control > 0 {
+            self.wavelength = new_wavelength;
+        }
+
+        if let Some(next_sweep) = self.next_sweep {
+            self.sweep = next_sweep;
+            self.next_sweep = None;
+        }
     }
 
-    fn current_phase_position(&self) -> u64 {
+    fn current_phase_position(&self, clock_ticks: u64) -> u64 {
         let step_frequency = 1048576.0 / (2048.0 - f64::from(self.wavelength));
         let step_interval = (APU_CLOCK_SPEED as f64) / step_frequency;
-        let phase_position = ((self.clock_ticks as f64) / step_interval).round() as u64;
+        let phase_position = ((clock_ticks as f64) / step_interval).round() as u64;
 
         (phase_position + self.base_phase_position) % 8
     }
 }
 
 impl Channel for PulseChannel {
-    fn sample_digital(&self) -> Option<u8> {
+    fn sample_digital(&self, clock_ticks: u64) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -284,9 +305,17 @@ impl Channel for PulseChannel {
             return Some(0);
         }
 
-        let wave_step = self.duty_cycle.waveform()[self.current_phase_position() as usize];
+        let wave_step =
+            self.duty_cycle.waveform()[self.current_phase_position(clock_ticks) as usize];
         Some(wave_step * self.volume_control.volume)
     }
+}
+
+fn read_wavelength(io_registers: &IoRegisters, nr3: IoRegister, nr4: IoRegister) -> u16 {
+    let nr3_value = io_registers.apu_read_register(nr3);
+    let nr4_value = io_registers.apu_read_register(nr4);
+
+    ((u16::from(nr4_value) & 0x07) << 8) | u16::from(nr3_value)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -328,14 +357,7 @@ impl WaveChannel {
         let nr33_value = io_registers.apu_read_register(IoRegister::NR33);
         let nr34_value = io_registers.apu_read_register(IoRegister::NR34);
 
-        self.dac_on = nr30_value & 0x80 != 0;
-        if !self.dac_on {
-            self.generation_on = false;
-        }
-
-        let triggered = nr34_value & 0x80 != 0;
-
-        if io_registers.is_register_dirty(IoRegister::NR31) || triggered {
+        if io_registers.is_register_dirty(IoRegister::NR31) {
             io_registers.clear_dirty_bit(IoRegister::NR31);
             self.length_timer = 256 - u16::from(nr31_value);
         }
@@ -355,7 +377,8 @@ impl WaveChannel {
 
         self.length_timer_enabled = nr34_value & 0x40 != 0;
 
-        if triggered && self.dac_on {
+        let triggered = nr34_value & 0x80 != 0;
+        if triggered {
             io_registers.apu_write_register(IoRegister::NR34, nr34_value & 0x7F);
 
             self.sample_index = 1;
@@ -373,16 +396,15 @@ impl WaveChannel {
 
             self.generation_on = true;
         }
+
+        self.dac_on = nr30_value & 0x80 != 0;
+        if !self.dac_on {
+            self.generation_on = false;
+        }
     }
 
-    fn tick_divider(&mut self) {
-        if !self.generation_on {
-            return;
-        }
-
-        self.divider_ticks += 1;
-
-        if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
+    fn tick_divider(&mut self, divider_ticks: u64) {
+        if self.length_timer_enabled && divider_ticks % 2 == 0 {
             self.length_timer = self.length_timer.saturating_sub(1);
             if self.length_timer == 0 {
                 self.generation_on = false;
@@ -390,18 +412,11 @@ impl WaveChannel {
         }
     }
 
-    fn tick_clock(&mut self, io_registers: &IoRegisters) {
-        if !self.generation_on {
-            return;
-        }
-
-        let prev_clock = self.clock_ticks;
-        self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
-
+    fn tick_clock(&mut self, prev_clock: u64, current_clock: u64, io_registers: &IoRegisters) {
         let step_frequency = 2097152.0 / (2048.0 - f64::from(self.wavelength));
         let step_interval = (APU_CLOCK_SPEED as f64) / step_frequency;
         if (prev_clock as f64 / step_interval).round() as u64
-            != (self.clock_ticks as f64 / step_interval).round() as u64
+            != (current_clock as f64 / step_interval).round() as u64
         {
             let samples = io_registers.read_address(0xFF30 + u16::from(self.sample_index / 2));
             let sample = if self.sample_index % 2 == 0 {
@@ -422,7 +437,7 @@ impl WaveChannel {
 }
 
 impl Channel for WaveChannel {
-    fn sample_digital(&self) -> Option<u8> {
+    fn sample_digital(&self, _: u64) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -446,8 +461,6 @@ struct NoiseChannel {
     lfsr: u16,
     lfsr_width: u8,
     clock_divider: u8,
-    divider_ticks: u64,
-    clock_ticks: u64,
 }
 
 impl NoiseChannel {
@@ -462,8 +475,6 @@ impl NoiseChannel {
             lfsr: 0,
             lfsr_width: 7,
             clock_divider: 0,
-            divider_ticks: 0,
-            clock_ticks: 0,
         }
     }
 
@@ -473,31 +484,9 @@ impl NoiseChannel {
         let nr43_value = io_registers.apu_read_register(IoRegister::NR43);
         let nr44_value = io_registers.apu_read_register(IoRegister::NR44);
 
-        let triggered = nr44_value & 0x80 != 0;
-
-        if io_registers.is_register_dirty(IoRegister::NR41) || triggered {
+        if io_registers.is_register_dirty(IoRegister::NR41) {
             io_registers.clear_dirty_bit(IoRegister::NR41);
             self.length_timer = 64 - (nr41_value & 0x3F);
-        }
-
-        self.dac_on = nr42_value & 0xF8 != 0;
-        if !self.dac_on {
-            self.generation_on = false;
-        }
-
-        if triggered || !self.generation_on {
-            let volume = nr42_value >> 4;
-            let sweep_direction = if nr42_value & 0x08 != 0 {
-                SweepDirection::Increasing
-            } else {
-                SweepDirection::Decreasing
-            };
-            let sweep_pace = nr42_value & 0x07;
-            self.volume_control = VolumeControl {
-                volume,
-                sweep_direction,
-                sweep_pace,
-            };
         }
 
         self.clock_shift = nr43_value >> 4;
@@ -506,27 +495,29 @@ impl NoiseChannel {
 
         self.length_timer_enabled = nr44_value & 0x40 != 0;
 
-        if triggered && self.dac_on {
+        let triggered = nr44_value & 0x80 != 0;
+        if triggered {
             io_registers.apu_write_register(IoRegister::NR44, nr44_value & 0x7F);
+
+            self.volume_control = VolumeControl::from_byte(nr42_value);
 
             if self.length_timer == 0 {
                 self.length_timer = 64;
             }
-            self.divider_ticks = 0;
-            self.clock_ticks = 0;
+
             self.lfsr = 0;
+
             self.generation_on = true;
+        }
+
+        self.dac_on = nr42_value & 0xF8 != 0;
+        if !self.dac_on {
+            self.generation_on = false;
         }
     }
 
-    fn tick_divider(&mut self) {
-        if !self.generation_on {
-            return;
-        }
-
-        self.divider_ticks += 1;
-
-        if self.length_timer_enabled && self.divider_ticks % 2 == 0 {
+    fn tick_divider(&mut self, divider_ticks: u64) {
+        if self.length_timer_enabled && divider_ticks % 2 == 0 {
             self.length_timer = self.length_timer.saturating_sub(1);
             if self.length_timer == 0 {
                 self.generation_on = false;
@@ -534,7 +525,7 @@ impl NoiseChannel {
         }
 
         if self.volume_control.sweep_pace > 0
-            && self.divider_ticks % (8 * u64::from(self.volume_control.sweep_pace)) == 0
+            && divider_ticks % (8 * u64::from(self.volume_control.sweep_pace)) == 7
         {
             let new_volume = match self.volume_control.sweep_direction {
                 SweepDirection::Increasing => cmp::min(0x0F, self.volume_control.volume + 1),
@@ -544,7 +535,7 @@ impl NoiseChannel {
         }
     }
 
-    fn tick_clock(&mut self) {
+    fn tick_clock(&mut self, prev_clock: u64, current_clock: u64) {
         let divisor = if self.clock_divider != 0 {
             f64::from(u32::from(self.clock_divider) << self.clock_shift)
         } else {
@@ -553,11 +544,8 @@ impl NoiseChannel {
         let lfsr_frequency = 262144.0 / divisor;
         let lfsr_interval = (APU_CLOCK_SPEED as f64) / lfsr_frequency;
 
-        let prev_clock = self.clock_ticks;
-        self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
-
         if (prev_clock as f64 / lfsr_interval).round() as u64
-            != (self.clock_ticks as f64 / lfsr_interval).round() as u64
+            != (current_clock as f64 / lfsr_interval).round() as u64
         {
             let bit_1 = (self.lfsr & 0x02) >> 1;
             let bit_0 = self.lfsr & 0x01;
@@ -574,7 +562,7 @@ impl NoiseChannel {
 }
 
 impl Channel for NoiseChannel {
-    fn sample_digital(&self) -> Option<u8> {
+    fn sample_digital(&self, _: u64) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -595,6 +583,7 @@ impl Channel for NoiseChannel {
 pub struct ApuState {
     enabled: bool,
     last_divider: u8,
+    divider_ticks: u64,
     clock_ticks: u64,
     channel_1: PulseChannel,
     channel_2: PulseChannel,
@@ -608,9 +597,10 @@ impl ApuState {
         Self {
             enabled: true,
             last_divider: 0x00,
+            divider_ticks: 0,
             clock_ticks: 0,
-            channel_1: PulseChannel::new(),
-            channel_2: PulseChannel::new(),
+            channel_1: PulseChannel::new_channel_1(),
+            channel_2: PulseChannel::new_channel_2(),
             channel_3: WaveChannel::new(),
             channel_4: NoiseChannel::new(),
             sample_queue: Arc::new(Mutex::new(VecDeque::new())),
@@ -621,26 +611,45 @@ impl ApuState {
         Arc::clone(&self.sample_queue)
     }
 
-    fn tick_divider(&mut self) {
-        self.channel_1.tick_divider();
-        self.channel_2.tick_divider();
-        self.channel_3.tick_divider();
-        self.channel_4.tick_divider();
+    fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
+        if self.enabled {
+            self.channel_1
+                .process_register_updates(io_registers, self.clock_ticks);
+            self.channel_2
+                .process_register_updates(io_registers, self.clock_ticks);
+            self.channel_3.process_register_updates(io_registers);
+            self.channel_4.process_register_updates(io_registers);
+        }
+    }
+
+    fn tick_divider(&mut self, io_registers: &mut IoRegisters) {
+        self.divider_ticks += 1;
+
+        if self.enabled {
+            self.channel_1
+                .tick_divider(self.divider_ticks, io_registers);
+            self.channel_2
+                .tick_divider(self.divider_ticks, io_registers);
+            self.channel_3.tick_divider(self.divider_ticks);
+            self.channel_4.tick_divider(self.divider_ticks);
+        }
     }
 
     fn tick_clock(&mut self, io_registers: &IoRegisters) {
+        let prev_clock = self.clock_ticks;
         self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
 
-        self.channel_1.tick_clock();
-        self.channel_2.tick_clock();
-        self.channel_3.tick_clock(io_registers);
-        self.channel_4.tick_clock();
+        if self.enabled {
+            self.channel_3
+                .tick_clock(prev_clock, self.clock_ticks, io_registers);
+            self.channel_4.tick_clock(prev_clock, self.clock_ticks);
+        }
     }
 
     fn disable(&mut self) {
         self.enabled = false;
-        self.channel_1 = PulseChannel::new();
-        self.channel_2 = PulseChannel::new();
+        self.channel_1 = PulseChannel::new_channel_1();
+        self.channel_2 = PulseChannel::new_channel_2();
         self.channel_3 = WaveChannel::new();
         self.channel_4 = NoiseChannel::new();
     }
@@ -649,7 +658,7 @@ impl ApuState {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
-        let ch1_sample = self.channel_1.sample_analog();
+        let ch1_sample = self.channel_1.sample_analog(self.clock_ticks);
         if nr51_value & 0x10 != 0 {
             sample_l += ch1_sample;
         }
@@ -657,7 +666,7 @@ impl ApuState {
             sample_r += ch1_sample;
         }
 
-        let ch2_sample = self.channel_2.sample_analog();
+        let ch2_sample = self.channel_2.sample_analog(self.clock_ticks);
         if nr51_value & 0x20 != 0 {
             sample_l += ch2_sample;
         }
@@ -665,7 +674,7 @@ impl ApuState {
             sample_r += ch2_sample;
         }
 
-        let ch3_sample = self.channel_3.sample_analog();
+        let ch3_sample = self.channel_3.sample_analog(self.clock_ticks);
         if nr51_value & 0x40 != 0 {
             sample_l += ch3_sample;
         }
@@ -673,7 +682,7 @@ impl ApuState {
             sample_r += ch3_sample;
         }
 
-        let ch4_sample = self.channel_4.sample_analog();
+        let ch4_sample = self.channel_4.sample_analog(self.clock_ticks);
         if nr51_value & 0x80 != 0 {
             sample_l += ch4_sample;
         }
@@ -751,37 +760,13 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
     }
     apu_state.enabled = true;
 
-    let prev_ch1_wavelength = apu_state.channel_1.wavelength;
     let divider = io_registers.read_register(IoRegister::DIV);
     if apu_state.last_divider & 0x10 != 0 && divider & 0x10 == 0 {
-        apu_state.tick_divider();
+        apu_state.tick_divider(io_registers);
     }
     apu_state.last_divider = divider;
 
-    if prev_ch1_wavelength != apu_state.channel_1.wavelength {
-        apu_state
-            .channel_1
-            .write_wavelength(io_registers, IoRegister::NR13, IoRegister::NR14);
-    }
-
-    apu_state.channel_1.process_register_updates(
-        io_registers,
-        Some(IoRegister::NR10),
-        IoRegister::NR11,
-        IoRegister::NR12,
-        IoRegister::NR13,
-        IoRegister::NR14,
-    );
-    apu_state.channel_2.process_register_updates(
-        io_registers,
-        None,
-        IoRegister::NR21,
-        IoRegister::NR22,
-        IoRegister::NR23,
-        IoRegister::NR24,
-    );
-    apu_state.channel_3.process_register_updates(io_registers);
-    apu_state.channel_4.process_register_updates(io_registers);
+    apu_state.process_register_updates(io_registers);
 
     let new_nr52_value = (nr52_value & 0x80)
         | (u8::from(apu_state.channel_4.generation_on) << 3)

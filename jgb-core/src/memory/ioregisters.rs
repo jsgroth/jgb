@@ -425,7 +425,7 @@ impl IoRegisters {
     /// # Panics
     ///
     /// This method will panic if passed a non-audio register.
-    pub fn apu_read_register(&mut self, register: IoRegister) -> u8 {
+    pub fn apu_read_register(&self, register: IoRegister) -> u8 {
         if !register.is_audio_register() {
             panic!("apu_read_register can only be used to read audio registers, was: {register:?}");
         }
