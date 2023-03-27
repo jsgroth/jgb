@@ -16,6 +16,8 @@ struct Cli {
     window_width: u32,
     #[arg(short = 'l', long = "window_height", default_value_t = 576)]
     window_height: u32,
+    #[arg(long = "audio-debugging-enabled", default_value_t = false)]
+    audio_debugging_enabled: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -31,6 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         vsync_enabled: args.vsync_enabled,
         window_width: args.window_width,
         window_height: args.window_height,
+        audio_debugging_enabled: args.audio_debugging_enabled,
     };
 
     jgb_core::run(persistent_config, run_config)

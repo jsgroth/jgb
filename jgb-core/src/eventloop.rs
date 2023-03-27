@@ -1,6 +1,7 @@
 use crate::apu::ApuState;
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
+use crate::debug::LoggingApuDebugSink;
 use crate::graphics::RenderError;
 use crate::input::JoypadState;
 use crate::memory::ioregisters::IoRegister;
@@ -66,7 +67,11 @@ pub fn run(
         ppu::SCREEN_HEIGHT.into(),
     )?;
 
-    let mut apu_state = ApuState::new();
+    let mut apu_state = if run_config.audio_debugging_enabled {
+        ApuState::new_with_debug_sink(Box::new(LoggingApuDebugSink))
+    } else {
+        ApuState::new()
+    };
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
 

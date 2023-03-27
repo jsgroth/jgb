@@ -9,6 +9,7 @@ pub struct RunConfig {
     pub vsync_enabled: bool,
     pub window_width: u32,
     pub window_height: u32,
+    pub audio_debugging_enabled: bool,
 }
 
 impl std::fmt::Display for RunConfig {
@@ -18,6 +19,13 @@ impl std::fmt::Display for RunConfig {
         writeln!(f, "sync_to_audio: {}", self.sync_to_audio)?;
         writeln!(f, "vsync_enabled: {}", self.vsync_enabled)?;
         writeln!(f, "window_width: {}", self.window_width)?;
-        writeln!(f, "window_height: {}", self.window_height)
+        writeln!(f, "window_height: {}", self.window_height)?;
+        writeln!(
+            f,
+            "audio_debugging_enabled: {}",
+            self.audio_debugging_enabled
+        )?;
+
+        Ok(())
     }
 }

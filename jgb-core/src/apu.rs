@@ -1,7 +1,7 @@
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
-use std::cmp;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::{cmp, f64};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DutyCycle {
@@ -584,6 +584,24 @@ impl Channel for NoiseChannel {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct DebugOutput {
+    ch1_l: f64,
+    ch1_r: f64,
+    ch2_l: f64,
+    ch2_r: f64,
+    ch3_l: f64,
+    ch3_r: f64,
+    ch4_l: f64,
+    ch4_r: f64,
+    master_l: i16,
+    master_r: i16,
+}
+
+pub trait DebugSink {
+    fn collect_samples(&self, samples: &DebugOutput);
+}
+
 pub struct ApuState {
     enabled: bool,
     last_divider: u8,
@@ -594,6 +612,7 @@ pub struct ApuState {
     channel_3: WaveChannel,
     channel_4: NoiseChannel,
     sample_queue: Arc<Mutex<VecDeque<i16>>>,
+    debug_sink: Option<Box<dyn DebugSink>>,
 }
 
 impl ApuState {
@@ -608,6 +627,14 @@ impl ApuState {
             channel_3: WaveChannel::new(),
             channel_4: NoiseChannel::new(),
             sample_queue: Arc::new(Mutex::new(VecDeque::new())),
+            debug_sink: None,
+        }
+    }
+
+    pub fn new_with_debug_sink(debug_sink: Box<dyn DebugSink>) -> Self {
+        Self {
+            debug_sink: Some(debug_sink),
+            ..Self::new()
         }
     }
 
@@ -656,40 +683,54 @@ impl ApuState {
         self.channel_4 = NoiseChannel::new();
     }
 
-    fn sample(&self, nr51_value: u8) -> (f64, f64) {
+    fn sample(&self, nr50_value: u8, nr51_value: u8) -> (i16, i16) {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
         let ch1_sample = self.channel_1.sample_analog();
-        if nr51_value & 0x10 != 0 {
-            sample_l += ch1_sample;
-        }
-        if nr51_value & 0x01 != 0 {
-            sample_r += ch1_sample;
-        }
+        let ch1_l = ch1_sample * f64::from(nr51_value & 0x10 != 0);
+        let ch1_r = ch1_sample * f64::from(nr51_value & 0x01 != 0);
+        sample_l += ch1_l;
+        sample_r += ch1_r;
 
         let ch2_sample = self.channel_2.sample_analog();
-        if nr51_value & 0x20 != 0 {
-            sample_l += ch2_sample;
-        }
-        if nr51_value & 0x02 != 0 {
-            sample_r += ch2_sample;
-        }
+        let ch2_l = ch2_sample * f64::from(nr51_value & 0x20 != 0);
+        let ch2_r = ch2_sample * f64::from(nr51_value & 0x02 != 0);
+        sample_l += ch2_l;
+        sample_r += ch2_r;
 
         let ch3_sample = self.channel_3.sample_analog();
-        if nr51_value & 0x40 != 0 {
-            sample_l += ch3_sample;
-        }
-        if nr51_value & 0x04 != 0 {
-            sample_r += ch3_sample;
-        }
+        let ch3_l = ch3_sample * f64::from(nr51_value & 0x40 != 0);
+        let ch3_r = ch3_sample * f64::from(nr51_value & 0x04 != 0);
+        sample_l += ch3_l;
+        sample_r += ch3_r;
 
         let ch4_sample = self.channel_4.sample_analog();
-        if nr51_value & 0x80 != 0 {
-            sample_l += ch4_sample;
-        }
-        if nr51_value & 0x08 != 0 {
-            sample_r += ch4_sample;
+        let ch4_l = ch4_sample * f64::from(nr51_value & 0x80 != 0);
+        let ch4_r = ch4_sample * f64::from(nr51_value & 0x08 != 0);
+        sample_l += ch4_l;
+        sample_r += ch4_r;
+
+        let l_volume = ((nr50_value & 0x70) >> 4) + 1;
+        let r_volume = (nr50_value & 0x07) + 1;
+
+        // Map [-4, 4] to [-15000, 15000] and apply L/R volume multipliers
+        let sample_l = (sample_l / 4.0 * 15000.0 * f64::from(l_volume) / 8.0).round() as i16;
+        let sample_r = (sample_r / 4.0 * 15000.0 * f64::from(r_volume) / 8.0).round() as i16;
+
+        if let Some(debug_sink) = &self.debug_sink {
+            debug_sink.collect_samples(&DebugOutput {
+                ch1_l,
+                ch1_r,
+                ch2_l,
+                ch2_r,
+                ch3_l,
+                ch3_r,
+                ch4_l,
+                ch4_r,
+                master_l: sample_l,
+                master_r: sample_r,
+            })
         }
 
         (sample_l, sample_r)
@@ -778,16 +819,10 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
     io_registers.apu_write_register(IoRegister::NR52, new_nr52_value);
 
     if should_sample(apu_state, prev_clock) {
-        let (sample_l, sample_r) =
-            apu_state.sample(io_registers.apu_read_register(IoRegister::NR51));
-
-        let nr50_value = io_registers.apu_read_register(IoRegister::NR50);
-        let l_volume = ((nr50_value & 0x70) >> 4) + 1;
-        let r_volume = (nr50_value & 0x07) + 1;
-
-        // Map [-4, 4] to [-15000, 15000] and apply L/R volume multipliers
-        let sample_l = (sample_l / 4.0 * 15000.0 * f64::from(l_volume) / 8.0).round() as i16;
-        let sample_r = (sample_r / 4.0 * 15000.0 * f64::from(r_volume) / 8.0).round() as i16;
+        let (sample_l, sample_r) = apu_state.sample(
+            io_registers.apu_read_register(IoRegister::NR50),
+            io_registers.apu_read_register(IoRegister::NR51),
+        );
 
         let mut sample_queue = apu_state.sample_queue.lock().unwrap();
         sample_queue.push_back(sample_l);

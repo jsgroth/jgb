@@ -4,6 +4,7 @@ mod apu;
 mod audio;
 mod config;
 mod cpu;
+mod debug;
 mod eventloop;
 mod graphics;
 mod input;
