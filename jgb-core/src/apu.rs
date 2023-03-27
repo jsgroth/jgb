@@ -95,7 +95,8 @@ struct PulseChannel {
     wavelength: u16,
     sweep: PulseSweep,
     next_sweep: Option<PulseSweep>,
-    base_phase_position: u64,
+    phase_position: u64,
+    frequency_timer: u64,
     nr0: Option<IoRegister>,
     nr1: IoRegister,
     nr2: IoRegister,
@@ -121,7 +122,8 @@ impl PulseChannel {
             wavelength: 0,
             sweep: PulseSweep::DISABLED,
             next_sweep: None,
-            base_phase_position: 0,
+            phase_position: 0,
+            frequency_timer: 0,
             nr0,
             nr1,
             nr2,
@@ -150,7 +152,7 @@ impl PulseChannel {
         )
     }
 
-    fn process_register_updates(&mut self, io_registers: &mut IoRegisters, clock_ticks: u64) {
+    fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
         let nr1_value = io_registers.apu_read_register(self.nr1);
         let nr2_value = io_registers.apu_read_register(self.nr2);
         let nr4_value = io_registers.apu_read_register(self.nr4);
@@ -215,7 +217,7 @@ impl PulseChannel {
                 self.length_timer = 64;
             }
 
-            self.base_phase_position = self.current_phase_position(clock_ticks);
+            self.frequency_timer = 0;
 
             self.generation_on = true;
 
@@ -266,6 +268,16 @@ impl PulseChannel {
         }
     }
 
+    fn tick_clock(&mut self) {
+        let prev_clock = self.frequency_timer;
+        self.frequency_timer += CLOCK_CYCLES_PER_M_CYCLE;
+
+        let pulse_period = u64::from(4 * (2048 - self.wavelength));
+        if prev_clock / pulse_period != self.frequency_timer / pulse_period {
+            self.phase_position = (self.phase_position + 1) % 8;
+        }
+    }
+
     fn process_sweep_iteration(&mut self) {
         let delta = self.wavelength >> self.sweep.slope_control;
         let new_wavelength = match self.sweep.direction {
@@ -285,18 +297,10 @@ impl PulseChannel {
             self.next_sweep = None;
         }
     }
-
-    fn current_phase_position(&self, clock_ticks: u64) -> u64 {
-        let step_frequency = 1048576.0 / (2048.0 - f64::from(self.wavelength));
-        let step_interval = (APU_CLOCK_SPEED as f64) / step_frequency;
-        let phase_position = ((clock_ticks as f64) / step_interval).round() as u64;
-
-        (phase_position + self.base_phase_position) % 8
-    }
 }
 
 impl Channel for PulseChannel {
-    fn sample_digital(&self, clock_ticks: u64) -> Option<u8> {
+    fn sample_digital(&self, _: u64) -> Option<u8> {
         if !self.dac_on {
             return None;
         }
@@ -305,8 +309,7 @@ impl Channel for PulseChannel {
             return Some(0);
         }
 
-        let wave_step =
-            self.duty_cycle.waveform()[self.current_phase_position(clock_ticks) as usize];
+        let wave_step = self.duty_cycle.waveform()[self.phase_position as usize];
         Some(wave_step * self.volume_control.volume)
     }
 }
@@ -613,10 +616,8 @@ impl ApuState {
 
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
         if self.enabled {
-            self.channel_1
-                .process_register_updates(io_registers, self.clock_ticks);
-            self.channel_2
-                .process_register_updates(io_registers, self.clock_ticks);
+            self.channel_1.process_register_updates(io_registers);
+            self.channel_2.process_register_updates(io_registers);
             self.channel_3.process_register_updates(io_registers);
             self.channel_4.process_register_updates(io_registers);
         }
@@ -640,6 +641,8 @@ impl ApuState {
         self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
 
         if self.enabled {
+            self.channel_1.tick_clock();
+            self.channel_2.tick_clock();
             self.channel_3
                 .tick_clock(prev_clock, self.clock_ticks, io_registers);
             self.channel_4.tick_clock(prev_clock, self.clock_ticks);
