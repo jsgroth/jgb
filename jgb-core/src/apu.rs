@@ -197,6 +197,8 @@ impl PulseChannel {
 
         self.length_timer_enabled = nr4_value & 0x40 != 0;
 
+        self.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
+
         let triggered = nr4_value & 0x80 != 0;
         if triggered {
             // Clear trigger flag
@@ -214,8 +216,6 @@ impl PulseChannel {
             }
 
             self.base_phase_position = self.current_phase_position(clock_ticks);
-
-            self.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
 
             self.generation_on = true;
 
