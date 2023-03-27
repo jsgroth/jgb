@@ -1,7 +1,7 @@
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
+use std::cmp;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use std::{cmp, f64};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DutyCycle {
@@ -714,9 +714,9 @@ impl ApuState {
         let l_volume = ((nr50_value & 0x70) >> 4) + 1;
         let r_volume = (nr50_value & 0x07) + 1;
 
-        // Map [-4, 4] to [-15000, 15000] and apply L/R volume multipliers
-        let sample_l = (sample_l / 4.0 * 15000.0 * f64::from(l_volume) / 8.0).round() as i16;
-        let sample_r = (sample_r / 4.0 * 15000.0 * f64::from(r_volume) / 8.0).round() as i16;
+        // Map [-4, 4] to [-30000, 30000] and apply L/R volume multipliers
+        let sample_l = (sample_l / 4.0 * 30000.0 * f64::from(l_volume) / 8.0).round() as i16;
+        let sample_r = (sample_r / 4.0 * 30000.0 * f64::from(r_volume) / 8.0).round() as i16;
 
         if let Some(debug_sink) = &self.debug_sink {
             debug_sink.collect_samples(&DebugOutput {
