@@ -276,7 +276,7 @@ impl PulseChannel {
     }
 
     fn tick_clock(&mut self) {
-        if self.frequency_timer.tick() {
+        if self.frequency_timer.tick_m_cycle() {
             self.just_triggered = false;
             self.phase_position = (self.phase_position + 1) % 8;
         }
@@ -428,7 +428,7 @@ impl WaveChannel {
     }
 
     fn tick_clock(&mut self, io_registers: &IoRegisters) {
-        if self.frequency_timer.tick() {
+        if self.frequency_timer.tick_m_cycle() {
             let samples = io_registers.read_address(0xFF30 + u16::from(self.sample_index / 2));
             let sample = if self.sample_index % 2 == 0 {
                 samples >> 4

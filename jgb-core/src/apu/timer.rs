@@ -3,7 +3,7 @@ use crate::apu;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FrequencyTimer {
     frequency: u16,
-    clock_ticks: u64,
+    timer: u64,
     period_multiplier: u16,
 }
 
@@ -11,21 +11,35 @@ impl FrequencyTimer {
     pub(crate) fn new(period_multiplier: u16) -> Self {
         Self {
             frequency: 0,
-            clock_ticks: 0,
+            timer: 0,
             period_multiplier,
         }
     }
 
-    pub(crate) fn tick(&mut self) -> bool {
-        let prev_clock = self.clock_ticks;
-        self.clock_ticks += apu::CLOCK_CYCLES_PER_M_CYCLE;
+    fn reset_timer(&mut self) {
+        self.timer = (self.period_multiplier * (2048 - self.frequency)).into();
+    }
 
-        let period = u64::from(self.period_multiplier * (2048 - self.frequency));
-        prev_clock / period != self.clock_ticks / period
+    pub(crate) fn tick_m_cycle(&mut self) -> bool {
+        let mut reset = false;
+        for _ in 0..apu::CLOCK_CYCLES_PER_M_CYCLE {
+            reset |= self.tick();
+        }
+        reset
+    }
+
+    fn tick(&mut self) -> bool {
+        if self.timer == 0 {
+            self.reset_timer();
+            true
+        } else {
+            self.timer -= 1;
+            false
+        }
     }
 
     pub(crate) fn trigger(&mut self) {
-        self.clock_ticks = 0;
+        self.reset_timer();
     }
 
     pub(crate) fn frequency(&self) -> u16 {
