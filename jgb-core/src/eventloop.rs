@@ -1,7 +1,7 @@
 use crate::apu::ApuState;
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
-use crate::debug::LoggingApuDebugSink;
+use crate::debug::FileApuDebugSink;
 use crate::graphics::RenderError;
 use crate::input::JoypadState;
 use crate::memory::ioregisters::IoRegister;
@@ -13,6 +13,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::TextureValueError;
+use std::io;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -36,6 +37,11 @@ pub enum RunError {
     Rendering {
         #[from]
         source: RenderError,
+    },
+    #[error("debug setup error: {source}")]
+    DebugSetup {
+        #[from]
+        source: io::Error,
     },
 }
 
@@ -68,7 +74,7 @@ pub fn run(
     )?;
 
     let mut apu_state = if run_config.audio_debugging_enabled {
-        ApuState::new_with_debug_sink(Box::new(LoggingApuDebugSink))
+        ApuState::new_with_debug_sink(Box::new(FileApuDebugSink::new()?))
     } else {
         ApuState::new()
     };

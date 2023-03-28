@@ -592,21 +592,21 @@ impl Channel for NoiseChannel {
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct DebugOutput {
-    ch1_l: f64,
-    ch1_r: f64,
-    ch2_l: f64,
-    ch2_r: f64,
-    ch3_l: f64,
-    ch3_r: f64,
-    ch4_l: f64,
-    ch4_r: f64,
-    master_l: i16,
-    master_r: i16,
+pub struct ApuDebugOutput {
+    pub ch1_l: f64,
+    pub ch1_r: f64,
+    pub ch2_l: f64,
+    pub ch2_r: f64,
+    pub ch3_l: f64,
+    pub ch3_r: f64,
+    pub ch4_l: f64,
+    pub ch4_r: f64,
+    pub master_l: i16,
+    pub master_r: i16,
 }
 
 pub trait DebugSink {
-    fn collect_samples(&self, samples: &DebugOutput);
+    fn collect_samples(&self, samples: &ApuDebugOutput);
 }
 
 pub struct ApuState {
@@ -726,7 +726,7 @@ impl ApuState {
         let sample_r = (sample_r / 4.0 * 30000.0 * f64::from(r_volume) / 8.0).round() as i16;
 
         if let Some(debug_sink) = &self.debug_sink {
-            debug_sink.collect_samples(&DebugOutput {
+            debug_sink.collect_samples(&ApuDebugOutput {
                 ch1_l,
                 ch1_r,
                 ch2_l,
