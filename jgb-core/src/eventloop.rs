@@ -45,6 +45,8 @@ pub enum RunError {
     },
 }
 
+const CYCLES_PER_FRAME: u64 = 4 * 1024 * 1024 / 60;
+
 /// Start and run the emulator until it terminates, either by closing it or due to an error.
 pub fn run(
     emulation_state: EmulationState,
@@ -87,6 +89,7 @@ pub fn run(
         None
     };
 
+    let mut total_cycles = 0;
     'running: loop {
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
 
@@ -134,6 +137,38 @@ pub fn run(
 
         assert!(cycles_required > 0 && cycles_required % 4 == 0);
 
+        // Process SDL events roughly once per frametime
+        if total_cycles / CYCLES_PER_FRAME
+            != (total_cycles + u64::from(cycles_required)) / CYCLES_PER_FRAME
+        {
+            // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => {
+                        break 'running;
+                    }
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        joypad_state.key_down(keycode);
+                    }
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        joypad_state.key_up(keycode);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        total_cycles += u64::from(cycles_required);
+
         timer::update_timer_registers(
             address_space.get_io_registers_mut(),
             &mut timer_counter,
@@ -160,32 +195,6 @@ pub fn run(
         // to render
         if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture)?;
-
-            // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. }
-                    | Event::KeyDown {
-                        keycode: Some(Keycode::Escape),
-                        ..
-                    } => {
-                        break 'running;
-                    }
-                    Event::KeyDown {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
-                        joypad_state.key_down(keycode);
-                    }
-                    Event::KeyUp {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
-                        joypad_state.key_up(keycode);
-                    }
-                    _ => {}
-                }
-            }
         }
     }
 
