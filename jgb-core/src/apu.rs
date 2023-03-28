@@ -608,6 +608,8 @@ pub struct ApuDebugOutput {
 pub trait DebugSink {
     fn collect_samples(&self, samples: &ApuDebugOutput);
 }
+// 0.999958.powf(4194304 / 44100)
+const HPF_CHARGE_FACTOR: f64 = 0.996013;
 
 pub struct ApuState {
     enabled: bool,
@@ -618,6 +620,8 @@ pub struct ApuState {
     channel_2: PulseChannel,
     channel_3: WaveChannel,
     channel_4: NoiseChannel,
+    hpf_capacitor_l: f64,
+    hpf_capacitor_r: f64,
     sample_queue: Arc<Mutex<VecDeque<i16>>>,
     debug_sink: Option<Box<dyn DebugSink>>,
 }
@@ -633,6 +637,8 @@ impl ApuState {
             channel_2: PulseChannel::new_channel_2(),
             channel_3: WaveChannel::new(),
             channel_4: NoiseChannel::new(),
+            hpf_capacitor_l: 0.0,
+            hpf_capacitor_r: 0.0,
             sample_queue: Arc::new(Mutex::new(VecDeque::new())),
             debug_sink: None,
         }
@@ -690,7 +696,7 @@ impl ApuState {
         self.channel_4 = NoiseChannel::new();
     }
 
-    fn sample(&self, nr50_value: u8, nr51_value: u8) -> (i16, i16) {
+    fn sample(&mut self, nr50_value: u8, nr51_value: u8) -> (i16, i16) {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
@@ -721,9 +727,22 @@ impl ApuState {
         let l_volume = ((nr50_value & 0x70) >> 4) + 1;
         let r_volume = (nr50_value & 0x07) + 1;
 
-        // Map [-4, 4] to [-30000, 30000] and apply L/R volume multipliers
-        let sample_l = (sample_l / 4.0 * 30000.0 * f64::from(l_volume) / 8.0).round() as i16;
-        let sample_r = (sample_r / 4.0 * 30000.0 * f64::from(r_volume) / 8.0).round() as i16;
+        // Map [-4, 4] to [-1, 1] before applying HPF
+        let mut sample_l = sample_l / 4.0;
+        let mut sample_r = sample_r / 4.0;
+
+        if self.channel_1.dac_on
+            || self.channel_2.dac_on
+            || self.channel_3.dac_on
+            || self.channel_4.dac_on
+        {
+            sample_l = high_pass_filter(sample_l, &mut self.hpf_capacitor_l);
+            sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r);
+        }
+
+        // Map [-1, 1] to [-30000, 30000] and apply L/R volume multipliers
+        let sample_l = (sample_l * 30000.0 * f64::from(l_volume) / 8.0).round() as i16;
+        let sample_r = (sample_r * 30000.0 * f64::from(r_volume) / 8.0).round() as i16;
 
         if let Some(debug_sink) = &self.debug_sink {
             debug_sink.collect_samples(&ApuDebugOutput {
@@ -742,6 +761,14 @@ impl ApuState {
 
         (sample_l, sample_r)
     }
+}
+
+fn high_pass_filter(sample: f64, capacitor: &mut f64) -> f64 {
+    let filtered_sample = sample - *capacitor;
+
+    *capacitor = sample - HPF_CHARGE_FACTOR * filtered_sample;
+
+    filtered_sample
 }
 
 pub const OUTPUT_FREQUENCY: u64 = 44100;
