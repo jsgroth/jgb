@@ -72,6 +72,35 @@ impl PulseSweep {
     };
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FrequencyTimer {
+    wavelength: u16,
+    clock_ticks: u64,
+    period_multiplier: u16,
+}
+
+impl FrequencyTimer {
+    fn new(period_multiplier: u16) -> Self {
+        Self {
+            wavelength: 0,
+            clock_ticks: 0,
+            period_multiplier,
+        }
+    }
+
+    fn tick(&mut self) -> bool {
+        let prev_clock = self.clock_ticks;
+        self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
+
+        let period = u64::from(self.period_multiplier * (2048 - self.wavelength));
+        prev_clock / period != self.clock_ticks / period
+    }
+
+    fn trigger(&mut self) {
+        self.clock_ticks = 0;
+    }
+}
+
 trait Channel {
     // Digital sample in the range [0, 15]
     fn sample_digital(&self) -> Option<u8>;
@@ -92,12 +121,12 @@ struct PulseChannel {
     length_timer: u8,
     length_timer_enabled: bool,
     volume_control: VolumeControl,
-    wavelength: u16,
+    frequency_timer: FrequencyTimer,
+    just_triggered: bool,
     shadow_wavelength: u16,
     sweep: PulseSweep,
     next_sweep: Option<PulseSweep>,
     phase_position: u64,
-    frequency_timer: u64,
     nr0: Option<IoRegister>,
     nr1: IoRegister,
     nr2: IoRegister,
@@ -120,12 +149,12 @@ impl PulseChannel {
             length_timer: 0,
             length_timer_enabled: false,
             volume_control: VolumeControl::new(),
-            wavelength: 0,
+            frequency_timer: FrequencyTimer::new(4),
+            just_triggered: false,
             shadow_wavelength: 0,
             sweep: PulseSweep::DISABLED,
             next_sweep: None,
             phase_position: 0,
-            frequency_timer: 0,
             nr0,
             nr1,
             nr2,
@@ -201,12 +230,14 @@ impl PulseChannel {
 
         self.length_timer_enabled = nr4_value & 0x40 != 0;
 
-        self.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
+        self.frequency_timer.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
 
         let triggered = nr4_value & 0x80 != 0;
         if triggered {
             // Clear trigger flag
             io_registers.apu_write_register(self.nr4, nr4_value & 0x7F);
+
+            self.just_triggered = true;
 
             self.volume_control = VolumeControl::from_byte(nr2_value);
 
@@ -219,9 +250,9 @@ impl PulseChannel {
                 self.length_timer = 64;
             }
 
-            self.shadow_wavelength = self.wavelength;
+            self.shadow_wavelength = self.frequency_timer.wavelength;
 
-            self.frequency_timer = 0;
+            self.frequency_timer.trigger();
 
             self.generation_on = true;
 
@@ -239,10 +270,10 @@ impl PulseChannel {
     fn tick_divider(&mut self, divider_ticks: u64, io_registers: &mut IoRegisters) {
         // Pulse sweep frequency is 128/pace Hz
         if self.nr0.is_some() {
-            self.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
+            self.frequency_timer.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
 
             if self.sweep.pace > 0
-                && self.wavelength > 0
+                && self.frequency_timer.wavelength > 0
                 && (divider_ticks % (4 * u64::from(self.sweep.pace))) == 2
             {
                 self.process_sweep_iteration(io_registers);
@@ -269,11 +300,8 @@ impl PulseChannel {
     }
 
     fn tick_clock(&mut self) {
-        let prev_clock = self.frequency_timer;
-        self.frequency_timer += CLOCK_CYCLES_PER_M_CYCLE;
-
-        let pulse_period = u64::from(4 * (2048 - self.wavelength));
-        if prev_clock / pulse_period != self.frequency_timer / pulse_period {
+        if self.frequency_timer.tick() {
+            self.just_triggered = false;
             self.phase_position = (self.phase_position + 1) % 8;
         }
     }
@@ -298,11 +326,12 @@ impl PulseChannel {
             self.next_sweep = None;
         }
 
-        self.wavelength = self.shadow_wavelength;
+        let wavelength = self.shadow_wavelength;
+        self.frequency_timer.wavelength = wavelength;
 
-        io_registers.apu_write_register(self.nr3, (self.wavelength & 0xFF) as u8);
+        io_registers.apu_write_register(self.nr3, (wavelength & 0xFF) as u8);
         let nr4 = io_registers.apu_read_register(self.nr4);
-        io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (self.wavelength >> 8) as u8);
+        io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (wavelength >> 8) as u8);
     }
 }
 
@@ -317,7 +346,7 @@ impl Channel for PulseChannel {
         }
 
         // Pulse channels always emit digital 0 after triggering until the next phase position shift
-        if self.frequency_timer < u64::from(4 * (2048 - self.wavelength)) {
+        if self.just_triggered {
             return Some(0);
         }
 
@@ -337,14 +366,13 @@ fn read_wavelength(io_registers: &IoRegisters, nr3: IoRegister, nr4: IoRegister)
 struct WaveChannel {
     generation_on: bool,
     dac_on: bool,
-    wavelength: u16,
     next_wavelength: Option<u16>,
     length_timer: u16,
     length_timer_enabled: bool,
     volume_shift: u8,
+    frequency_timer: FrequencyTimer,
     sample_index: u8,
     last_sample: u8,
-    frequency_timer: u64,
 }
 
 impl WaveChannel {
@@ -352,14 +380,13 @@ impl WaveChannel {
         Self {
             generation_on: false,
             dac_on: false,
-            wavelength: 0,
             next_wavelength: None,
             length_timer: 0,
             length_timer_enabled: false,
             volume_shift: 0,
+            frequency_timer: FrequencyTimer::new(2),
             sample_index: 1,
             last_sample: 0,
-            frequency_timer: 0,
         }
     }
 
@@ -384,7 +411,7 @@ impl WaveChannel {
         };
 
         let wavelength = (u16::from(nr34_value & 0x07) << 8) | u16::from(nr33_value);
-        if wavelength != self.wavelength {
+        if wavelength != self.frequency_timer.wavelength {
             self.next_wavelength = Some(wavelength);
         }
 
@@ -394,7 +421,7 @@ impl WaveChannel {
         if triggered {
             io_registers.apu_write_register(IoRegister::NR34, nr34_value & 0x7F);
 
-            self.frequency_timer = 0;
+            self.frequency_timer.trigger();
             self.sample_index = 1;
 
             if self.length_timer == 0 {
@@ -402,7 +429,7 @@ impl WaveChannel {
             }
 
             if let Some(next_wavelength) = self.next_wavelength {
-                self.wavelength = next_wavelength;
+                self.frequency_timer.wavelength = next_wavelength;
                 self.next_wavelength = None;
             }
 
@@ -425,11 +452,7 @@ impl WaveChannel {
     }
 
     fn tick_clock(&mut self, io_registers: &IoRegisters) {
-        let prev_clock = self.frequency_timer;
-        self.frequency_timer += CLOCK_CYCLES_PER_M_CYCLE;
-
-        let step_period = u64::from(2 * (2048 - self.wavelength));
-        if prev_clock / step_period != self.frequency_timer / step_period {
+        if self.frequency_timer.tick() {
             let samples = io_registers.read_address(0xFF30 + u16::from(self.sample_index / 2));
             let sample = if self.sample_index % 2 == 0 {
                 samples >> 4
@@ -441,7 +464,7 @@ impl WaveChannel {
             self.sample_index = (self.sample_index + 1) % 32;
 
             if let Some(next_wavelength) = self.next_wavelength {
-                self.wavelength = next_wavelength;
+                self.frequency_timer.wavelength = next_wavelength;
                 self.next_wavelength = None;
             }
         }
