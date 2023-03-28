@@ -4,20 +4,37 @@ use std::error::Error;
 
 #[derive(Parser)]
 struct Cli {
+    /// Path to ROM file
     #[arg(short = 'f', long = "gb-file-path")]
     gb_file_path: String,
+
+    /// Enable audio
     #[arg(short = 'a', long = "audio-enabled", default_value_t = false)]
     audio_enabled: bool,
+
+    /// Disable audio sync; can reduce video choppiness but may cause audio skips
     #[arg(long = "no-audio-sync", default_value_t = true, action = clap::ArgAction::SetFalse)]
     sync_to_audio: bool,
+
+    /// Disable VSync; can cause choppy video or screen tearing
     #[arg(long = "no-vsync", default_value_t = true, action = clap::ArgAction::SetFalse)]
     vsync_enabled: bool,
+
+    /// Display window width
     #[arg(short = 'w', long = "window-width", default_value_t = 640)]
     window_width: u32,
+
+    /// Display window height
     #[arg(short = 'l', long = "window-height", default_value_t = 576)]
     window_height: u32,
+
+    /// Turn on audio debugging; samples will be written to raw PCM files in the current working
+    /// directory (signed 16-bit stereo, 44100Hz)
     #[arg(long = "audio-debugging-enabled", default_value_t = false)]
     audio_debugging_enabled: bool,
+
+    /// Disable hack that samples audio at a slightly higher rate than actual hardware; this is more
+    /// accurate but can cause video choppiness when audio sync is enabled
     #[arg(long = "no-audio-60hz", default_value_t = true, action = clap::ArgAction::SetFalse)]
     audio_60hz: bool,
 }
