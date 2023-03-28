@@ -316,6 +316,11 @@ impl Channel for PulseChannel {
             return Some(0);
         }
 
+        // Pulse channels always emit digital 0 after triggering until the next phase position shift
+        if self.frequency_timer < u64::from(4 * (2048 - self.wavelength)) {
+            return Some(0);
+        }
+
         let wave_step = self.duty_cycle.waveform()[self.phase_position as usize];
         Some(wave_step * self.volume_control.volume)
     }
