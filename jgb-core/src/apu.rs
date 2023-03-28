@@ -1,3 +1,6 @@
+mod timer;
+
+use crate::apu::timer::FrequencyTimer;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use std::cmp;
 use std::collections::VecDeque;
@@ -72,35 +75,6 @@ impl PulseSweep {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FrequencyTimer {
-    wavelength: u16,
-    clock_ticks: u64,
-    period_multiplier: u16,
-}
-
-impl FrequencyTimer {
-    fn new(period_multiplier: u16) -> Self {
-        Self {
-            wavelength: 0,
-            clock_ticks: 0,
-            period_multiplier,
-        }
-    }
-
-    fn tick(&mut self) -> bool {
-        let prev_clock = self.clock_ticks;
-        self.clock_ticks += CLOCK_CYCLES_PER_M_CYCLE;
-
-        let period = u64::from(self.period_multiplier * (2048 - self.wavelength));
-        prev_clock / period != self.clock_ticks / period
-    }
-
-    fn trigger(&mut self) {
-        self.clock_ticks = 0;
-    }
-}
-
 trait Channel {
     // Digital sample in the range [0, 15]
     fn sample_digital(&self) -> Option<u8>;
@@ -123,7 +97,7 @@ struct PulseChannel {
     volume_control: VolumeControl,
     frequency_timer: FrequencyTimer,
     just_triggered: bool,
-    shadow_wavelength: u16,
+    shadow_frequency: u16,
     sweep: PulseSweep,
     next_sweep: Option<PulseSweep>,
     phase_position: u64,
@@ -151,7 +125,7 @@ impl PulseChannel {
             volume_control: VolumeControl::new(),
             frequency_timer: FrequencyTimer::new(4),
             just_triggered: false,
-            shadow_wavelength: 0,
+            shadow_frequency: 0,
             sweep: PulseSweep::DISABLED,
             next_sweep: None,
             phase_position: 0,
@@ -230,7 +204,8 @@ impl PulseChannel {
 
         self.length_timer_enabled = nr4_value & 0x40 != 0;
 
-        self.frequency_timer.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
+        self.frequency_timer
+            .set_frequency(read_frequency(io_registers, self.nr3, self.nr4));
 
         let triggered = nr4_value & 0x80 != 0;
         if triggered {
@@ -250,7 +225,7 @@ impl PulseChannel {
                 self.length_timer = 64;
             }
 
-            self.shadow_wavelength = self.frequency_timer.wavelength;
+            self.shadow_frequency = self.frequency_timer.frequency();
 
             self.frequency_timer.trigger();
 
@@ -270,10 +245,11 @@ impl PulseChannel {
     fn tick_divider(&mut self, divider_ticks: u64, io_registers: &mut IoRegisters) {
         // Pulse sweep frequency is 128/pace Hz
         if self.nr0.is_some() {
-            self.frequency_timer.wavelength = read_wavelength(io_registers, self.nr3, self.nr4);
+            self.frequency_timer
+                .set_frequency(read_frequency(io_registers, self.nr3, self.nr4));
 
             if self.sweep.pace > 0
-                && self.frequency_timer.wavelength > 0
+                && self.frequency_timer.frequency() > 0
                 && (divider_ticks % (4 * u64::from(self.sweep.pace))) == 2
             {
                 self.process_sweep_iteration(io_registers);
@@ -307,18 +283,18 @@ impl PulseChannel {
     }
 
     fn process_sweep_iteration(&mut self, io_registers: &mut IoRegisters) {
-        let wavelength = self.shadow_wavelength;
-        let delta = wavelength >> self.sweep.slope_control;
-        let new_wavelength = match self.sweep.direction {
-            SweepDirection::Increasing => wavelength + delta,
-            SweepDirection::Decreasing => wavelength.saturating_sub(delta),
+        let frequency = self.shadow_frequency;
+        let delta = frequency >> self.sweep.slope_control;
+        let new_frequency = match self.sweep.direction {
+            SweepDirection::Increasing => frequency + delta,
+            SweepDirection::Decreasing => frequency.saturating_sub(delta),
         };
 
-        if new_wavelength > 0x07FF {
-            // Disable channel when sweep overflows wavelength
+        if new_frequency > 0x07FF {
+            // Disable channel when sweep overflows frequency
             self.generation_on = false;
         } else if self.sweep.slope_control > 0 {
-            self.shadow_wavelength = new_wavelength;
+            self.shadow_frequency = new_frequency;
         }
 
         if let Some(next_sweep) = self.next_sweep {
@@ -326,12 +302,12 @@ impl PulseChannel {
             self.next_sweep = None;
         }
 
-        let wavelength = self.shadow_wavelength;
-        self.frequency_timer.wavelength = wavelength;
+        let frequency = self.shadow_frequency;
+        self.frequency_timer.set_frequency(frequency);
 
-        io_registers.apu_write_register(self.nr3, (wavelength & 0xFF) as u8);
+        io_registers.apu_write_register(self.nr3, (frequency & 0xFF) as u8);
         let nr4 = io_registers.apu_read_register(self.nr4);
-        io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (wavelength >> 8) as u8);
+        io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (frequency >> 8) as u8);
     }
 }
 
@@ -355,7 +331,7 @@ impl Channel for PulseChannel {
     }
 }
 
-fn read_wavelength(io_registers: &IoRegisters, nr3: IoRegister, nr4: IoRegister) -> u16 {
+fn read_frequency(io_registers: &IoRegisters, nr3: IoRegister, nr4: IoRegister) -> u16 {
     let nr3_value = io_registers.apu_read_register(nr3);
     let nr4_value = io_registers.apu_read_register(nr4);
 
@@ -366,7 +342,7 @@ fn read_wavelength(io_registers: &IoRegisters, nr3: IoRegister, nr4: IoRegister)
 struct WaveChannel {
     generation_on: bool,
     dac_on: bool,
-    next_wavelength: Option<u16>,
+    next_frequency: Option<u16>,
     length_timer: u16,
     length_timer_enabled: bool,
     volume_shift: u8,
@@ -380,7 +356,7 @@ impl WaveChannel {
         Self {
             generation_on: false,
             dac_on: false,
-            next_wavelength: None,
+            next_frequency: None,
             length_timer: 0,
             length_timer_enabled: false,
             volume_shift: 0,
@@ -410,9 +386,9 @@ impl WaveChannel {
             _ => panic!("{nr32_value} & 0x60 was not 0x00/0x20/0x40/0x60"),
         };
 
-        let wavelength = (u16::from(nr34_value & 0x07) << 8) | u16::from(nr33_value);
-        if wavelength != self.frequency_timer.wavelength {
-            self.next_wavelength = Some(wavelength);
+        let frequency = (u16::from(nr34_value & 0x07) << 8) | u16::from(nr33_value);
+        if frequency != self.frequency_timer.frequency() {
+            self.next_frequency = Some(frequency);
         }
 
         self.length_timer_enabled = nr34_value & 0x40 != 0;
@@ -428,9 +404,9 @@ impl WaveChannel {
                 self.length_timer = 256;
             }
 
-            if let Some(next_wavelength) = self.next_wavelength {
-                self.frequency_timer.wavelength = next_wavelength;
-                self.next_wavelength = None;
+            if let Some(next_frequency) = self.next_frequency {
+                self.frequency_timer.set_frequency(next_frequency);
+                self.next_frequency = None;
             }
 
             self.generation_on = true;
@@ -463,9 +439,9 @@ impl WaveChannel {
 
             self.sample_index = (self.sample_index + 1) % 32;
 
-            if let Some(next_wavelength) = self.next_wavelength {
-                self.frequency_timer.wavelength = next_wavelength;
-                self.next_wavelength = None;
+            if let Some(next_frequency) = self.next_frequency {
+                self.frequency_timer.set_frequency(next_frequency);
+                self.next_frequency = None;
             }
         }
     }
