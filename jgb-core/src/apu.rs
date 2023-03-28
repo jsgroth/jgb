@@ -804,14 +804,24 @@ const ALL_AUDIO_REGISTERS: [IoRegister; 21] = [
     IoRegister::NR52,
 ];
 
-fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64) -> bool {
-    let prev_period = prev_clock_ticks * OUTPUT_FREQUENCY / APU_CLOCK_SPEED;
-    let current_period = apu_state.clock_ticks * OUTPUT_FREQUENCY / APU_CLOCK_SPEED;
+fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) -> bool {
+    let prev_period = prev_clock_ticks as f64 * OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64;
+    let current_period =
+        apu_state.clock_ticks as f64 * OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64;
+
+    let (prev_period, current_period) = if audio_60hz {
+        (
+            (prev_period * 59.73 / 60.0).round() as u64,
+            (current_period * 59.73 / 60.0).round() as u64,
+        )
+    } else {
+        (prev_period.round() as u64, current_period.round() as u64)
+    };
 
     prev_period != current_period
 }
 
-pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
+pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, audio_60hz: bool) {
     let prev_clock = apu_state.clock_ticks;
     apu_state.tick_clock(io_registers);
 
@@ -827,7 +837,7 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
             apu_state.disable();
         }
 
-        if should_sample(apu_state, prev_clock) {
+        if should_sample(apu_state, prev_clock, audio_60hz) {
             let mut sample_queue = apu_state.sample_queue.lock().unwrap();
             sample_queue.push_back(0);
             sample_queue.push_back(0);
@@ -852,7 +862,7 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters) {
         | u8::from(apu_state.channel_1.generation_on);
     io_registers.apu_write_register(IoRegister::NR52, new_nr52_value);
 
-    if should_sample(apu_state, prev_clock) {
+    if should_sample(apu_state, prev_clock, audio_60hz) {
         let (sample_l, sample_r) = apu_state.sample(
             io_registers.apu_read_register(IoRegister::NR50),
             io_registers.apu_read_register(IoRegister::NR51),

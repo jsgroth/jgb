@@ -146,7 +146,11 @@ pub fn run(
             ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
-            apu::tick_m_cycle(&mut apu_state, address_space.get_io_registers_mut());
+            apu::tick_m_cycle(
+                &mut apu_state,
+                address_space.get_io_registers_mut(),
+                run_config.audio_60hz,
+            );
             if run_config.audio_enabled && run_config.sync_to_audio {
                 audio::sync(&apu_state);
             }

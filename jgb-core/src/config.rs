@@ -10,6 +10,7 @@ pub struct RunConfig {
     pub window_width: u32,
     pub window_height: u32,
     pub audio_debugging_enabled: bool,
+    pub audio_60hz: bool,
 }
 
 impl std::fmt::Display for RunConfig {
@@ -25,6 +26,7 @@ impl std::fmt::Display for RunConfig {
             "audio_debugging_enabled: {}",
             self.audio_debugging_enabled
         )?;
+        writeln!(f, "audio_60hz: {}", self.audio_60hz)?;
 
         Ok(())
     }
