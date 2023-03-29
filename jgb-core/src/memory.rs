@@ -27,6 +27,7 @@ pub enum CartridgeLoadError {
 enum MapperType {
     None,
     MBC1,
+    MBC2,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +40,11 @@ enum Mapper {
         rom_bank_number: u8,
         ram_bank_number: u8,
         banking_mode_select: u8,
+    },
+    MBC2 {
+        rom_bank_bit_mask: u8,
+        ram_enable: u8,
+        rom_bank_number: u8,
     },
 }
 
@@ -67,6 +73,11 @@ impl Mapper {
                 rom_bank_number: 0x00,
                 ram_bank_number: 0x00,
                 banking_mode_select: 0x00,
+            },
+            MapperType::MBC2 => Self::MBC2 {
+                rom_bank_bit_mask,
+                ram_enable: 0x00,
+                rom_bank_number: 0x00,
             },
         }
     }
@@ -108,6 +119,26 @@ impl Mapper {
                     _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
                 }
             }
+            &Self::MBC2 {
+                rom_bank_bit_mask,
+                rom_bank_number,
+                ..
+            } => {
+                let rom_bank_number = if rom_bank_number == 0x00 {
+                    0x01
+                } else {
+                    rom_bank_number
+                };
+
+                match address {
+                    address @ 0x0000..=0x3FFF => u32::from(address),
+                    address @ 0x4000..=0x7FFF => {
+                        let bank_number = rom_bank_number & rom_bank_bit_mask;
+                        u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
+                    }
+                    _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
+                }
+            }
         }
     }
 
@@ -141,6 +172,21 @@ impl Mapper {
                 }
                 _ => panic!("invalid ROM write address in MBC1 mapper: {address:04X}"),
             },
+            Self::MBC2 {
+                ram_enable,
+                rom_bank_number,
+                ..
+            } => match address {
+                address @ 0x0000..=0x3FFF => {
+                    if address & 0x0100 != 0 {
+                        *rom_bank_number = value & 0x0F;
+                    } else {
+                        *ram_enable = value;
+                    }
+                }
+                _address @ 0x4000..=0x7FFF => {}
+                _ => panic!("invalid ROM write address in MBC2 mapper: {address:04X}"),
+            },
         }
     }
 
@@ -163,6 +209,13 @@ impl Mapper {
                         let bank_number = ram_bank_number & ram_bank_bit_mask;
                         Some(u32::from(relative_address) + (u32::from(bank_number) << 13))
                     }
+                } else {
+                    None
+                }
+            }
+            &Self::MBC2 { ram_enable, .. } => {
+                if ram_enable == 0x0A {
+                    Some(u32::from(relative_address))
                 } else {
                     None
                 }
@@ -201,6 +254,8 @@ impl Cartridge {
             0x01 => (MapperType::MBC1, false, false),
             0x02 => (MapperType::MBC1, true, false),
             0x03 => (MapperType::MBC1, true, true),
+            0x05 => (MapperType::MBC2, true, false),
+            0x06 => (MapperType::MBC2, true, true),
             _ => return Err(CartridgeLoadError::InvalidMapper { mapper_byte }),
         };
 
