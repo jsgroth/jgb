@@ -96,7 +96,6 @@ struct PulseChannel {
     length_timer_enabled: bool,
     volume_control: VolumeControl,
     frequency_timer: FrequencyTimer,
-    just_triggered: bool,
     shadow_frequency: u16,
     sweep: PulseSweep,
     next_sweep: Option<PulseSweep>,
@@ -124,7 +123,6 @@ impl PulseChannel {
             length_timer_enabled: false,
             volume_control: VolumeControl::new(),
             frequency_timer: FrequencyTimer::new(4),
-            just_triggered: false,
             shadow_frequency: 0,
             sweep: PulseSweep::DISABLED,
             next_sweep: None,
@@ -212,8 +210,6 @@ impl PulseChannel {
             // Clear trigger flag
             io_registers.apu_write_register(self.nr4, nr4_value & 0x7F);
 
-            self.just_triggered = true;
-
             self.volume_control = VolumeControl::from_byte(nr2_value);
 
             if let Some(next_sweep) = self.next_sweep {
@@ -277,7 +273,6 @@ impl PulseChannel {
 
     fn tick_clock(&mut self) {
         if self.frequency_timer.tick_m_cycle() {
-            self.just_triggered = false;
             self.phase_position = (self.phase_position + 1) % 8;
         }
     }
@@ -318,11 +313,6 @@ impl Channel for PulseChannel {
         }
 
         if !self.generation_on {
-            return Some(0);
-        }
-
-        // Pulse channels always emit digital 0 after triggering until the next phase position shift
-        if self.just_triggered {
             return Some(0);
         }
 
