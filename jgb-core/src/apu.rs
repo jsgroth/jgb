@@ -2,7 +2,6 @@ mod timer;
 
 use crate::apu::timer::FrequencyTimer;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
-use std::cmp;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -35,7 +34,9 @@ enum SweepDirection {
 struct VolumeControl {
     volume: u8,
     sweep_direction: SweepDirection,
-    sweep_pace: u8,
+    pace: u8,
+    timer: u8,
+    envelope_enabled: bool,
 }
 
 impl VolumeControl {
@@ -43,11 +44,14 @@ impl VolumeControl {
         Self {
             volume: 0,
             sweep_direction: SweepDirection::Decreasing,
-            sweep_pace: 0,
+            pace: 0,
+            timer: 0,
+            envelope_enabled: false,
         }
     }
 
     fn from_byte(byte: u8) -> Self {
+        let pace = byte & 0x07;
         Self {
             volume: byte >> 4,
             sweep_direction: if byte & 0x08 != 0 {
@@ -55,7 +59,32 @@ impl VolumeControl {
             } else {
                 SweepDirection::Decreasing
             },
-            sweep_pace: byte & 0x07,
+            pace,
+            timer: pace,
+            envelope_enabled: true,
+        }
+    }
+
+    fn tick(&mut self) {
+        if self.pace != 0 && self.envelope_enabled {
+            self.timer -= 1;
+            if self.timer == 0 {
+                self.timer = self.pace;
+
+                let overflowed = match self.sweep_direction {
+                    SweepDirection::Increasing => self.volume == 0x0F,
+                    SweepDirection::Decreasing => self.volume == 0x00,
+                };
+                if overflowed {
+                    self.envelope_enabled = false;
+                } else {
+                    let new_volume = match self.sweep_direction {
+                        SweepDirection::Increasing => self.volume + 1,
+                        SweepDirection::Decreasing => self.volume - 1,
+                    };
+                    self.volume = new_volume;
+                }
+            }
         }
     }
 }
@@ -266,13 +295,8 @@ impl PulseChannel {
         }
 
         // Envelope frequency is 64/pace Hz
-        let envelope_pace = self.volume_control.sweep_pace;
-        if envelope_pace > 0 && (divider_ticks % (8 * u64::from(envelope_pace))) == 7 {
-            let new_volume = match self.volume_control.sweep_direction {
-                SweepDirection::Increasing => cmp::min(0x0F, self.volume_control.volume + 1),
-                SweepDirection::Decreasing => self.volume_control.volume.saturating_sub(1),
-            };
-            self.volume_control.volume = new_volume;
+        if divider_ticks % 8 == 7 {
+            self.volume_control.tick();
         }
     }
 
@@ -534,14 +558,8 @@ impl NoiseChannel {
             }
         }
 
-        if self.volume_control.sweep_pace > 0
-            && divider_ticks % (8 * u64::from(self.volume_control.sweep_pace)) == 7
-        {
-            let new_volume = match self.volume_control.sweep_direction {
-                SweepDirection::Increasing => cmp::min(0x0F, self.volume_control.volume + 1),
-                SweepDirection::Decreasing => self.volume_control.volume.saturating_sub(1),
-            };
-            self.volume_control.volume = new_volume;
+        if divider_ticks % 8 == 7 {
+            self.volume_control.tick();
         }
     }
 

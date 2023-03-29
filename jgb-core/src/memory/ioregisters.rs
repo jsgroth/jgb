@@ -241,6 +241,8 @@ fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
         IoRegister::NR41 => 1 << 9,
         IoRegister::NR44 => 1 << 10,
         IoRegister::DMA => 1 << 11,
+        IoRegister::NR12 => 1 << 12,
+        IoRegister::NR22 => 1 << 13,
         _ => return None,
     };
 
