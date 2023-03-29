@@ -801,8 +801,8 @@ fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) 
 
     let (prev_period, current_period) = if audio_60hz {
         (
-            (prev_period * 59.73 / 60.0).round() as u64,
-            (current_period * 59.73 / 60.0).round() as u64,
+            (prev_period * 59.7 / 60.0).round() as u64,
+            (current_period * 59.7 / 60.0).round() as u64,
         )
     } else {
         (prev_period.round() as u64, current_period.round() as u64)
