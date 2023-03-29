@@ -177,7 +177,7 @@ impl PulseChannel {
                 direction: sweep_direction,
                 slope_control: sweep_slope_control,
             };
-            if sweep_pace == 0 || self.sweep.pace == 0 || !self.generation_on {
+            if sweep_pace == 0 || self.sweep.pace == 0 {
                 self.sweep = sweep;
             } else {
                 self.next_sweep = Some(sweep);
@@ -202,8 +202,13 @@ impl PulseChannel {
 
         self.length_timer_enabled = nr4_value & 0x40 != 0;
 
-        self.frequency_timer
-            .set_frequency(read_frequency(io_registers, self.nr3, self.nr4));
+        if io_registers.is_register_dirty(self.nr3) || io_registers.is_register_dirty(self.nr4) {
+            io_registers.clear_dirty_bit(self.nr3);
+            io_registers.clear_dirty_bit(self.nr4);
+
+            let new_frequency = read_frequency(io_registers, self.nr3, self.nr4);
+            self.frequency_timer.set_frequency(new_frequency);
+        }
 
         let triggered = nr4_value & 0x80 != 0;
         if triggered {
