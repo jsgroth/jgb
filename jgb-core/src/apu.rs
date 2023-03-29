@@ -311,11 +311,11 @@ impl PulseChannel {
         let delta = frequency >> self.sweep.slope_control;
         let new_frequency = match self.sweep.direction {
             SweepDirection::Increasing => frequency + delta,
-            SweepDirection::Decreasing => frequency.saturating_sub(delta),
+            SweepDirection::Decreasing => frequency.wrapping_sub(delta),
         };
 
         if new_frequency > 0x07FF {
-            // Disable channel when sweep overflows frequency
+            // Disable channel when sweep overflows/underflows frequency
             self.generation_on = false;
         } else if self.sweep.slope_control > 0 {
             self.shadow_frequency = new_frequency;
