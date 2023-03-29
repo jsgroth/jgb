@@ -3,7 +3,7 @@ pub mod ioregisters;
 
 use crate::memory::ioregisters::IoRegisters;
 use crate::ppu::{Mode, PpuState};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
 
@@ -21,6 +21,8 @@ pub enum CartridgeLoadError {
         #[source]
         source: io::Error,
     },
+    #[error("error reading dirname/filename of {file_path}")]
+    PathError { file_path: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,10 +226,62 @@ impl Mapper {
     }
 }
 
+struct FsRamBattery {
+    dirty: bool,
+    sav_path: PathBuf,
+}
+
+impl FsRamBattery {
+    fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    fn persist_ram(&mut self, ram: &[u8]) -> Result<(), io::Error> {
+        if !self.dirty {
+            return Ok(());
+        }
+
+        let tmp_file = self.sav_path.with_extension("sav.tmp");
+        fs::write(&tmp_file, ram)?;
+        fs::rename(&tmp_file, &self.sav_path)?;
+
+        self.dirty = false;
+
+        Ok(())
+    }
+
+    fn sav_path(&self) -> std::path::Display<'_> {
+        self.sav_path.display()
+    }
+}
+
+fn load_sav_file(sav_file: &PathBuf) -> Result<Option<Vec<u8>>, CartridgeLoadError> {
+    let ram = if fs::metadata(sav_file)
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false)
+    {
+        Some(
+            fs::read(sav_file).map_err(|err| CartridgeLoadError::FileReadError {
+                file_path: sav_file.to_str().unwrap_or("").into(),
+                source: err,
+            })?,
+        )
+    } else {
+        None
+    };
+
+    if ram.is_some() {
+        log::info!("Loaded external RAM from {}", sav_file.display());
+    }
+
+    Ok(ram)
+}
+
 pub struct Cartridge {
     rom: Vec<u8>,
     mapper: Mapper,
     ram: Vec<u8>,
+    ram_battery: Option<FsRamBattery>,
 }
 
 impl Cartridge {
@@ -239,7 +293,7 @@ impl Cartridge {
     /// * The ROM is too short (must be at least 0x150 bytes)
     /// * The mapper byte in the cartridge header is invalid (or not implemented yet)
     /// * The RAM size byte in the cartridge header is invalid
-    pub fn new(rom: Vec<u8>) -> Result<Self, CartridgeLoadError> {
+    pub fn new(rom: Vec<u8>, sav_path: Option<PathBuf>) -> Result<Self, CartridgeLoadError> {
         log::info!("Initializing cartridge using {} bytes of data", rom.len());
 
         if rom.len() < 0x0150 {
@@ -261,20 +315,40 @@ impl Cartridge {
 
         log::info!("Detected mapper type {mapper_type:?}");
 
-        let ram = if has_ram {
-            let ram_size_code = rom[address::RAM_SIZE as usize];
-            let ram_size = match ram_size_code {
-                0x00 => 0,
-                0x02 => 8192,   // 8 KB
-                0x03 => 32768,  // 32 KB
-                0x04 => 131072, // 128 KB
-                0x05 => 65536,  // 64 KB
-                _ => return Err(CartridgeLoadError::InvalidRamSize { ram_size_code }),
-            };
-            vec![0; ram_size as usize]
+        let ram = if let Some(sav_path) = &sav_path {
+            load_sav_file(sav_path)?
         } else {
-            Vec::new()
+            None
         };
+
+        let ram = match (has_ram, has_battery, ram) {
+            (true, true, Some(ram)) => ram,
+            (true, _, _) => {
+                let ram_size_code = rom[address::RAM_SIZE as usize];
+                let ram_size = match ram_size_code {
+                    0x00 => 0,
+                    0x02 => 8192,   // 8 KB
+                    0x03 => 32768,  // 32 KB
+                    0x04 => 131072, // 128 KB
+                    0x05 => 65536,  // 64 KB
+                    _ => return Err(CartridgeLoadError::InvalidRamSize { ram_size_code }),
+                };
+                vec![0; ram_size as usize]
+            }
+            _ => Vec::new(),
+        };
+
+        let ram_battery = match (has_battery, sav_path) {
+            (true, Some(sav_path)) => Some(FsRamBattery {
+                dirty: false,
+                sav_path,
+            }),
+            _ => None,
+        };
+
+        if let Some(ram_battery) = &ram_battery {
+            log::info!("Persisting external RAM to {}", ram_battery.sav_path());
+        }
 
         let mapper = Mapper::new(mapper_type, rom.len() as u32, ram.len() as u32);
 
@@ -285,19 +359,35 @@ impl Cartridge {
             rom,
             mapper,
             ram,
-            // has_battery,
+            ram_battery,
         })
     }
 
     pub fn from_file(file_path: &str) -> Result<Self, CartridgeLoadError> {
         log::info!("Loading cartridge from '{file_path}'");
 
-        let raw_data =
+        let rom =
             fs::read(Path::new(file_path)).map_err(|err| CartridgeLoadError::FileReadError {
                 file_path: file_path.into(),
                 source: err,
             })?;
-        Self::new(raw_data)
+
+        let file_name = Path::new(file_path)
+            .file_name()
+            .map(|file_name| Path::new(file_name).with_extension("sav"))
+            .ok_or_else(|| CartridgeLoadError::PathError {
+                file_path: file_path.into(),
+            })?;
+
+        let rom_dir =
+            Path::new(file_path)
+                .parent()
+                .ok_or_else(|| CartridgeLoadError::PathError {
+                    file_path: file_path.into(),
+                })?;
+        let sav_file = rom_dir.join(file_name);
+
+        Self::new(rom, Some(sav_file))
     }
 
     /// Read a value from the given ROM address.
@@ -338,7 +428,18 @@ impl Cartridge {
         if let Some(mapped_address) = self.mapper.map_ram_address(address) {
             if let Some(ram_value) = self.ram.get_mut(mapped_address as usize) {
                 *ram_value = value;
+                if let Some(ram_battery) = &mut self.ram_battery {
+                    ram_battery.mark_dirty();
+                }
             }
+        }
+    }
+
+    pub fn persist_external_ram(&mut self) -> Result<(), io::Error> {
+        if let Some(ram_battery) = &mut self.ram_battery {
+            ram_battery.persist_ram(&self.ram)
+        } else {
+            Ok(())
         }
     }
 }
@@ -527,6 +628,10 @@ impl AddressSpace {
     pub fn copy_byte(&mut self, src_address: u16, dst_address: u16) {
         let byte = self.read_address_u8_no_access_check(src_address);
         self.write_address_u8_no_access_check(dst_address, byte);
+    }
+
+    pub fn persist_cartridge_ram(&mut self) -> Result<(), io::Error> {
+        self.cartridge.persist_external_ram()
     }
 }
 

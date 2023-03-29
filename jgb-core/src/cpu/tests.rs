@@ -178,7 +178,7 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
     let rom_len = rom.len() as u16;
 
     let mut address_space =
-        AddressSpace::new(Cartridge::new(rom).expect("synthesized test ROM should be valid"));
+        AddressSpace::new(Cartridge::new(rom, None).expect("synthesized test ROM should be valid"));
     let mut cpu_registers = CpuRegisters::new();
     let ppu_state = PpuState::new();
 

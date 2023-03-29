@@ -43,6 +43,11 @@ pub enum RunError {
         #[from]
         source: io::Error,
     },
+    #[error("error writing cartridge RAM to sav file: {source}")]
+    RamPersist {
+        #[source]
+        source: io::Error,
+    },
 }
 
 const CYCLES_PER_FRAME: u64 = 4 * 1024 * 1024 / 60;
@@ -137,7 +142,7 @@ pub fn run(
 
         assert!(cycles_required > 0 && cycles_required % 4 == 0);
 
-        // Process SDL events roughly once per frametime
+        // Process SDL events and write save file roughly once per frametime
         if total_cycles / CYCLES_PER_FRAME
             != (total_cycles + u64::from(cycles_required)) / CYCLES_PER_FRAME
         {
@@ -166,6 +171,10 @@ pub fn run(
                     _ => {}
                 }
             }
+
+            address_space
+                .persist_cartridge_ram()
+                .map_err(|err| RunError::RamPersist { source: err })?;
         }
         total_cycles += u64::from(cycles_required);
 
