@@ -204,6 +204,8 @@ impl<'a> InterruptFlags<'a> {
             Some(InterruptType::LcdStatus)
         } else if masked_if & 0x04 != 0 {
             Some(InterruptType::Timer)
+        } else if masked_if & 0x08 != 0 {
+            Some(InterruptType::Serial)
         } else if masked_if & 0x10 != 0 {
             Some(InterruptType::Joypad)
         } else {

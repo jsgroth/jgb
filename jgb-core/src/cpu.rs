@@ -17,8 +17,8 @@ pub enum InterruptType {
     VBlank,
     LcdStatus,
     Timer,
+    Serial,
     Joypad,
-    // serial not implemented
 }
 
 impl InterruptType {
@@ -29,6 +29,7 @@ impl InterruptType {
             Self::VBlank => 0x0040,
             Self::LcdStatus => 0x0048,
             Self::Timer => 0x0050,
+            Self::Serial => 0x0058,
             Self::Joypad => 0x0060,
         }
     }
@@ -39,6 +40,7 @@ impl InterruptType {
             Self::VBlank => 0x01,
             Self::LcdStatus => 0x02,
             Self::Timer => 0x04,
+            Self::Serial => 0x08,
             Self::Joypad => 0x10,
         }
     }
