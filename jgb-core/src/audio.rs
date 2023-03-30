@@ -35,7 +35,7 @@ pub fn initialize_audio(
         &AudioSpecDesired {
             freq: Some(apu::OUTPUT_FREQUENCY as i32),
             channels: Some(2),
-            samples: Some(2048),
+            samples: Some(1024),
         },
         |_spec| callback,
     )?;
