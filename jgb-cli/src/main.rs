@@ -1,7 +1,10 @@
 use clap::Parser;
 use env_logger::Env;
-use jgb_core::{PersistentConfig, RunConfig};
+use jgb_core::{InputConfig, PersistentConfig, RunConfig};
+use serde::Deserialize;
 use std::error::Error;
+use std::fs;
+use std::path::Path;
 
 #[derive(Parser)]
 struct Cli {
@@ -38,12 +41,55 @@ struct Cli {
     /// accurate but can cause video choppiness when audio sync is enabled
     #[arg(long = "no-audio-60hz", default_value_t = true, action = clap::ArgAction::SetFalse)]
     audio_60hz: bool,
+
+    /// Path to TOML input config file. Must have top-level keys 'up', 'left', 'down', 'right', 'a',
+    /// 'b', 'start', 'select'
+    #[arg(long = "input-config")]
+    input_config_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct TomlInputConfig {
+    up: String,
+    down: String,
+    left: String,
+    right: String,
+    a: String,
+    b: String,
+    start: String,
+    select: String,
+}
+
+impl TomlInputConfig {
+    fn into_input_config(self) -> InputConfig {
+        InputConfig {
+            up_keycode: self.up,
+            down_keycode: self.down,
+            left_keycode: self.left,
+            right_keycode: self.right,
+            a_keycode: self.a,
+            b_keycode: self.b,
+            start_keycode: self.start,
+            select_keycode: self.select,
+        }
+    }
+}
+
+fn parse_input_config(path: &str) -> Result<InputConfig, Box<dyn Error>> {
+    let config = fs::read_to_string(Path::new(path))?;
+    let toml_config: TomlInputConfig = toml::from_str(&config)?;
+    Ok(toml_config.into_input_config())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let args = Cli::parse();
+
+    let input_config = match args.input_config_path {
+        Some(input_config_path) => parse_input_config(&input_config_path)?,
+        None => Default::default(),
+    };
 
     let persistent_config = PersistentConfig {};
     let run_config = RunConfig {
@@ -55,8 +101,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         window_height: args.window_height,
         audio_debugging_enabled: args.audio_debugging_enabled,
         audio_60hz: args.audio_60hz,
-        input_config: Default::default(),
+        input_config,
     };
 
-    jgb_core::run(persistent_config, run_config)
+    if let Err(err) = jgb_core::run(persistent_config, run_config) {
+        log::error!("emulator terminated with error: {}", err.as_ref());
+        return Err(err);
+    }
+
+    Ok(())
 }

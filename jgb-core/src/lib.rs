@@ -19,7 +19,7 @@ use std::error::Error;
 use thiserror::Error;
 
 use crate::ppu::PpuState;
-pub use config::{PersistentConfig, RunConfig};
+pub use config::{InputConfig, PersistentConfig, RunConfig};
 
 #[derive(Error, Debug)]
 pub enum RunError {}
