@@ -199,9 +199,14 @@ impl LengthTimer {
         self.timer == 0
     }
 
-    fn trigger(&mut self, max_value: u16) {
+    fn trigger(&mut self, max_value: u16, divider_ticks: u64) {
         if self.timer == 0 {
             self.timer = max_value;
+
+            // Immediately tick if the length timer is enabled and this is an off-cycle
+            if self.enabled && divider_ticks % 2 == 0 {
+                self.timer -= 1;
+            }
         }
     }
 }
@@ -284,7 +289,7 @@ impl PulseChannel {
     }
 
     // Update the channel's internal state based on audio register contents and updates.
-    fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
+    fn process_register_updates(&mut self, io_registers: &mut IoRegisters, divider_ticks: u64) {
         let nr1_value = io_registers.apu_read_register(self.nr1);
         let nr2_value = io_registers.apu_read_register(self.nr2);
         let nr4_value = io_registers.apu_read_register(self.nr4);
@@ -330,7 +335,18 @@ impl PulseChannel {
         }
 
         // Sync length timer enabled flag with NRx4 bit 6, updates take effect immediately
+        let prev_length_timer_enabled = self.length_timer.enabled;
         self.length_timer.enabled = nr4_value & 0x40 != 0;
+
+        // When the length timer is enabled, if this is an off-cycle divider tick, immediately
+        // tick the length timer and disable the channel if it clocks
+        if !prev_length_timer_enabled
+            && self.length_timer.enabled
+            && divider_ticks % 2 == 0
+            && self.length_timer.tick()
+        {
+            self.generation_on = false;
+        }
 
         // Immediately update frequency if NRx3 or NRx4 was written to
         if io_registers.is_register_dirty(self.nr3) || io_registers.is_register_dirty(self.nr4) {
@@ -354,7 +370,7 @@ impl PulseChannel {
             self.volume_control = VolumeControl::from_byte(nr2_value);
 
             // Reset length timer to the maximum possible if it expired
-            self.length_timer.trigger(64);
+            self.length_timer.trigger(64, divider_ticks);
 
             // Re-initialize frequency timer
             self.frequency_timer.trigger();
@@ -491,7 +507,7 @@ impl WaveChannel {
     }
 
     // Update the channel's internal state based on audio register contents and updates.
-    fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
+    fn process_register_updates(&mut self, io_registers: &mut IoRegisters, divider_ticks: u64) {
         let nr30_value = io_registers.apu_read_register(IoRegister::NR30);
         let nr31_value = io_registers.apu_read_register(IoRegister::NR31);
         let nr32_value = io_registers.apu_read_register(IoRegister::NR32);
@@ -518,8 +534,19 @@ impl WaveChannel {
         let frequency = (u16::from(nr34_value & 0x07) << 8) | u16::from(nr33_value);
         self.frequency_timer.set_frequency(frequency);
 
-        // Sync length timer enabled flag with NR34 register, updates take effect immediately
+        // Sync length timer enabled flag with NRx4 bit 6, updates take effect immediately
+        let prev_length_timer_enabled = self.length_timer.enabled;
         self.length_timer.enabled = nr34_value & 0x40 != 0;
+
+        // When the length timer is enabled, if this is an off-cycle divider tick, immediately
+        // tick the length timer and disable the channel if it clocks
+        if !prev_length_timer_enabled
+            && self.length_timer.enabled
+            && divider_ticks % 2 == 0
+            && self.length_timer.tick()
+        {
+            self.generation_on = false;
+        }
 
         // Re-initialize channel if NR34 bit 7 was set
         let triggered = nr34_value & 0x80 != 0;
@@ -532,7 +559,7 @@ impl WaveChannel {
             self.sample_index = 1;
 
             // Reset length timer to the maximum possible if it expired
-            self.length_timer.trigger(256);
+            self.length_timer.trigger(256, divider_ticks);
 
             self.generation_on = true;
         }
@@ -625,7 +652,7 @@ impl NoiseChannel {
     }
 
     // Update the channel's internal state based on audio register contents and updates.
-    fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
+    fn process_register_updates(&mut self, io_registers: &mut IoRegisters, divider_ticks: u64) {
         let nr41_value = io_registers.apu_read_register(IoRegister::NR41);
         let nr42_value = io_registers.apu_read_register(IoRegister::NR42);
         let nr43_value = io_registers.apu_read_register(IoRegister::NR43);
@@ -642,8 +669,19 @@ impl NoiseChannel {
         self.lfsr_width = if nr43_value & 0x80 != 0 { 7 } else { 15 };
         self.clock_divider = nr43_value & 0x07;
 
-        // Sync length timer enabled flag from NR44, updates take effect immediately
+        // Sync length timer enabled flag with NRx4 bit 6, updates take effect immediately
+        let prev_length_timer_enabled = self.length_timer.enabled;
         self.length_timer.enabled = nr44_value & 0x40 != 0;
+
+        // When the length timer is enabled, if this is an off-cycle divider tick, immediately
+        // tick the length timer and disable the channel if it clocks
+        if !prev_length_timer_enabled
+            && self.length_timer.enabled
+            && divider_ticks % 2 == 0
+            && self.length_timer.tick()
+        {
+            self.generation_on = false;
+        }
 
         // Re-initialize channel if NR44 bit 7 was set
         let triggered = nr44_value & 0x80 != 0;
@@ -658,7 +696,7 @@ impl NoiseChannel {
             self.volume_control = VolumeControl::from_byte(nr42_value);
 
             // Reset length timer to the maximum possible if it expired
-            self.length_timer.trigger(64);
+            self.length_timer.trigger(64, divider_ticks);
 
             // Fully clear the LFSR
             self.lfsr = 0;
@@ -807,10 +845,14 @@ impl ApuState {
 
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
         if self.enabled {
-            self.channel_1.process_register_updates(io_registers);
-            self.channel_2.process_register_updates(io_registers);
-            self.channel_3.process_register_updates(io_registers);
-            self.channel_4.process_register_updates(io_registers);
+            self.channel_1
+                .process_register_updates(io_registers, self.divider_ticks);
+            self.channel_2
+                .process_register_updates(io_registers, self.divider_ticks);
+            self.channel_3
+                .process_register_updates(io_registers, self.divider_ticks);
+            self.channel_4
+                .process_register_updates(io_registers, self.divider_ticks);
         }
     }
 
