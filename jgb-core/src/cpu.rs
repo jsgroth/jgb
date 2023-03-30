@@ -50,12 +50,18 @@ impl InterruptType {
 /// not EI (enable interrupts), and at least one interrupt type is set in both the IE register
 /// (enabled interrupts) and the IF register (requested interrupts).
 pub fn interrupt_triggered(cpu_registers: &CpuRegisters, address_space: &AddressSpace) -> bool {
+    cpu_registers.ime
+        && !cpu_registers.interrupt_delay
+        && interrupt_triggered_no_ime_check(address_space)
+}
+
+pub fn interrupt_triggered_no_ime_check(address_space: &AddressSpace) -> bool {
     let ie_value = address_space.get_ie_register();
     let if_value = address_space
         .get_io_registers()
         .read_register(IoRegister::IF);
 
-    cpu_registers.ime && !cpu_registers.interrupt_delay && (ie_value & if_value != 0)
+    ie_value & if_value != 0
 }
 
 /// Execute the CPU's interrupt service routine.

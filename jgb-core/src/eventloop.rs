@@ -116,7 +116,9 @@ pub fn run(
             );
 
             cpu::ISR_CYCLES_REQUIRED
-        } else if !cpu_registers.halted {
+        } else if !cpu_registers.halted || cpu::interrupt_triggered_no_ime_check(&address_space) {
+            cpu_registers.halted = false;
+
             let (instruction, pc) =
                 instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)?;
 
