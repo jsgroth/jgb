@@ -89,10 +89,11 @@ impl VolumeControl {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct SweepResult {
-    new_frequency: Option<u16>,
-    overflowed: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SweepResult {
+    None,
+    Overflowed,
+    Changed(u16),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -101,6 +102,7 @@ struct PulseSweep {
     direction: SweepDirection,
     slope_control: u8,
     timer: u8,
+    enabled: bool,
 }
 
 impl PulseSweep {
@@ -109,39 +111,33 @@ impl PulseSweep {
         direction: SweepDirection::Decreasing,
         slope_control: 0,
         timer: 0,
+        enabled: false,
     };
 
     fn tick(&mut self, frequency: u16) -> SweepResult {
-        if self.pace == 0 {
-            return SweepResult {
-                new_frequency: None,
-                overflowed: false,
-            };
+        if !self.enabled || self.pace == 0 {
+            return SweepResult::None;
         }
 
         self.timer -= 1;
         if self.timer > 0 {
-            return SweepResult {
-                new_frequency: None,
-                overflowed: false,
-            };
+            return SweepResult::None;
         }
 
         self.timer = self.pace;
 
         match self.next_frequency(frequency) {
-            Some(new_frequency) => SweepResult {
-                new_frequency: Some(new_frequency),
-                overflowed: false,
-            },
-            None => SweepResult {
-                new_frequency: None,
-                overflowed: true,
-            },
+            Some(new_frequency) => SweepResult::Changed(new_frequency),
+            None => SweepResult::Overflowed,
         }
     }
 
     fn trigger(&mut self) {
+        self.enabled = self.pace != 0 || self.slope_control != 0;
+        self.reset_timer();
+    }
+
+    fn reset_timer(&mut self) {
         self.timer = self.pace;
     }
 
@@ -256,9 +252,15 @@ impl PulseChannel {
             };
             let sweep_slope_control = nr0_value & 0x07;
 
+            let prev_pace = self.sweep.pace;
+
             self.sweep.pace = sweep_pace;
             self.sweep.direction = sweep_direction;
             self.sweep.slope_control = sweep_slope_control;
+
+            if prev_pace == 0 {
+                self.sweep.reset_timer();
+            }
         }
 
         // Check if duty cycle has been updated
@@ -347,31 +349,33 @@ impl PulseChannel {
     }
 
     fn process_sweep_tick(&mut self, io_registers: &mut IoRegisters) {
-        let SweepResult {
-            new_frequency,
-            overflowed,
-        } = self.sweep.tick(self.shadow_frequency);
+        let sweep_result = self.sweep.tick(self.shadow_frequency);
 
-        if overflowed {
-            // Disable channel when sweep overflows/underflows frequency
-            self.generation_on = false;
-        } else if self.sweep.slope_control > 0 {
-            if let Some(new_frequency) = new_frequency {
-                self.shadow_frequency = new_frequency;
+        match sweep_result {
+            SweepResult::None => {}
+            SweepResult::Overflowed => {
+                // Disable channel when sweep overflows/underflows frequency
+                self.generation_on = false;
+            }
+            SweepResult::Changed(new_frequency) => {
+                if self.sweep.slope_control > 0 {
+                    self.shadow_frequency = new_frequency;
 
-                // Immediately run an overflow check
-                if self.sweep.next_frequency(new_frequency).is_none() {
-                    self.generation_on = false;
+                    let frequency = self.shadow_frequency;
+                    self.frequency_timer.set_frequency(frequency);
+
+                    io_registers.apu_write_register(self.nr3, (frequency & 0xFF) as u8);
+                    let nr4 = io_registers.apu_read_register(self.nr4);
+                    io_registers
+                        .apu_write_register(self.nr4, (nr4 & 0xF8) | (frequency >> 8) as u8);
+
+                    // Immediately run an overflow check
+                    if self.sweep.next_frequency(new_frequency).is_none() {
+                        self.generation_on = false;
+                    }
                 }
             }
         }
-
-        let frequency = self.shadow_frequency;
-        self.frequency_timer.set_frequency(frequency);
-
-        io_registers.apu_write_register(self.nr3, (frequency & 0xFF) as u8);
-        let nr4 = io_registers.apu_read_register(self.nr4);
-        io_registers.apu_write_register(self.nr4, (nr4 & 0xF8) | (frequency >> 8) as u8);
     }
 }
 
