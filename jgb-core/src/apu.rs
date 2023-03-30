@@ -140,8 +140,12 @@ impl PulseSweep {
 
         match self.next_frequency() {
             Some(new_frequency) => {
-                self.shadow_frequency = new_frequency;
-                SweepResult::Changed(new_frequency)
+                if self.shift > 0 {
+                    self.shadow_frequency = new_frequency;
+                    SweepResult::Changed(new_frequency)
+                } else {
+                    SweepResult::None
+                }
             }
             None => SweepResult::Overflowed,
         }
