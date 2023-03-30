@@ -350,6 +350,16 @@ impl PulseChannel {
             self.length_timer.timer = (64 - (nr1_value & 0x3F)).into();
         }
 
+        // Zombie mode hack - increase volume by 1 when volume register is written to while
+        // envelope pace is 0, wrapping around from 15 to 0
+        if io_registers.is_register_dirty(self.nr2) {
+            io_registers.clear_dirty_bit(self.nr2);
+
+            if self.volume_control.envelope_enabled && self.volume_control.pace == 0 {
+                self.volume_control.volume = (self.volume_control.volume + 1) % 16;
+            }
+        }
+
         // Sync length timer enabled flag with NRx4 bit 6, updates take effect immediately
         let prev_length_timer_enabled = self.length_timer.enabled;
         self.length_timer.enabled = nr4_value & 0x40 != 0;
@@ -919,6 +929,7 @@ impl ApuState {
         let mut sample_r = 0.0;
 
         // Sample channel 1
+        log::debug!("ch1: {:?}", self.channel_1);
         let ch1_sample = self.channel_1.sample_analog();
         let ch1_l = ch1_sample * f64::from(nr51_value & 0x10 != 0);
         let ch1_r = ch1_sample * f64::from(nr51_value & 0x01 != 0);
@@ -926,6 +937,7 @@ impl ApuState {
         sample_r += ch1_r;
 
         // Sample channel 2
+        log::debug!("ch2: {:?}", self.channel_2);
         let ch2_sample = self.channel_2.sample_analog();
         let ch2_l = ch2_sample * f64::from(nr51_value & 0x20 != 0);
         let ch2_r = ch2_sample * f64::from(nr51_value & 0x02 != 0);
