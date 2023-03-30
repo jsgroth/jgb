@@ -1093,22 +1093,27 @@ fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
 
 fn add_sp_offset(sp: u16, offset: i8) -> (u16, CarryFlag, HalfCarryFlag) {
     if offset >= 0 {
-        add_u16(sp, offset as u16)
+        let offset = offset as u16;
+
+        let h_flag = (sp & 0x000F) + (offset & 0x000F) >= 0x0010;
+        let carry_flag = (sp & 0x00FF) + (offset & 0x00FF) >= 0x0100;
+
+        (
+            sp.wrapping_add(offset),
+            CarryFlag(carry_flag),
+            HalfCarryFlag(h_flag),
+        )
     } else {
-        let sp = sp as i32;
-        let offset = -(offset as i32);
+        let offset = -(offset as i32) as u16;
 
-        let h_flag = offset > sp & 0x0FFF;
+        // These flags do the opposite of what I would expect them to in this instruction...
+        let h_flag = offset & 0x000F <= sp & 0x000F;
+        let carry_flag = offset & 0x00FF <= sp & 0x00FF;
 
-        let new_sp = sp - offset;
-        if new_sp >= 0x0000 {
-            (new_sp as u16, CarryFlag(false), HalfCarryFlag(h_flag))
-        } else {
-            (
-                (new_sp + 0x10000) as u16,
-                CarryFlag(true),
-                HalfCarryFlag(h_flag),
-            )
-        }
+        (
+            sp.wrapping_sub(offset),
+            CarryFlag(carry_flag),
+            HalfCarryFlag(h_flag),
+        )
     }
 }
