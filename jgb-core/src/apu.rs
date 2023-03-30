@@ -113,6 +113,7 @@ struct PulseSweep {
     timer: u8,
     enabled: bool,
     shadow_frequency: u16,
+    generated_with_negate: bool,
 }
 
 impl PulseSweep {
@@ -123,6 +124,7 @@ impl PulseSweep {
         timer: 0,
         enabled: false,
         shadow_frequency: 0,
+        generated_with_negate: false,
     };
 
     // Tick the sweep timer. This should be called at a rate of 128Hz.
@@ -160,6 +162,7 @@ impl PulseSweep {
     fn trigger(&mut self, frequency: u16) {
         self.enabled = self.pace != 0 || self.shift != 0;
         self.shadow_frequency = frequency;
+        self.generated_with_negate = false;
         self.reset_timer();
     }
 
@@ -169,7 +172,11 @@ impl PulseSweep {
     }
 
     // Compute the next frequency given the current sweep. Returns None on overflow/underflow.
-    fn next_frequency(&self) -> Option<u16> {
+    fn next_frequency(&mut self) -> Option<u16> {
+        if self.direction == SweepDirection::Decreasing {
+            self.generated_with_negate = true;
+        }
+
         let frequency = self.shadow_frequency;
 
         let delta = frequency >> self.shift;
@@ -319,6 +326,12 @@ impl PulseChannel {
             self.sweep.pace = sweep_pace;
             self.sweep.direction = sweep_direction;
             self.sweep.shift = sweep_shift;
+
+            // If the sweep generated any frequency calculations with decreasing sweep since the
+            // last trigger, switching to increasing sweep should disable the channel
+            if self.sweep.generated_with_negate && sweep_direction == SweepDirection::Increasing {
+                self.generation_on = false;
+            }
         }
 
         // Sync duty cycle with NRx1 register (bits 6-7), updates take effect immediately
