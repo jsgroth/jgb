@@ -2,6 +2,7 @@ mod timer;
 
 use crate::apu::timer::FrequencyTimer;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
+use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -679,8 +680,8 @@ pub struct ApuDebugOutput {
 pub trait DebugSink {
     fn collect_samples(&self, samples: &ApuDebugOutput);
 }
-// 0.999958.powf(4194304 / 44100)
-const HPF_CHARGE_FACTOR: f64 = 0.996013;
+static HPF_CHARGE_FACTOR: Lazy<f64> =
+    Lazy::new(|| 0.999958_f64.powf((4 * 1024 * 1024) as f64 / OUTPUT_FREQUENCY as f64));
 
 pub struct ApuState {
     enabled: bool,
@@ -837,12 +838,12 @@ impl ApuState {
 fn high_pass_filter(sample: f64, capacitor: &mut f64) -> f64 {
     let filtered_sample = sample - *capacitor;
 
-    *capacitor = sample - HPF_CHARGE_FACTOR * filtered_sample;
+    *capacitor = sample - *HPF_CHARGE_FACTOR * filtered_sample;
 
     filtered_sample
 }
 
-pub const OUTPUT_FREQUENCY: u64 = 44100;
+pub const OUTPUT_FREQUENCY: u64 = 48000;
 
 const CLOCK_CYCLES_PER_M_CYCLE: u64 = 4;
 const APU_CLOCK_SPEED: u64 = 4 * 1024 * 1024;

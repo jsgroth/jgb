@@ -165,6 +165,7 @@ name = "jgb-core"
 version = "0.1.0"
 dependencies = [
  "log",
+ "once_cell",
  "rand",
  "sdl2",
  "thiserror",
