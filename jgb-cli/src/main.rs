@@ -55,6 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         window_height: args.window_height,
         audio_debugging_enabled: args.audio_debugging_enabled,
         audio_60hz: args.audio_60hz,
+        input_config: Default::default(),
     };
 
     jgb_core::run(persistent_config, run_config)

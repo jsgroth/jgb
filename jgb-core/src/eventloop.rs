@@ -3,7 +3,7 @@ use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::debug::FileApuDebugSink;
 use crate::graphics::RenderError;
-use crate::input::JoypadState;
+use crate::input::{JoypadState, KeyMap, KeyMapError};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
 use crate::startup::SdlState;
@@ -48,6 +48,11 @@ pub enum RunError {
         #[source]
         source: io::Error,
     },
+    #[error("error processing input config: {source}")]
+    InputConfig {
+        #[from]
+        source: KeyMapError,
+    },
 }
 
 const CYCLES_PER_FRAME: u64 = 4 * 1024 * 1024 / 60;
@@ -87,6 +92,8 @@ pub fn run(
     };
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
+
+    let key_map = KeyMap::from_config(&run_config.input_config)?;
 
     let _audio_device = if run_config.audio_enabled {
         Some(audio::initialize_audio(&audio, &apu_state))
@@ -160,13 +167,13 @@ pub fn run(
                         keycode: Some(keycode),
                         ..
                     } => {
-                        joypad_state.key_down(keycode);
+                        joypad_state.key_down(keycode, &key_map);
                     }
                     Event::KeyUp {
                         keycode: Some(keycode),
                         ..
                     } => {
-                        joypad_state.key_up(keycode);
+                        joypad_state.key_up(keycode, &key_map);
                     }
                     _ => {}
                 }

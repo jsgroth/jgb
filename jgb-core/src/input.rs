@@ -1,17 +1,85 @@
+use crate::config::InputConfig;
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::IoRegisters;
 use sdl2::keyboard::Keycode;
+use std::collections::HashMap;
+use thiserror::Error;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Button {
+    Up,
+    Down,
+    Left,
+    Right,
+    A,
+    B,
+    Start,
+    Select,
+}
+
+#[derive(Error, Debug)]
+pub enum KeyMapError {
+    #[error("invalid keycode in input config: {keycode}")]
+    InvalidKeycode { keycode: String },
+    #[error("keycode used for multiple buttons: {keycode}")]
+    DuplicateKeycode { keycode: String },
+}
+
+fn try_parse_keycode(s: &str) -> Result<Keycode, KeyMapError> {
+    Keycode::from_name(s).ok_or_else(|| KeyMapError::InvalidKeycode { keycode: s.into() })
+}
+
+macro_rules! build_key_map {
+    ($($config_field:expr => $button:expr),+$(,)?) => {
+        {
+            let mut map = std::collections::HashMap::new();
+
+            $(
+                let keycode = try_parse_keycode(&$config_field)?;
+                if let Some(_) = map.insert(keycode, $button) {
+                    Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() })?;
+                }
+            )*
+
+            map
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct KeyMap(HashMap<Keycode, Button>);
+
+impl KeyMap {
+    pub fn from_config(input_config: &InputConfig) -> Result<Self, KeyMapError> {
+        let map = build_key_map!(
+            input_config.up_keycode => Button::Up,
+            input_config.down_keycode => Button::Down,
+            input_config.left_keycode => Button::Left,
+            input_config.right_keycode => Button::Right,
+            input_config.a_keycode => Button::A,
+            input_config.b_keycode => Button::B,
+            input_config.start_keycode => Button::Start,
+            input_config.select_keycode => Button::Select,
+        );
+
+        Ok(Self(map))
+    }
+
+    fn map(&self, keycode: Keycode) -> Option<Button> {
+        self.0.get(&keycode).copied()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct JoypadState {
-    pub up: bool,
-    pub down: bool,
-    pub left: bool,
-    pub right: bool,
-    pub a: bool,
-    pub b: bool,
-    pub start: bool,
-    pub select: bool,
+    up: bool,
+    down: bool,
+    left: bool,
+    right: bool,
+    a: bool,
+    b: bool,
+    start: bool,
+    select: bool,
 }
 
 impl JoypadState {
@@ -28,29 +96,29 @@ impl JoypadState {
         }
     }
 
-    fn get_field_mut(&mut self, keycode: Keycode) -> Option<&mut bool> {
-        match keycode {
-            Keycode::Up => Some(&mut self.up),
-            Keycode::Down => Some(&mut self.down),
-            Keycode::Left => Some(&mut self.left),
-            Keycode::Right => Some(&mut self.right),
-            Keycode::Z => Some(&mut self.a),
-            Keycode::X => Some(&mut self.b),
-            Keycode::Return => Some(&mut self.start),
-            Keycode::RShift => Some(&mut self.select),
+    fn get_field_mut(&mut self, keycode: Keycode, key_map: &KeyMap) -> Option<&mut bool> {
+        match key_map.map(keycode) {
+            Some(Button::Up) => Some(&mut self.up),
+            Some(Button::Down) => Some(&mut self.down),
+            Some(Button::Left) => Some(&mut self.left),
+            Some(Button::Right) => Some(&mut self.right),
+            Some(Button::A) => Some(&mut self.a),
+            Some(Button::B) => Some(&mut self.b),
+            Some(Button::Start) => Some(&mut self.start),
+            Some(Button::Select) => Some(&mut self.select),
             _ => None,
         }
     }
 
-    pub fn key_down(&mut self, keycode: Keycode) {
-        if let Some(field) = self.get_field_mut(keycode) {
+    pub fn key_down(&mut self, keycode: Keycode, key_map: &KeyMap) {
+        if let Some(field) = self.get_field_mut(keycode, key_map) {
             *field = true;
         }
         log::debug!("Key pressed: {keycode}, current state: {self:?}")
     }
 
-    pub fn key_up(&mut self, keycode: Keycode) {
-        if let Some(field) = self.get_field_mut(keycode) {
+    pub fn key_up(&mut self, keycode: Keycode, key_map: &KeyMap) {
+        if let Some(field) = self.get_field_mut(keycode, key_map) {
             *field = false;
         }
         log::debug!("Key released: {keycode}, current state: {self:?}")
