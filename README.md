@@ -24,7 +24,7 @@ cargo build --release
 
 To run a ROM file with audio enabled:
 ```shell
-RUST_LOG=info target/release/jgb-cli --gb-file-path <gb_file> -a
+target/release/jgb-cli -a --gb-file-path <gb_file>
 ```
 
 To view all command-line options:
