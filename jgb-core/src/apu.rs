@@ -389,6 +389,11 @@ impl Channel for PulseChannel {
             return Some(0);
         }
 
+        // TODO this is a hack, remove once better audio downsampling is implemented
+        if 131072.0 / f64::from(2048 - self.frequency_timer.frequency()) > 22050.0 {
+            return Some(0);
+        }
+
         let wave_step = self.duty_cycle.waveform()[self.phase_position as usize];
         Some(wave_step * self.volume_control.volume)
     }
@@ -517,6 +522,11 @@ impl Channel for WaveChannel {
         }
 
         if !self.generation_on || self.volume_shift == 8 {
+            return Some(0);
+        }
+
+        // TODO this is a hack, remove once better audio downsampling is implemented
+        if 65536.0 / f64::from(2048 - self.frequency_timer.frequency()) > 22050.0 {
             return Some(0);
         }
 
