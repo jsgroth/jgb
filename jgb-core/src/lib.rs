@@ -15,14 +15,26 @@ mod timer;
 
 use crate::cpu::CpuRegisters;
 use crate::memory::AddressSpace;
-use std::error::Error;
 use thiserror::Error;
 
+use crate::eventloop::RunError;
 use crate::ppu::PpuState;
+use crate::startup::StartupError;
 pub use config::{InputConfig, PersistentConfig, RunConfig};
 
 #[derive(Error, Debug)]
-pub enum RunError {}
+pub enum EmulationError {
+    #[error("error initializing emulator: {source}")]
+    Startup {
+        #[from]
+        source: StartupError,
+    },
+    #[error("runtime error: {source}")]
+    Runtime {
+        #[from]
+        source: RunError,
+    },
+}
 
 pub struct EmulationState {
     address_space: AddressSpace,
@@ -34,7 +46,7 @@ pub struct EmulationState {
 pub fn run(
     persistent_config: PersistentConfig,
     run_config: RunConfig,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), EmulationError> {
     let emulation_state = startup::init_emulation_state(&persistent_config, &run_config)?;
 
     let sdl_state = startup::init_sdl_state(&persistent_config, &run_config)?;

@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
 use clap::Parser;
 use env_logger::Env;
 use jgb_core::{InputConfig, PersistentConfig, RunConfig};
 use serde::Deserialize;
-use std::error::Error;
 use std::fs;
 use std::path::Path;
 
@@ -75,13 +75,15 @@ impl TomlInputConfig {
     }
 }
 
-fn parse_input_config(path: &str) -> Result<InputConfig, Box<dyn Error>> {
-    let config = fs::read_to_string(Path::new(path))?;
-    let toml_config: TomlInputConfig = toml::from_str(&config)?;
+fn parse_input_config(path: &str) -> Result<InputConfig> {
+    let config = fs::read_to_string(Path::new(path))
+        .with_context(|| format!("failed to read input config from {path}"))?;
+    let toml_config: TomlInputConfig = toml::from_str(&config)
+        .with_context(|| format!("failed to parse input config from {path}"))?;
     Ok(toml_config.into_input_config())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let args = Cli::parse();
@@ -105,8 +107,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     if let Err(err) = jgb_core::run(persistent_config, run_config) {
-        log::error!("emulator terminated with error: {}", err.as_ref());
-        return Err(err);
+        log::error!("emulator terminated with error: {err}");
+        return Err(err.into());
     }
 
     Ok(())
