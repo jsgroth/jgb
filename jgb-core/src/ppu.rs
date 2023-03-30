@@ -101,6 +101,15 @@ impl State {
         }
     }
 
+    fn dot(&self) -> u32 {
+        match self {
+            &Self::VBlank { dot, .. }
+            | &Self::HBlank { dot, .. }
+            | &Self::ScanningOAM { dot, .. }
+            | &Self::RenderingScanline { dot, .. } => dot,
+        }
+    }
+
     pub fn mode(&self) -> Mode {
         match self {
             State::HBlank { .. } => Mode::HBlank,
@@ -263,14 +272,24 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
 
     log::trace!("new PPU state: {new_state:?}");
 
-    let scanline = new_state.scanline();
     let new_mode = new_state.mode();
 
+    let scanline = new_state.scanline();
+    let ly_value = if scanline == LAST_VBLANK_SCANLINE && new_state.dot() >= 4 {
+        0
+    } else {
+        scanline
+    };
     address_space
         .get_io_registers_mut()
-        .privileged_set_ly(scanline);
+        .privileged_set_ly(ly_value);
 
-    update_stat_register(address_space.get_io_registers_mut(), scanline, new_mode);
+    let lyc_match = ly_value
+        == address_space
+            .get_io_registers()
+            .read_register(IoRegister::LYC);
+
+    update_stat_register(address_space.get_io_registers_mut(), lyc_match, new_mode);
 
     if new_state == VBLANK_START {
         address_space
@@ -280,7 +299,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     }
 
     let stat_interrupt_line =
-        compute_stat_interrupt_line(address_space.get_io_registers(), scanline, new_mode);
+        compute_stat_interrupt_line(address_space.get_io_registers(), lyc_match, new_mode);
     if !ppu_state.last_stat_interrupt_line && stat_interrupt_line {
         address_space
             .get_io_registers_mut()
@@ -292,9 +311,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     ppu_state.last_stat_interrupt_line = stat_interrupt_line;
 }
 
-fn update_stat_register(io_registers: &mut IoRegisters, scanline: u8, mode: Mode) {
-    let lyc_match = scanline == io_registers.read_register(IoRegister::LYC);
-
+fn update_stat_register(io_registers: &mut IoRegisters, lyc_match: bool, mode: Mode) {
     let mode_bits = mode.flag_bits();
 
     let existing_stat = io_registers.read_register(IoRegister::STAT) & 0xF8;
@@ -303,15 +320,13 @@ fn update_stat_register(io_registers: &mut IoRegisters, scanline: u8, mode: Mode
     io_registers.privileged_set_stat(new_stat);
 }
 
-fn compute_stat_interrupt_line(io_registers: &IoRegisters, scanline: u8, mode: Mode) -> bool {
+fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode: Mode) -> bool {
     let stat = io_registers.read_register(IoRegister::STAT);
 
     let lyc_source = stat & 0x40 != 0;
     let scanning_oam_source = stat & 0x20 != 0;
     let vblank_source = stat & 0x10 != 0;
     let hblank_source = stat & 0x08 != 0;
-
-    let lyc_match = scanline == io_registers.read_register(IoRegister::LYC);
 
     (lyc_source && lyc_match)
         || (scanning_oam_source && mode == Mode::ScanningOAM)
