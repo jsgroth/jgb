@@ -176,6 +176,36 @@ impl PulseSweep {
     }
 }
 
+#[derive(Debug, Clone)]
+struct LengthTimer {
+    enabled: bool,
+    timer: u16,
+}
+
+impl LengthTimer {
+    fn new() -> Self {
+        Self {
+            enabled: false,
+            timer: 0,
+        }
+    }
+
+    fn tick(&mut self) -> bool {
+        if !self.enabled {
+            return false;
+        }
+
+        self.timer = self.timer.saturating_sub(1);
+        self.timer == 0
+    }
+
+    fn trigger(&mut self, max_value: u16) {
+        if self.timer == 0 {
+            self.timer = max_value;
+        }
+    }
+}
+
 trait Channel {
     // Digital sample in the range [0, 15]
     fn sample_digital(&self) -> Option<u8>;
@@ -194,8 +224,7 @@ struct PulseChannel {
     generation_on: bool,
     dac_on: bool,
     duty_cycle: DutyCycle,
-    length_timer: u8,
-    length_timer_enabled: bool,
+    length_timer: LengthTimer,
     volume_control: VolumeControl,
     frequency_timer: FrequencyTimer,
     sweep: PulseSweep,
@@ -219,8 +248,7 @@ impl PulseChannel {
             generation_on: false,
             dac_on: false,
             duty_cycle: DutyCycle::OneEighth,
-            length_timer: 0,
-            length_timer_enabled: false,
+            length_timer: LengthTimer::new(),
             volume_control: VolumeControl::new(),
             frequency_timer: FrequencyTimer::new(4),
             sweep: PulseSweep::DISABLED,
@@ -298,11 +326,11 @@ impl PulseChannel {
         // Check if 6-bit length timer has been reset (NRx1 bits 0-5)
         if io_registers.is_register_dirty(self.nr1) {
             io_registers.clear_dirty_bit(self.nr1);
-            self.length_timer = 64 - (nr1_value & 0x3F);
+            self.length_timer.timer = (64 - (nr1_value & 0x3F)).into();
         }
 
         // Sync length timer enabled flag with NRx4 bit 6, updates take effect immediately
-        self.length_timer_enabled = nr4_value & 0x40 != 0;
+        self.length_timer.enabled = nr4_value & 0x40 != 0;
 
         // Immediately update frequency if NRx3 or NRx4 was written to
         if io_registers.is_register_dirty(self.nr3) || io_registers.is_register_dirty(self.nr4) {
@@ -325,10 +353,8 @@ impl PulseChannel {
             // Re-initialize volume & envelope
             self.volume_control = VolumeControl::from_byte(nr2_value);
 
-            if self.length_timer == 0 {
-                // Reset length timer to the maximum possible if it expired
-                self.length_timer = 64;
-            }
+            // Reset length timer to the maximum possible if it expired
+            self.length_timer.trigger(64);
 
             // Re-initialize frequency timer
             self.frequency_timer.trigger();
@@ -357,12 +383,9 @@ impl PulseChannel {
         }
 
         // Length timer ticks at a rate of 256Hz
-        if self.length_timer_enabled && divider_ticks % 2 == 0 {
-            self.length_timer = self.length_timer.saturating_sub(1);
-            if self.length_timer == 0 {
-                // Disable channel when length timer expires
-                self.generation_on = false;
-            }
+        if divider_ticks % 2 == 0 && self.length_timer.tick() {
+            // Disable channel when length timer expires
+            self.generation_on = false;
         }
 
         // Volume envelope timer ticks at a rate of 64Hz
@@ -443,12 +466,11 @@ fn read_frequency(io_registers: &IoRegisters, nr3: IoRegister, nr4: IoRegister) 
 }
 
 // A custom wave channel (channel 3).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct WaveChannel {
     generation_on: bool,
     dac_on: bool,
-    length_timer: u16,
-    length_timer_enabled: bool,
+    length_timer: LengthTimer,
     volume_shift: u8,
     frequency_timer: FrequencyTimer,
     sample_index: u8,
@@ -460,8 +482,7 @@ impl WaveChannel {
         Self {
             generation_on: false,
             dac_on: false,
-            length_timer: 0,
-            length_timer_enabled: false,
+            length_timer: LengthTimer::new(),
             volume_shift: 0,
             frequency_timer: FrequencyTimer::new(2),
             sample_index: 1,
@@ -480,7 +501,7 @@ impl WaveChannel {
         // Update 8-bit length timer immediately if NR31 was written to
         if io_registers.is_register_dirty(IoRegister::NR31) {
             io_registers.clear_dirty_bit(IoRegister::NR31);
-            self.length_timer = 256 - u16::from(nr31_value);
+            self.length_timer.timer = 256 - u16::from(nr31_value);
         }
 
         // Sync volume shift from NR32, updates take effect immediately
@@ -498,7 +519,7 @@ impl WaveChannel {
         self.frequency_timer.set_frequency(frequency);
 
         // Sync length timer enabled flag with NR34 register, updates take effect immediately
-        self.length_timer_enabled = nr34_value & 0x40 != 0;
+        self.length_timer.enabled = nr34_value & 0x40 != 0;
 
         // Re-initialize channel if NR34 bit 7 was set
         let triggered = nr34_value & 0x80 != 0;
@@ -510,10 +531,8 @@ impl WaveChannel {
             self.frequency_timer.trigger();
             self.sample_index = 1;
 
-            if self.length_timer == 0 {
-                // Reset length timer to the maximum possible if it expired
-                self.length_timer = 256;
-            }
+            // Reset length timer to the maximum possible if it expired
+            self.length_timer.trigger(256);
 
             self.generation_on = true;
         }
@@ -529,12 +548,9 @@ impl WaveChannel {
     // Tick internal sequencer timers. This should be called at a rate of 512Hz
     fn tick_divider(&mut self, divider_ticks: u64) {
         // Length timer ticks at a rate of 256Hz
-        if self.length_timer_enabled && divider_ticks % 2 == 0 {
-            self.length_timer = self.length_timer.saturating_sub(1);
-            if self.length_timer == 0 {
-                // Disable channel when length timer expires
-                self.generation_on = false;
-            }
+        if divider_ticks % 2 == 0 && self.length_timer.tick() {
+            // Disable channel when length timer expires
+            self.generation_on = false;
         }
     }
 
@@ -580,12 +596,11 @@ impl Channel for WaveChannel {
 }
 
 // A pseudo-random noise channel (channel 4). Internally uses a linear-feedback shift register.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct NoiseChannel {
     generation_on: bool,
     dac_on: bool,
-    length_timer: u8,
-    length_timer_enabled: bool,
+    length_timer: LengthTimer,
     volume_control: VolumeControl,
     clock_shift: u8,
     lfsr: u16,
@@ -599,8 +614,7 @@ impl NoiseChannel {
         Self {
             generation_on: false,
             dac_on: false,
-            length_timer: 0,
-            length_timer_enabled: false,
+            length_timer: LengthTimer::new(),
             volume_control: VolumeControl::new(),
             clock_shift: 0,
             lfsr: 0,
@@ -620,7 +634,7 @@ impl NoiseChannel {
         // Update 6-bit length timer if NR41 was written to
         if io_registers.is_register_dirty(IoRegister::NR41) {
             io_registers.clear_dirty_bit(IoRegister::NR41);
-            self.length_timer = 64 - (nr41_value & 0x3F);
+            self.length_timer.timer = (64 - (nr41_value & 0x3F)).into();
         }
 
         // Update LFSR parameters from NR43, updates take effect the next frequency timer clock
@@ -629,7 +643,7 @@ impl NoiseChannel {
         self.clock_divider = nr43_value & 0x07;
 
         // Sync length timer enabled flag from NR44, updates take effect immediately
-        self.length_timer_enabled = nr44_value & 0x40 != 0;
+        self.length_timer.enabled = nr44_value & 0x40 != 0;
 
         // Re-initialize channel if NR44 bit 7 was set
         let triggered = nr44_value & 0x80 != 0;
@@ -643,10 +657,8 @@ impl NoiseChannel {
             // Re-initialize volume & envelope from NR42
             self.volume_control = VolumeControl::from_byte(nr42_value);
 
-            if self.length_timer == 0 {
-                // Reset length timer to the maximum possible if it expired
-                self.length_timer = 64;
-            }
+            // Reset length timer to the maximum possible if it expired
+            self.length_timer.trigger(64);
 
             // Fully clear the LFSR
             self.lfsr = 0;
@@ -665,12 +677,9 @@ impl NoiseChannel {
     // Tick internal sequencer timers (512Hz)
     fn tick_divider(&mut self, divider_ticks: u64) {
         // Length timer ticks at a rate of 256Hz
-        if self.length_timer_enabled && divider_ticks % 2 == 0 {
-            self.length_timer = self.length_timer.saturating_sub(1);
-            if self.length_timer == 0 {
-                // Disable channel if length timer expired
-                self.generation_on = false;
-            }
+        if divider_ticks % 2 == 0 && self.length_timer.tick() {
+            // Disable channel if length timer expired
+            self.generation_on = false;
         }
 
         // Volume envelope timer ticks at a rate of 64Hz
