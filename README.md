@@ -4,7 +4,9 @@ An attempt at writing a Game Boy emulator.
 
 ## Requirements
 
-This project requires [SDL2](https://www.libsdl.org/) headers to build.
+This project requires the [Rust toolchain](https://doc.rust-lang.org/book/ch01-01-installation.html) to build.
+
+Additionally, this project requires [SDL2](https://www.libsdl.org/) headers.
 
 Linux (Debian-based):
 ```shell
