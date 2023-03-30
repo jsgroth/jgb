@@ -195,7 +195,8 @@ impl CpuRegisters {
             CpuRegisterPair::AF => {
                 let [a, f] = value.to_be_bytes();
                 self.accumulator = a;
-                self.flags = f;
+                // Lower 4 bits of flags register are unused
+                self.flags = f & 0xF0;
             }
             CpuRegisterPair::BC => {
                 let [b, c] = value.to_be_bytes();
