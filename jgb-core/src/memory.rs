@@ -30,6 +30,7 @@ enum MapperType {
     None,
     MBC1,
     MBC2,
+    MBC3,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +48,13 @@ enum Mapper {
         rom_bank_bit_mask: u8,
         ram_enable: u8,
         rom_bank_number: u8,
+    },
+    MBC3 {
+        rom_bank_bit_mask: u8,
+        ram_bank_bit_mask: u8,
+        ram_enable: u8,
+        rom_bank_number: u8,
+        ram_bank_number: u8,
     },
 }
 
@@ -80,6 +88,13 @@ impl Mapper {
                 rom_bank_bit_mask,
                 ram_enable: 0x00,
                 rom_bank_number: 0x00,
+            },
+            MapperType::MBC3 => Self::MBC3 {
+                rom_bank_bit_mask,
+                ram_bank_bit_mask,
+                ram_enable: 0x00,
+                rom_bank_number: 0x00,
+                ram_bank_number: 0x00,
             },
         }
     }
@@ -122,6 +137,11 @@ impl Mapper {
                 }
             }
             &Self::MBC2 {
+                rom_bank_bit_mask,
+                rom_bank_number,
+                ..
+            }
+            | &Self::MBC3 {
                 rom_bank_bit_mask,
                 rom_bank_number,
                 ..
@@ -189,6 +209,26 @@ impl Mapper {
                 _address @ 0x4000..=0x7FFF => {}
                 _ => panic!("invalid ROM write address in MBC2 mapper: {address:04X}"),
             },
+            Self::MBC3 {
+                ram_enable,
+                rom_bank_number,
+                ram_bank_number,
+                ..
+            } => match address {
+                _address @ 0x0000..=0x1FFF => {
+                    *ram_enable = value;
+                }
+                _address @ 0x2000..=0x3FFF => {
+                    *rom_bank_number = value & 0x7F;
+                }
+                _address @ 0x4000..=0x5FFF => {
+                    *ram_bank_number = value & 0x03;
+                }
+                _address @ 0x6000..=0x7FFF => {
+                    // Real-time clock not implemented
+                }
+                _ => panic!("invalid ROM write address in MBC3 mapper: {address:04X}"),
+            },
         }
     }
 
@@ -218,6 +258,19 @@ impl Mapper {
             &Self::MBC2 { ram_enable, .. } => {
                 if ram_enable == 0x0A {
                     Some(u32::from(relative_address))
+                } else {
+                    None
+                }
+            }
+            &Self::MBC3 {
+                ram_bank_bit_mask,
+                ram_enable,
+                ram_bank_number,
+                ..
+            } => {
+                if ram_enable & 0x0A == 0x0A {
+                    let bank_number = ram_bank_number & ram_bank_bit_mask;
+                    Some(u32::from(relative_address) + (u32::from(bank_number) << 13))
                 } else {
                     None
                 }
@@ -310,6 +363,9 @@ impl Cartridge {
             0x03 => (MapperType::MBC1, true, true),
             0x05 => (MapperType::MBC2, true, false),
             0x06 => (MapperType::MBC2, true, true),
+            0x11 => (MapperType::MBC3, false, false),
+            0x12 => (MapperType::MBC3, true, false),
+            0x13 => (MapperType::MBC3, true, true),
             _ => return Err(CartridgeLoadError::InvalidMapper { mapper_byte }),
         };
 
