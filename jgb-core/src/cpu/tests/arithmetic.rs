@@ -1332,7 +1332,7 @@ fn add_sp_offset() {
         "E8FB",
         &ExpectedState {
             sp: Some(0xFFF9),
-            f: Some(0x00),
+            f: Some(0x30),
             ..ExpectedState::empty()
         },
     );
@@ -1342,7 +1342,7 @@ fn add_sp_offset() {
         "31F00FE810",
         &ExpectedState {
             sp: Some(0x1000),
-            f: Some(0x20),
+            f: Some(0x10),
             ..ExpectedState::empty()
         },
     );
@@ -1352,7 +1352,7 @@ fn add_sp_offset() {
         "310500E8F5",
         &ExpectedState {
             sp: Some(0xFFFA),
-            f: Some(0x30),
+            f: Some(0x00),
             ..ExpectedState::empty()
         },
     );
@@ -1389,7 +1389,7 @@ fn load_hl_sp_offset() {
             h: Some(0xFF),
             l: Some(0xF9),
             sp: Some(0xFFFE),
-            f: Some(0x00),
+            f: Some(0x30),
             ..ExpectedState::empty()
         },
     );
@@ -1401,7 +1401,7 @@ fn load_hl_sp_offset() {
             h: Some(0x10),
             l: Some(0x00),
             sp: Some(0x0FF0),
-            f: Some(0x20),
+            f: Some(0x10),
             ..ExpectedState::empty()
         },
     );
@@ -1413,7 +1413,7 @@ fn load_hl_sp_offset() {
             h: Some(0xFF),
             l: Some(0xFA),
             sp: Some(0x0005),
-            f: Some(0x30),
+            f: Some(0x00),
             ..ExpectedState::empty()
         },
     );

@@ -497,7 +497,10 @@ fn pop_stack() {
             _ => panic!("unexpected register pair: {rr:?}"),
         };
         *high_ref = Some(0x6B);
-        *low_ref = Some(0x57);
+        *low_ref = Some(match rr {
+            CpuRegisterPair::AF => 0x50,
+            _ => 0x57,
+        });
         expected_state.sp = Some(0xFFFC);
 
         run_test(
