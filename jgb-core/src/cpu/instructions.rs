@@ -1076,16 +1076,16 @@ fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {
         cpu_registers.set_some_flags(Some(value == 0), None, Some(false), None);
     } else {
         // Last op was addition
-        let mut value = u16::from(cpu_registers.accumulator);
-        if value & 0x0F >= 0x0A || cpu_registers.half_carry_flag() {
-            value += 0x06;
+        let mut value = cpu_registers.accumulator;
+        let mut carry_flag = false;
+        if value > 0x99 || cpu_registers.carry_flag() {
+            value = value.wrapping_add(0x60);
+            carry_flag = true;
         }
-        if value & 0xF0 >= 0xA0 || cpu_registers.carry_flag() {
-            value += 0x60;
+        if value & 0x0F >= 0x0A || cpu_registers.half_carry_flag() {
+            value = value.wrapping_add(0x06);
         }
 
-        let carry_flag = value > 0xFF;
-        let value = value as u8;
         cpu_registers.accumulator = value;
         cpu_registers.set_some_flags(Some(value == 0), None, Some(false), Some(carry_flag));
     }
