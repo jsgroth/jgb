@@ -127,7 +127,7 @@ impl PulseSweep {
 
     // Tick the sweep timer. This should be called at a rate of 128Hz.
     fn tick(&mut self) -> SweepResult {
-        if !self.enabled || self.pace == 0 {
+        if !self.enabled {
             return SweepResult::None;
         }
 
@@ -136,7 +136,12 @@ impl PulseSweep {
             return SweepResult::None;
         }
 
-        self.timer = self.pace;
+        self.reset_timer();
+
+        if self.pace == 0 {
+            // Don't perform frequency calculations if pace is 0
+            return SweepResult::None;
+        }
 
         match self.next_frequency() {
             Some(new_frequency) => {
@@ -159,7 +164,8 @@ impl PulseSweep {
     }
 
     fn reset_timer(&mut self) {
-        self.timer = self.pace;
+        // Treat pace of 0 as 8 for timer purposes
+        self.timer = if self.pace > 0 { self.pace } else { 8 };
     }
 
     // Compute the next frequency given the current sweep. Returns None on overflow/underflow.
@@ -310,16 +316,9 @@ impl PulseChannel {
             };
             let sweep_shift = nr0_value & 0x07;
 
-            let prev_pace = self.sweep.pace;
-
             self.sweep.pace = sweep_pace;
             self.sweep.direction = sweep_direction;
             self.sweep.shift = sweep_shift;
-
-            // Sweep timer resets immediately when pace is changed from 0
-            if prev_pace == 0 {
-                self.sweep.reset_timer();
-            }
         }
 
         // Sync duty cycle with NRx1 register (bits 6-7), updates take effect immediately
