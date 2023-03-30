@@ -89,11 +89,18 @@ impl VolumeControl {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
+struct SweepResult {
+    new_frequency: Option<u16>,
+    overflowed: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
 struct PulseSweep {
     pace: u8,
     direction: SweepDirection,
     slope_control: u8,
+    timer: u8,
 }
 
 impl PulseSweep {
@@ -101,7 +108,57 @@ impl PulseSweep {
         pace: 0,
         direction: SweepDirection::Decreasing,
         slope_control: 0,
+        timer: 0,
     };
+
+    fn tick(&mut self, frequency: u16) -> SweepResult {
+        if self.pace == 0 {
+            return SweepResult {
+                new_frequency: None,
+                overflowed: false,
+            };
+        }
+
+        self.timer -= 1;
+        if self.timer > 0 {
+            return SweepResult {
+                new_frequency: None,
+                overflowed: false,
+            };
+        }
+
+        self.timer = self.pace;
+
+        match self.next_frequency(frequency) {
+            Some(new_frequency) => SweepResult {
+                new_frequency: Some(new_frequency),
+                overflowed: false,
+            },
+            None => SweepResult {
+                new_frequency: None,
+                overflowed: true,
+            },
+        }
+    }
+
+    fn trigger(&mut self) {
+        self.timer = self.pace;
+    }
+
+    // Returns None on overflow/underflow
+    fn next_frequency(&self, frequency: u16) -> Option<u16> {
+        let delta = frequency >> self.slope_control;
+        let next_frequency = match self.direction {
+            SweepDirection::Increasing => frequency + delta,
+            SweepDirection::Decreasing => frequency.wrapping_sub(delta),
+        };
+
+        if next_frequency <= 0x07FF {
+            Some(next_frequency)
+        } else {
+            None
+        }
+    }
 }
 
 trait Channel {
@@ -116,7 +173,7 @@ trait Channel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct PulseChannel {
     generation_on: bool,
     dac_on: bool,
@@ -127,7 +184,6 @@ struct PulseChannel {
     frequency_timer: FrequencyTimer,
     shadow_frequency: u16,
     sweep: PulseSweep,
-    next_sweep: Option<PulseSweep>,
     phase_position: u64,
     nr0: Option<IoRegister>,
     nr1: IoRegister,
@@ -154,7 +210,6 @@ impl PulseChannel {
             frequency_timer: FrequencyTimer::new(4),
             shadow_frequency: 0,
             sweep: PulseSweep::DISABLED,
-            next_sweep: None,
             phase_position: 0,
             nr0,
             nr1,
@@ -201,16 +256,9 @@ impl PulseChannel {
             };
             let sweep_slope_control = nr0_value & 0x07;
 
-            let sweep = PulseSweep {
-                pace: sweep_pace,
-                direction: sweep_direction,
-                slope_control: sweep_slope_control,
-            };
-            if sweep_pace == 0 || self.sweep.pace == 0 {
-                self.sweep = sweep;
-            } else {
-                self.next_sweep = Some(sweep);
-            }
+            self.sweep.pace = sweep_pace;
+            self.sweep.direction = sweep_direction;
+            self.sweep.slope_control = sweep_slope_control;
         }
 
         // Check if duty cycle has been updated
@@ -246,10 +294,7 @@ impl PulseChannel {
 
             self.volume_control = VolumeControl::from_byte(nr2_value);
 
-            if let Some(next_sweep) = self.next_sweep {
-                self.sweep = next_sweep;
-                self.next_sweep = None;
-            }
+            self.sweep.trigger();
 
             if self.length_timer == 0 {
                 self.length_timer = 64;
@@ -261,8 +306,11 @@ impl PulseChannel {
 
             self.generation_on = true;
 
-            if self.sweep.pace > 0 {
-                self.process_sweep_iteration(io_registers);
+            // Do a sweep overflow check immediately on trigger
+            if self.sweep.slope_control > 0
+                && self.sweep.next_frequency(self.shadow_frequency).is_none()
+            {
+                self.generation_on = false;
             }
         }
 
@@ -274,16 +322,8 @@ impl PulseChannel {
 
     fn tick_divider(&mut self, divider_ticks: u64, io_registers: &mut IoRegisters) {
         // Pulse sweep frequency is 128/pace Hz
-        if self.nr0.is_some() {
-            self.frequency_timer
-                .set_frequency(read_frequency(io_registers, self.nr3, self.nr4));
-
-            if self.sweep.pace > 0
-                && self.frequency_timer.frequency() > 0
-                && (divider_ticks % (4 * u64::from(self.sweep.pace))) == 2
-            {
-                self.process_sweep_iteration(io_registers);
-            }
+        if self.nr0.is_some() && divider_ticks % 4 == 2 {
+            self.process_sweep_tick(io_registers);
         }
 
         // Length timer frequency is 256Hz
@@ -306,24 +346,24 @@ impl PulseChannel {
         }
     }
 
-    fn process_sweep_iteration(&mut self, io_registers: &mut IoRegisters) {
-        let frequency = self.shadow_frequency;
-        let delta = frequency >> self.sweep.slope_control;
-        let new_frequency = match self.sweep.direction {
-            SweepDirection::Increasing => frequency + delta,
-            SweepDirection::Decreasing => frequency.wrapping_sub(delta),
-        };
+    fn process_sweep_tick(&mut self, io_registers: &mut IoRegisters) {
+        let SweepResult {
+            new_frequency,
+            overflowed,
+        } = self.sweep.tick(self.shadow_frequency);
 
-        if new_frequency > 0x07FF {
+        if overflowed {
             // Disable channel when sweep overflows/underflows frequency
             self.generation_on = false;
         } else if self.sweep.slope_control > 0 {
-            self.shadow_frequency = new_frequency;
-        }
+            if let Some(new_frequency) = new_frequency {
+                self.shadow_frequency = new_frequency;
 
-        if let Some(next_sweep) = self.next_sweep {
-            self.sweep = next_sweep;
-            self.next_sweep = None;
+                // Immediately run an overflow check
+                if self.sweep.next_frequency(new_frequency).is_none() {
+                    self.generation_on = false;
+                }
+            }
         }
 
         let frequency = self.shadow_frequency;
