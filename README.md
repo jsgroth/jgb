@@ -10,3 +10,22 @@ Linux (Debian-based):
 ```shell
 sudo apt-get install libsdl2-dev
 ```
+
+## Build & Run
+
+This emulator currently only has a command-line interface.
+
+To build:
+```shell
+cargo build --release
+```
+
+To run a ROM file with audio enabled:
+```shell
+RUST_LOG=info target/release/jgb-cli --gb-file-path <gb_file> -a
+```
+
+To view all command-line options:
+```shell
+target/release/jgb-cli -h
+```
