@@ -69,6 +69,7 @@ enum State {
     HBlank {
         scanline: u8,
         dot: u32,
+        window_internal_y: u8,
     },
     VBlank {
         scanline: u8,
@@ -77,6 +78,7 @@ enum State {
     ScanningOAM {
         scanline: u8,
         dot: u32,
+        window_internal_y: u8,
         sprites: Vec<OamSpriteData>,
     },
     RenderingScanline {
@@ -85,6 +87,8 @@ enum State {
         bg_fetcher_x: u8,
         sprite_fetcher_x: u8,
         dot: u32,
+        window_internal_y: u8,
+        window_on_line: bool,
         sprites: Vec<(OamSpriteData, TileData)>,
         bg_pixel_queue: VecDeque<u8>,
         sprite_pixel_queue: VecDeque<QueuedObjPixel>,
@@ -356,12 +360,14 @@ fn process_state(
 ) -> State {
     match state {
         State::VBlank { scanline, dot } => vblank_next_state(scanline, dot),
-        State::HBlank { scanline, dot } => hblank_next_state(scanline, dot),
-        State::ScanningOAM {
+        State::HBlank {
             scanline,
             dot,
-            sprites,
-        } => process_scanning_oam_state(scanline, dot, sprites, address_space, oam_dma_status),
+            window_internal_y,
+        } => hblank_next_state(scanline, dot, window_internal_y),
+        State::ScanningOAM { .. } => {
+            process_scanning_oam_state(state, address_space, oam_dma_status)
+        }
         State::RenderingScanline { .. } => process_render_state(state, address_space, pixel_buffer),
     }
 }
@@ -373,6 +379,7 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
             State::ScanningOAM {
                 scanline: 0,
                 dot: 0,
+                window_internal_y: 0,
                 sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
             }
         } else {
@@ -389,7 +396,7 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
     }
 }
 
-fn hblank_next_state(scanline: u8, dot: u32) -> State {
+fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: u8) -> State {
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == DOTS_PER_SCANLINE {
         if scanline == SCREEN_HEIGHT - 1 {
@@ -401,6 +408,7 @@ fn hblank_next_state(scanline: u8, dot: u32) -> State {
             State::ScanningOAM {
                 scanline: scanline + 1,
                 dot: 0,
+                window_internal_y,
                 sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
             }
         }
@@ -408,17 +416,22 @@ fn hblank_next_state(scanline: u8, dot: u32) -> State {
         State::HBlank {
             scanline,
             dot: new_dot,
+            window_internal_y,
         }
     }
 }
 
 fn process_scanning_oam_state(
-    scanline: u8,
-    dot: u32,
-    mut sprites: Vec<OamSpriteData>,
+    state: State,
     address_space: &AddressSpace,
     oam_dma_status: Option<OamDmaStatus>,
 ) -> State {
+    let State::ScanningOAM {
+        scanline, dot, mut sprites, window_internal_y
+    } = state else {
+        panic!("process_scanning_oam_state only accepts ScanningOAM state");
+    };
+
     // PPU effectively can't read OAM while an OAM DMA transfer is in progress
     if oam_dma_status.is_none() {
         // PPU reads 2 OAM entries every M-cycle (4 dots)
@@ -436,6 +449,8 @@ fn process_scanning_oam_state(
             bg_fetcher_x: 0,
             sprite_fetcher_x: 0,
             dot: new_dot,
+            window_internal_y,
+            window_on_line: false,
             sprites: sprites_with_tiles,
             bg_pixel_queue: VecDeque::with_capacity(16),
             sprite_pixel_queue: VecDeque::with_capacity(16),
@@ -445,6 +460,7 @@ fn process_scanning_oam_state(
             scanline,
             dot: new_dot,
             sprites,
+            window_internal_y,
         }
     }
 }
@@ -504,6 +520,8 @@ fn process_render_state(
         mut bg_fetcher_x,
         mut sprite_fetcher_x,
         dot,
+        window_internal_y,
+        mut window_on_line,
         sprites,
         mut bg_pixel_queue,
         mut sprite_pixel_queue,
@@ -517,6 +535,11 @@ fn process_render_state(
             return State::HBlank {
                 scanline,
                 dot: dot + DOTS_PER_M_CYCLE,
+                window_internal_y: if window_on_line {
+                    window_internal_y + 1
+                } else {
+                    window_internal_y
+                },
             };
         }
         return State::RenderingScanline {
@@ -525,6 +548,8 @@ fn process_render_state(
             bg_fetcher_x,
             sprite_fetcher_x,
             dot: dot + DOTS_PER_M_CYCLE,
+            window_internal_y,
+            window_on_line,
             sprites,
             bg_pixel_queue,
             sprite_pixel_queue,
@@ -592,6 +617,8 @@ fn process_render_state(
             bg_fetcher_x,
             sprite_fetcher_x,
             dot: dot + DOTS_PER_M_CYCLE,
+            window_internal_y,
+            window_on_line,
             sprites,
             bg_pixel_queue,
             sprite_pixel_queue,
@@ -611,20 +638,22 @@ fn process_render_state(
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
             log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}");
 
+            window_on_line = true;
+
             // Clear any existing BG pixels if we just entered the window
             if bg_fetcher_x + 7 == window_x_plus_7 {
                 bg_pixel_queue.clear();
             }
 
             let window_tile_x: u16 = ((bg_fetcher_x + 7 - window_x_plus_7) / 8).into();
-            let window_tile_y: u16 = ((scanline - window_y) / 8).into();
+            let window_tile_y: u16 = (window_internal_y / 8).into();
             let tile_map_offset = 32 * window_tile_y + window_tile_x;
             let tile_index =
                 address_space.ppu_read_address_u8(window_tile_map_area.start + tile_map_offset);
 
             let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
 
-            let y: u16 = ((scanline - window_y) % 8).into();
+            let y: u16 = (window_internal_y % 8).into();
             let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
             let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
 
@@ -734,6 +763,8 @@ fn process_render_state(
         bg_fetcher_x,
         sprite_fetcher_x,
         dot: dot + DOTS_PER_M_CYCLE,
+        window_internal_y,
+        window_on_line,
         sprites,
         bg_pixel_queue,
         sprite_pixel_queue,
