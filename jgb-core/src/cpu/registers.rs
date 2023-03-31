@@ -54,6 +54,66 @@ pub enum CpuRegisterPair {
     SP,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZFlag(pub bool);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NFlag(pub bool);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HFlag(pub bool);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CFlag(pub bool);
+
+impl ZFlag {
+    const BIT: u8 = 1 << 7;
+
+    fn to_bit(self) -> u8 {
+        if self.0 {
+            Self::BIT
+        } else {
+            0
+        }
+    }
+}
+
+impl NFlag {
+    const BIT: u8 = 1 << 6;
+
+    fn to_bit(self) -> u8 {
+        if self.0 {
+            Self::BIT
+        } else {
+            0
+        }
+    }
+}
+
+impl HFlag {
+    const BIT: u8 = 1 << 5;
+
+    fn to_bit(self) -> u8 {
+        if self.0 {
+            Self::BIT
+        } else {
+            0
+        }
+    }
+}
+
+impl CFlag {
+    const BIT: u8 = 1 << 4;
+
+    fn to_bit(self) -> u8 {
+        if self.0 {
+            Self::BIT
+        } else {
+            0
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CpuRegisters {
     pub accumulator: u8,
@@ -218,9 +278,8 @@ impl CpuRegisters {
     }
 
     /// Set all four flags in the F register.
-    pub fn set_flags(&mut self, z: bool, n: bool, h: bool, c: bool) {
-        self.flags =
-            (u8::from(z) << 7) | (u8::from(n) << 6) | (u8::from(h) << 5) | (u8::from(c) << 4);
+    pub fn set_flags(&mut self, z: ZFlag, n: NFlag, h: HFlag, c: CFlag) {
+        self.flags = z.to_bit() | n.to_bit() | h.to_bit() | c.to_bit();
     }
 
     /// Set any number of flags in the F register.
@@ -229,69 +288,69 @@ impl CpuRegisters {
     /// the flag unchanged.
     pub fn set_some_flags(
         &mut self,
-        z: Option<bool>,
-        n: Option<bool>,
-        h: Option<bool>,
-        c: Option<bool>,
+        z: Option<ZFlag>,
+        n: Option<NFlag>,
+        h: Option<HFlag>,
+        c: Option<CFlag>,
     ) {
         match z {
-            Some(true) => {
-                self.flags |= 1 << 7;
+            Some(ZFlag(true)) => {
+                self.flags |= ZFlag::BIT;
             }
-            Some(false) => {
-                self.flags &= !(1 << 7);
+            Some(ZFlag(false)) => {
+                self.flags &= !ZFlag::BIT;
             }
             None => {}
         }
 
         match n {
-            Some(true) => {
-                self.flags |= 1 << 6;
+            Some(NFlag(true)) => {
+                self.flags |= NFlag::BIT;
             }
-            Some(false) => {
-                self.flags &= !(1 << 6);
+            Some(NFlag(false)) => {
+                self.flags &= !NFlag::BIT;
             }
             None => {}
         }
 
         match h {
-            Some(true) => {
-                self.flags |= 1 << 5;
+            Some(HFlag(true)) => {
+                self.flags |= HFlag::BIT;
             }
-            Some(false) => {
-                self.flags &= !(1 << 5);
+            Some(HFlag(false)) => {
+                self.flags &= !HFlag::BIT;
             }
             None => {}
         }
 
         match c {
-            Some(true) => {
-                self.flags |= 1 << 4;
+            Some(CFlag(true)) => {
+                self.flags |= CFlag::BIT;
             }
-            Some(false) => {
-                self.flags &= !(1 << 4);
+            Some(CFlag(false)) => {
+                self.flags &= !CFlag::BIT;
             }
             None => {}
         }
     }
 
     /// Return whether or not the Z flag (last result zero) is currently set in the F register.
-    pub fn zero_flag(&self) -> bool {
-        self.flags & 0x80 != 0
+    pub fn z_flag(&self) -> bool {
+        self.flags & ZFlag::BIT != 0
     }
 
     /// Return whether or not the N flag (last op subtraction) is currently set in the F register.
     pub fn n_flag(&self) -> bool {
-        self.flags & 0x40 != 0
+        self.flags & NFlag::BIT != 0
     }
 
     /// Return whether or not the H flag (half carry) is currently set in the F register.
-    pub fn half_carry_flag(&self) -> bool {
-        self.flags & 0x20 != 0
+    pub fn h_flag(&self) -> bool {
+        self.flags & HFlag::BIT != 0
     }
 
     /// Return whether or not the C flag (carry) is currently set in the F register.
-    pub fn carry_flag(&self) -> bool {
-        self.flags & 0x10 != 0
+    pub fn c_flag(&self) -> bool {
+        self.flags & CFlag::BIT != 0
     }
 }
