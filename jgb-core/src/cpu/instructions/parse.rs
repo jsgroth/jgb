@@ -59,7 +59,7 @@ pub fn parse_next_instruction(
             Ok((Instruction::DecRegisterPair(rr), pc + 1))
         }
         0x0F => Ok((Instruction::RotateRightAccumulator, pc + 1)),
-        0x10 => Ok((Instruction::StopClocks, pc + 2)),
+        0x10 => Ok((Instruction::Stop, pc + 2)),
         0x12 => Ok((Instruction::LoadIndirectDEAccumulator, pc + 1)),
         0x17 => Ok((Instruction::RotateLeftAccumulatorThruCarry, pc + 1)),
         0x18 => {
@@ -192,7 +192,7 @@ pub fn parse_next_instruction(
             Ok((Instruction::RestartCall(rst_address), pc + 1))
         }
         0xC9 => Ok((Instruction::Return, pc + 1)),
-        0xCB => parse_cb_prefixed_opcode(address_space, pc, ppu_state),
+        0xCB => Ok(parse_cb_prefixed_opcode(address_space, pc, ppu_state)),
         0xCD => {
             let nn = address_space.read_address_u16(pc + 1, ppu_state);
             Ok((Instruction::Call(nn), pc + 3))
@@ -266,79 +266,79 @@ fn parse_cb_prefixed_opcode(
     address_space: &AddressSpace,
     pc: u16,
     ppu_state: &PpuState,
-) -> Result<(Instruction, u16), ParseError> {
+) -> (Instruction, u16) {
     let opcode = address_space.read_address_u8(pc + 1, ppu_state);
     match opcode {
         0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05 | 0x07 => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::RotateLeft(r), pc + 2))
+            (Instruction::RotateLeft(r), pc + 2)
         }
-        0x06 => Ok((Instruction::RotateLeftIndirectHL, pc + 2)),
+        0x06 => (Instruction::RotateLeftIndirectHL, pc + 2),
         0x08 | 0x09 | 0x0A | 0x0B | 0x0C | 0x0D | 0x0F => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::RotateRight(r), pc + 2))
+            (Instruction::RotateRight(r), pc + 2)
         }
-        0x0E => Ok((Instruction::RotateRightIndirectHL, pc + 2)),
+        0x0E => (Instruction::RotateRightIndirectHL, pc + 2),
         0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 | 0x17 => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::RotateLeftThruCarry(r), pc + 2))
+            (Instruction::RotateLeftThruCarry(r), pc + 2)
         }
-        0x16 => Ok((Instruction::RotateLeftIndirectHLThruCarry, pc + 2)),
+        0x16 => (Instruction::RotateLeftIndirectHLThruCarry, pc + 2),
         0x18 | 0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1F => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::RotateRightThruCarry(r), pc + 2))
+            (Instruction::RotateRightThruCarry(r), pc + 2)
         }
-        0x1E => Ok((Instruction::RotateRightIndirectHLThruCarry, pc + 2)),
+        0x1E => (Instruction::RotateRightIndirectHLThruCarry, pc + 2),
         0x20 | 0x21 | 0x22 | 0x23 | 0x24 | 0x25 | 0x27 => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::ShiftLeft(r), pc + 2))
+            (Instruction::ShiftLeft(r), pc + 2)
         }
-        0x26 => Ok((Instruction::ShiftLeftIndirectHL, pc + 2)),
+        0x26 => (Instruction::ShiftLeftIndirectHL, pc + 2),
         0x28 | 0x29 | 0x2A | 0x2B | 0x2C | 0x2D | 0x2F => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::ShiftRight(r), pc + 2))
+            (Instruction::ShiftRight(r), pc + 2)
         }
-        0x2E => Ok((Instruction::ShiftRightIndirectHL, pc + 2)),
+        0x2E => (Instruction::ShiftRightIndirectHL, pc + 2),
         0x30 | 0x31 | 0x32 | 0x33 | 0x34 | 0x35 | 0x37 => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::Swap(r), pc + 2))
+            (Instruction::Swap(r), pc + 2)
         }
-        0x36 => Ok((Instruction::SwapIndirectHL, pc + 2)),
+        0x36 => (Instruction::SwapIndirectHL, pc + 2),
         0x38 | 0x39 | 0x3A | 0x3B | 0x3C | 0x3D | 0x3F => {
             let r = CpuRegister::from_low_opcode_bits(opcode)
                 .expect("all of these opcodes should have a valid CPU register in bits 0-2");
-            Ok((Instruction::ShiftRightLogical(r), pc + 2))
+            (Instruction::ShiftRightLogical(r), pc + 2)
         }
-        0x3E => Ok((Instruction::ShiftRightLogicalIndirectHL, pc + 2)),
+        0x3E => (Instruction::ShiftRightLogicalIndirectHL, pc + 2),
         opcode @ 0x40..=0x7F => {
             let bit = (opcode & 0x38) >> 3;
             let r = CpuRegister::from_low_opcode_bits(opcode);
             match r {
-                Some(r) => Ok((Instruction::TestBit(bit, r), pc + 2)),
-                None => Ok((Instruction::TestBitIndirectHL(bit), pc + 2)),
+                Some(r) => (Instruction::TestBit(bit, r), pc + 2),
+                None => (Instruction::TestBitIndirectHL(bit), pc + 2),
             }
         }
         opcode @ 0x80..=0xBF => {
             let bit = (opcode & 0x38) >> 3;
             let r = CpuRegister::from_low_opcode_bits(opcode);
             match r {
-                Some(r) => Ok((Instruction::ResetBit(bit, r), pc + 2)),
-                None => Ok((Instruction::ResetBitIndirectHL(bit), pc + 2)),
+                Some(r) => (Instruction::ResetBit(bit, r), pc + 2),
+                None => (Instruction::ResetBitIndirectHL(bit), pc + 2),
             }
         }
         opcode @ 0xC0..=0xFF => {
             let bit = (opcode & 0x38) >> 3;
             let r = CpuRegister::from_low_opcode_bits(opcode);
             match r {
-                Some(r) => Ok((Instruction::SetBit(bit, r), pc + 2)),
-                None => Ok((Instruction::SetBitIndirectHL(bit), pc + 2)),
+                Some(r) => (Instruction::SetBit(bit, r), pc + 2),
+                None => (Instruction::SetBitIndirectHL(bit), pc + 2),
             }
         }
     }

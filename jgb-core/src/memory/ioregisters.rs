@@ -430,9 +430,10 @@ impl IoRegisters {
     ///
     /// This method will panic if passed a non-audio register.
     pub fn apu_read_register(&self, register: IoRegister) -> u8 {
-        if !register.is_audio_register() {
-            panic!("apu_read_register can only be used to read audio registers, was: {register:?}");
-        }
+        assert!(
+            register.is_audio_register(),
+            "apu_read_register can only be used to read audio registers, was: {register:?}"
+        );
 
         self.contents[(register.to_address() - address::IO_REGISTERS_START) as usize]
     }
@@ -444,11 +445,10 @@ impl IoRegisters {
     ///
     /// This method will panic if passed a non-audio register.
     pub fn apu_write_register(&mut self, register: IoRegister, value: u8) {
-        if !register.is_audio_register() {
-            panic!(
-                "apu_write_register can only be used to write audio registers, was: {register:?}"
-            );
-        }
+        assert!(
+            register.is_audio_register(),
+            "apu_write_register can only be used to write audio registers, was: {register:?}"
+        );
 
         self.contents[(register.to_address() - address::IO_REGISTERS_START) as usize] = value;
     }

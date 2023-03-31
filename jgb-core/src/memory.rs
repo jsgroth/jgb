@@ -340,7 +340,7 @@ pub struct Cartridge {
 impl Cartridge {
     /// Create a new Cartridge value from the given ROM.
     ///
-    /// # CartridgeLoadError
+    /// # `CartridgeLoadError`
     ///
     /// This function will return an error in the following scenarios:
     /// * The ROM is too short (must be at least 0x150 bytes)
@@ -381,7 +381,7 @@ impl Cartridge {
             (true, true, Some(ram)) => ram,
             (true, _, _) => {
                 let ram_size_code = rom[address::RAM_SIZE as usize];
-                let ram_size = match ram_size_code {
+                let ram_size: usize = match ram_size_code {
                     0x00 => 0,
                     0x02 => 8192,   // 8 KB
                     0x03 => 32768,  // 32 KB
@@ -389,7 +389,7 @@ impl Cartridge {
                     0x05 => 65536,  // 64 KB
                     _ => return Err(CartridgeLoadError::InvalidRamSize { ram_size_code }),
                 };
-                vec![0; ram_size as usize]
+                vec![0; ram_size]
             }
             _ => Vec::new(),
         };
@@ -523,7 +523,7 @@ impl AddressSpace {
         }
     }
 
-    fn is_cpu_access_allowed(&self, address: u16, ppu_state: &PpuState) -> bool {
+    fn is_cpu_access_allowed(address: u16, ppu_state: &PpuState) -> bool {
         // Non-HRAM access not allowed while an OAM DMA transfer is active, even if the PPU is disabled
         if ppu_state.oam_dma_status().is_some()
             && !(address::HRAM_START..=address::HRAM_END).contains(&address)
@@ -551,7 +551,7 @@ impl AddressSpace {
     /// Read the value at the given address from the perspective of the CPU. Returns 0xFF if the
     /// CPU is not able to access the given address because of PPU state.
     pub fn read_address_u8(&self, address: u16, ppu_state: &PpuState) -> u8 {
-        if !self.is_cpu_access_allowed(address, ppu_state) {
+        if !Self::is_cpu_access_allowed(address, ppu_state) {
             return 0xFF;
         }
 
@@ -618,7 +618,7 @@ impl AddressSpace {
     /// Assign a value to the given address from the perspective of the CPU. The write is ignored
     /// if the CPU is not allowed to access the given address due to PPU state.
     pub fn write_address_u8(&mut self, address: u16, value: u8, ppu_state: &PpuState) {
-        if !self.is_cpu_access_allowed(address, ppu_state) {
+        if !Self::is_cpu_access_allowed(address, ppu_state) {
             return;
         }
 

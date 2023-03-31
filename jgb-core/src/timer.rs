@@ -28,9 +28,10 @@ pub fn update_timer_registers(
     timer_modulo: u8,
     cycles: u64,
 ) {
-    if cycles > DIV_UPDATE_FREQUENCY {
-        panic!("cycles must be <= {DIV_UPDATE_FREQUENCY}, was {cycles}");
-    }
+    assert!(
+        cycles <= DIV_UPDATE_FREQUENCY,
+        "cycles must be <= {DIV_UPDATE_FREQUENCY}, was {cycles}"
+    );
 
     let old_cycles = counter.0;
     let new_cycles = old_cycles + cycles;

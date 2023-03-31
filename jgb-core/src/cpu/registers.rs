@@ -73,7 +73,7 @@ pub struct CpuRegisters {
 }
 
 impl CpuRegisters {
-    /// Creates a new CpuRegisters value with all fields initialized to reasonable values.
+    /// Creates a new `CpuRegisters` value with all fields initialized to reasonable values.
     ///
     /// In particular, the program counter is initialized to 0x0100 (entry point in cartridge ROM),
     /// and the stack pointer is initialized to 0xFFFE (last address in HRAM).

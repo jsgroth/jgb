@@ -997,7 +997,7 @@ impl ApuState {
                 ch4_r,
                 master_l: sample_l,
                 master_r: sample_r,
-            })
+            });
         }
 
         (sample_l, sample_r)

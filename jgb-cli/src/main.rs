@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Parser)]
-struct Cli {
+struct CliArgs {
     /// Path to ROM file
     #[arg(short = 'f', long = "gb-file-path")]
     gb_file_path: String,
@@ -86,11 +86,11 @@ fn parse_input_config(path: &str) -> Result<InputConfig> {
 fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
-    let args = Cli::parse();
+    let args = CliArgs::parse();
 
     let input_config = match args.input_config_path {
         Some(input_config_path) => parse_input_config(&input_config_path)?,
-        None => Default::default(),
+        None => InputConfig::default(),
     };
 
     let run_config = RunConfig {

@@ -75,7 +75,7 @@ pub fn interrupt_triggered_no_ime_check(address_space: &AddressSpace) -> bool {
 /// # Panics
 ///
 /// This function will panic if there are no interrupt types that are both enabled and requested.
-/// It should only be called if [interrupt_triggered] returns true.
+/// It should only be called if [`interrupt_triggered`] returns true.
 pub fn execute_interrupt_service_routine(
     cpu_registers: &mut CpuRegisters,
     address_space: &mut AddressSpace,

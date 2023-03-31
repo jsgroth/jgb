@@ -280,7 +280,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     let new_state = process_state(
         old_state,
         address_space,
-        &ppu_state.oam_dma_status,
+        ppu_state.oam_dma_status,
         &mut ppu_state.frame_buffer,
     );
 
@@ -351,7 +351,7 @@ fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode
 fn process_state(
     state: State,
     address_space: &AddressSpace,
-    oam_dma_status: &Option<OamDmaStatus>,
+    oam_dma_status: Option<OamDmaStatus>,
     pixel_buffer: &mut FrameBuffer,
 ) -> State {
     match state {
@@ -417,7 +417,7 @@ fn process_scanning_oam_state(
     dot: u32,
     mut sprites: Vec<OamSpriteData>,
     address_space: &AddressSpace,
-    oam_dma_status: &Option<OamDmaStatus>,
+    oam_dma_status: Option<OamDmaStatus>,
 ) -> State {
     // PPU effectively can't read OAM while an OAM DMA transfer is in progress
     if oam_dma_status.is_none() {
@@ -478,8 +478,8 @@ fn scan_oam(
         let flags = address_space.ppu_read_address_u8(obj_address + 3);
 
         sprites.push(OamSpriteData {
-            y_pos,
             x_pos,
+            y_pos,
             tile_index,
             flags,
         });

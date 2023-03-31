@@ -12,6 +12,7 @@ use sdl2::video::WindowBuildError;
 use sdl2::{
     AudioSubsystem, EventPump, GameControllerSubsystem, IntegerOrSdlError, Sdl, VideoSubsystem,
 };
+use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
 use thiserror::Error;
@@ -135,7 +136,7 @@ pub fn init_sdl_state(
 }
 
 fn get_window_title(gb_file_path: &str) -> Result<String, StartupError> {
-    let file_name = Path::new(gb_file_path).file_name().and_then(|s| s.to_str());
+    let file_name = Path::new(gb_file_path).file_name().and_then(OsStr::to_str);
     match file_name {
         Some(file_name) => Ok(format!("jgb - {file_name}")),
         None => Err(StartupError::FileName {

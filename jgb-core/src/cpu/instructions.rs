@@ -237,7 +237,7 @@ pub enum Instruction {
     // HALT
     Halt,
     // STOP
-    StopClocks,
+    Stop,
     // DI
     DisableInterrupts,
     // EI
@@ -767,12 +767,12 @@ impl Instruction {
                 }
             }
             Self::RelativeJump(e) => {
-                let pc = ((cpu_registers.pc as i32) + (e as i32)).try_into()?;
+                let pc = (i32::from(cpu_registers.pc) + i32::from(e)).try_into()?;
                 cpu_registers.pc = pc;
             }
             Self::RelativeJumpCond(cc, e) => {
                 if cc.check(cpu_registers) {
-                    let pc = ((cpu_registers.pc as i32) + (e as i32)).try_into()?;
+                    let pc = (i32::from(cpu_registers.pc) + i32::from(e)).try_into()?;
                     cpu_registers.pc = pc;
                 }
             }
@@ -811,7 +811,7 @@ impl Instruction {
             Self::Halt => {
                 cpu_registers.halted = true;
             }
-            Self::StopClocks => {
+            Self::Stop => {
                 todo!("STOP is not implemented")
             }
             Self::DisableInterrupts => {
@@ -861,7 +861,8 @@ impl Instruction {
             | Self::NoOp
             | Self::DisableInterrupts
             | Self::EnableInterrupts
-            | Self::JumpHL => 4,
+            | Self::JumpHL
+            | Self::Halt => 4,
             Self::LoadRegisterImmediate(..)
             | Self::LoadRegisterIndirectHL(..)
             | Self::LoadIndirectHLRegister(..)
@@ -964,8 +965,7 @@ impl Instruction {
                     8
                 }
             }
-            Self::Halt => 4,
-            Self::StopClocks => todo!("STOP is not implemented"),
+            Self::Stop => todo!("STOP is not implemented"),
         }
     }
 }
@@ -1104,7 +1104,7 @@ fn add_sp_offset(sp: u16, offset: i8) -> (u16, CarryFlag, HalfCarryFlag) {
             HalfCarryFlag(h_flag),
         )
     } else {
-        let offset = -(offset as i32) as u16;
+        let offset = -i32::from(offset) as u16;
 
         // These flags do the opposite of what I would expect them to in this instruction...
         let h_flag = offset & 0x000F <= sp & 0x000F;

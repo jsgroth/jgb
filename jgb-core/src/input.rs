@@ -114,14 +114,14 @@ impl JoypadState {
         if let Some(field) = self.get_field_mut(keycode, key_map) {
             *field = true;
         }
-        log::debug!("Key pressed: {keycode}, current state: {self:?}")
+        log::debug!("Key pressed: {keycode}, current state: {self:?}");
     }
 
     pub fn key_up(&mut self, keycode: Keycode, key_map: &KeyMap) {
         if let Some(field) = self.get_field_mut(keycode, key_map) {
             *field = false;
         }
-        log::debug!("Key released: {keycode}, current state: {self:?}")
+        log::debug!("Key released: {keycode}, current state: {self:?}");
     }
 }
 

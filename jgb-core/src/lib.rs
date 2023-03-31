@@ -45,6 +45,10 @@ pub struct EmulationState {
 }
 
 /// Initialize the emulator using the given configs and then run until it terminates.
+///
+/// # Errors
+///
+/// This function will return an error if emulation terminates unexpectedly.
 pub fn run(run_config: &RunConfig) -> Result<(), EmulationError> {
     let emulation_state = startup::init_emulation_state(run_config)?;
 
