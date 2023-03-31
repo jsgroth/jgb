@@ -369,7 +369,7 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
             State::ScanningOAM {
                 scanline: 0,
                 dot: 0,
-                sprites: Vec::new(),
+                sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
             }
         } else {
             State::VBlank {
@@ -397,7 +397,7 @@ fn hblank_next_state(scanline: u8, dot: u32) -> State {
             State::ScanningOAM {
                 scanline: scanline + 1,
                 dot: 0,
-                sprites: Vec::new(),
+                sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
             }
         }
     } else {
@@ -431,8 +431,8 @@ fn process_scanning_oam_state(
             sprite_fetcher_x: 0,
             dot: new_dot,
             sprites: SortedOamData::from_vec(sprites),
-            bg_pixel_queue: VecDeque::new(),
-            sprite_pixel_queue: VecDeque::new(),
+            bg_pixel_queue: VecDeque::with_capacity(16),
+            sprite_pixel_queue: VecDeque::with_capacity(16),
         }
     } else {
         State::ScanningOAM {
