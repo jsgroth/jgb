@@ -5,6 +5,7 @@ use jgb_core::{InputConfig, RunConfig};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 #[derive(Parser)]
 struct CliArgs {
@@ -105,7 +106,7 @@ fn main() -> Result<()> {
         input_config,
     };
 
-    if let Err(err) = jgb_core::run(&run_config) {
+    if let Err(err) = jgb_core::run(&run_config, Arc::new(Mutex::new(false))) {
         log::error!("emulator terminated with error: {err}");
         return Err(err.into());
     }

@@ -4,9 +4,14 @@ An attempt at writing a Game Boy emulator. jgb is not cycle-accurate (mainly due
 
 ## Requirements
 
-This project requires at least version 1.65.0 of the [Rust toolchain](https://doc.rust-lang.org/book/ch01-01-installation.html) to build.
+### Rust
 
-Additionally, this project requires core [SDL2](https://www.libsdl.org/) headers.
+This project requires version 1.65.0 or later of the [Rust toolchain](https://doc.rust-lang.org/book/ch01-01-installation.html) to build.
+See link for installation instructions.
+
+### SDL2
+
+This project requires core [SDL2](https://www.libsdl.org/) headers to build.
 
 Linux (Debian-based):
 ```shell
@@ -18,13 +23,32 @@ macOS:
 brew install sdl2
 ```
 
-## Build & Run
+### GTK3 (Linux GUI only)
 
-This emulator currently only has a command-line interface.
+On Linux only, the GUI requires [GTK3](https://www.gtk.org/) headers to build.
 
-To build:
+Linux (Debian-based):
 ```shell
-cargo build --release
+sudo apt install libgtk-3-dev
+```
+
+## Build & Run GUI
+
+To build the GUI:
+```shell
+cargo build --release --bin jgb-gui
+```
+
+To run the GUI:
+```shell
+target/release/jgb-gui
+```
+
+## Build & Run CLI
+
+To build the CLI:
+```shell
+cargo build --release --bin jgb-cli
 ```
 
 To run a ROM file with audio enabled:

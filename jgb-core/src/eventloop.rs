@@ -12,6 +12,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::TextureValueError;
 use std::io;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -60,6 +61,7 @@ pub fn run(
     emulation_state: EmulationState,
     sdl_state: SdlState,
     run_config: &RunConfig,
+    quit_signal: Arc<Mutex<bool>>,
 ) -> Result<(), RunError> {
     log::info!("Running with config:\n{run_config}");
 
@@ -92,6 +94,11 @@ pub fn run(
 
     let mut total_cycles = 0;
     'running: loop {
+        if *quit_signal.lock().unwrap() {
+            log::info!("Quit signal received, exiting main loop");
+            break;
+        }
+
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
 
         // Read TMA register before executing anything in case the instruction updates the register
