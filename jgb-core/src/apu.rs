@@ -488,7 +488,9 @@ impl Channel for PulseChannel {
         }
 
         // TODO this is a hack, remove once better audio downsampling is implemented
-        if 131072.0 / f64::from(2048 - self.frequency_timer.frequency()) > 22050.0 {
+        if 131072.0 / f64::from(2048 - self.frequency_timer.frequency())
+            > OUTPUT_FREQUENCY as f64 / 2.0
+        {
             return Some(0);
         }
 
@@ -639,7 +641,9 @@ impl Channel for WaveChannel {
         }
 
         // TODO this is a hack, remove once better audio downsampling is implemented
-        if 65536.0 / f64::from(2048 - self.frequency_timer.frequency()) > 22050.0 {
+        if 65536.0 / f64::from(2048 - self.frequency_timer.frequency())
+            > OUTPUT_FREQUENCY as f64 / 2.0
+        {
             return Some(0);
         }
 
