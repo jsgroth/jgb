@@ -215,6 +215,10 @@ const VBLANK_START: State = State::VBlank {
     scanline: SCREEN_HEIGHT,
     dot: 0,
 };
+const LY_0_VBLANK_START: State = State::VBlank {
+    scanline: LAST_VBLANK_SCANLINE,
+    dot: 4,
+};
 
 /// If an OAM DMA transfer is in progress, progress it by 1 M-cycle (4 clock cycles) which means
 /// copying one byte and incrementing the OAM DMA status. If the transfer has completed then the
@@ -255,11 +259,21 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
 /// This function will request a VBlank interrupt on the first M-cycle of the VBlank mode. It will
 /// also request a STAT interrupt if the STAT interrupt line changes from low to high.
 pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
+    let prev_enabled = ppu_state.enabled;
     let enabled = address_space.get_io_registers().lcdc().lcd_enabled();
     ppu_state.enabled = enabled;
 
     if !enabled {
         return;
+    }
+
+    if enabled && !prev_enabled {
+        // When PPU is powered on, reset state to the beginning of LY=0 VBlank and clear frame
+        // buffer. Set the STAT interrupt line high so that interrupts won't trigger immediately
+        // after powering on.
+        ppu_state.state = LY_0_VBLANK_START;
+        ppu_state.last_stat_interrupt_line = true;
+        ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
     }
 
     let old_state = std::mem::replace(&mut ppu_state.state, DUMMY_STATE);
