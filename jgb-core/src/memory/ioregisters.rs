@@ -570,23 +570,21 @@ mod tests {
 
         let mut registers = empty_io_registers();
 
-        let joyp_address = IoRegister::JOYP.to_address();
+        assert_eq!(0xC0, registers.read_register(IoRegister::JOYP));
 
-        assert_eq!(0xC0, registers.read_address(joyp_address));
+        registers.write_register(IoRegister::JOYP, 0x00);
+        assert_eq!(0xC0, registers.read_register(IoRegister::JOYP));
 
-        registers.write_address(joyp_address, 0x00);
-        assert_eq!(0xC0, registers.read_address(joyp_address));
-
-        registers.write_address(joyp_address, 0x0F);
-        assert_eq!(0xC0, registers.read_address(joyp_address));
+        registers.write_register(IoRegister::JOYP, 0x0F);
+        assert_eq!(0xC0, registers.read_register(IoRegister::JOYP));
         assert_eq!(0x00, registers.privileged_read_joyp() & 0x0F);
 
-        registers.write_address(joyp_address, 0x20);
-        assert_eq!(0xC0, registers.read_address(joyp_address));
+        registers.write_register(IoRegister::JOYP, 0x20);
+        assert_eq!(0xC0, registers.read_register(IoRegister::JOYP));
         assert_eq!(0x20, registers.privileged_read_joyp() & 0x30);
 
         registers.privileged_set_joyp(0x19);
-        assert_eq!(0xC9, registers.read_address(joyp_address));
+        assert_eq!(0xC9, registers.read_register(IoRegister::JOYP));
     }
 
     #[test]
@@ -597,21 +595,19 @@ mod tests {
 
         let mut registers = empty_io_registers();
 
-        let stat_address = IoRegister::STAT.to_address();
+        assert_eq!(0x80, registers.read_register(IoRegister::STAT));
 
-        assert_eq!(0x80, registers.read_address(stat_address));
+        registers.write_register(IoRegister::STAT, 0x00);
+        assert_eq!(0x80, registers.read_register(IoRegister::STAT));
 
-        registers.write_address(stat_address, 0x00);
-        assert_eq!(0x80, registers.read_address(stat_address));
+        registers.write_register(IoRegister::STAT, 0x07);
+        assert_eq!(0x80, registers.read_register(IoRegister::STAT));
 
-        registers.write_address(stat_address, 0x07);
-        assert_eq!(0x80, registers.read_address(stat_address));
-
-        registers.write_address(stat_address, 0x28);
-        assert_eq!(0xA8, registers.read_address(stat_address));
+        registers.write_register(IoRegister::STAT, 0x28);
+        assert_eq!(0xA8, registers.read_register(IoRegister::STAT));
 
         registers.privileged_set_stat(0x2F);
-        assert_eq!(0xAF, registers.read_address(stat_address));
+        assert_eq!(0xAF, registers.read_register(IoRegister::STAT));
     }
 
     #[test]
