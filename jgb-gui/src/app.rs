@@ -17,7 +17,7 @@ impl JgbApp {
     fn handle_open(&mut self) {
         let mut file_dialog = FileDialog::new().add_filter("gb", &["gb"]);
 
-        if let Some(last_open_dir) = self.last_open_dir.as_ref() {
+        if let Some(last_open_dir) = &self.last_open_dir {
             file_dialog = file_dialog.set_directory(last_open_dir);
         }
 
@@ -108,7 +108,13 @@ fn launch_emulator(gb_file: &str) -> EmulatorInstance {
     let quit_signal = Arc::new(Mutex::new(false));
 
     let quit_signal_clone = Arc::clone(&quit_signal);
-    let thread = thread::spawn(move || jgb_core::run(&run_config, quit_signal_clone));
+    let thread = thread::spawn(move || {
+        let result = jgb_core::run(&run_config, quit_signal_clone);
+        if let Err(err) = &result {
+            log::error!("Emulator terminated unexpectedly: {err}");
+        }
+        result
+    });
 
     EmulatorInstance {
         thread,
