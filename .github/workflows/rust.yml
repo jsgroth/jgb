@@ -75,19 +75,3 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: tarpaulin
-
-    - name: Build release
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --release
-
-    - name: Zip binaries
-      run: |
-        tar -C target/release -czvf jgb-linux-x86_64.tar.gz jgb-cli jgb-gui
-
-    - name: Upload binaries
-      uses: actions/upload-artifact@v3
-      with:
-        name: linux-x86_64-bin
-        path: jgb-linux-x86_64.tar.gz
