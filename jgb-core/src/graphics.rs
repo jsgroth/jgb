@@ -33,6 +33,10 @@ pub fn create_renderer(
     Ok(canvas)
 }
 
+// GB colors range from 0-3 with 0 being white and 3 being black
+// In this pixel format, 0/0/0 = black and 255/255/255 = white, so map [0,3] to [255,0]
+const GB_COLOR_TO_RGB: [u8; 4] = [255, 170, 85, 0];
+
 /// Render the current frame to the SDL2 window, overwriting all previously displayed data.
 ///
 /// With VSync enabled this function will block until the next screen refresh.
@@ -47,9 +51,7 @@ pub fn render_frame(
         .with_lock(None, |pixels, pitch| {
             for (i, scanline) in frame_buffer.iter().enumerate() {
                 for (j, gb_color) in scanline.iter().copied().enumerate() {
-                    // GB colors range from 0-3 with 0 being white and 3 being black
-                    // In this pixel format, 0/0/0 = black and 255/255/255 = white, so map [0,3] to [255,0]
-                    let color = 255 - (f64::from(gb_color) / 3.0 * 255.0).round() as u8;
+                    let color = GB_COLOR_TO_RGB[gb_color as usize];
 
                     pixels[i * pitch + 3 * j] = color;
                     pixels[i * pitch + 3 * j + 1] = color;

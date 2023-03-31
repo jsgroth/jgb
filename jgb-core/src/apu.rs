@@ -307,7 +307,19 @@ impl PulseChannel {
 
     // Update the channel's internal state based on audio register contents and updates.
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters, divider_ticks: u64) {
-        let nr1_value = io_registers.apu_read_register(self.nr1);
+        let nr0_dirty = match self.nr0 {
+            Some(nr0) => io_registers.get_and_clear_dirty_bit(nr0),
+            None => false,
+        };
+        let nr1_dirty = io_registers.get_and_clear_dirty_bit(self.nr1);
+        let nr2_dirty = io_registers.get_and_clear_dirty_bit(self.nr2);
+        let nr3_dirty = io_registers.get_and_clear_dirty_bit(self.nr3);
+        let nr4_dirty = io_registers.get_and_clear_dirty_bit(self.nr4);
+
+        if !nr0_dirty && !nr1_dirty && !nr2_dirty && !nr3_dirty && !nr4_dirty {
+            return;
+        }
+
         let nr2_value = io_registers.apu_read_register(self.nr2);
         let nr4_value = io_registers.apu_read_register(self.nr4);
 
@@ -334,33 +346,32 @@ impl PulseChannel {
             }
         }
 
-        // Sync duty cycle with NRx1 register (bits 6-7), updates take effect immediately
-        let duty_cycle = match nr1_value & 0xC0 {
-            0x00 => DutyCycle::OneEighth,
-            0x40 => DutyCycle::OneFourth,
-            0x80 => DutyCycle::OneHalf,
-            0xC0 => DutyCycle::ThreeFourths,
-            _ => panic!("{nr1_value} & 0xC0 was not 0x00/0x40/0x80/0xC0"),
-        };
-        self.duty_cycle = duty_cycle;
-
         // Check if 6-bit length timer has been reset (NRx1 bits 0-5)
-        if io_registers.is_register_dirty(self.nr1) {
-            io_registers.clear_dirty_bit(self.nr1);
+        if nr1_dirty {
+            let nr1_value = io_registers.apu_read_register(self.nr1);
+
+            // Sync duty cycle with NRx1 register (bits 6-7), updates take effect immediately
+            let duty_cycle = match nr1_value & 0xC0 {
+                0x00 => DutyCycle::OneEighth,
+                0x40 => DutyCycle::OneFourth,
+                0x80 => DutyCycle::OneHalf,
+                0xC0 => DutyCycle::ThreeFourths,
+                _ => panic!("{nr1_value} & 0xC0 was not 0x00/0x40/0x80/0xC0"),
+            };
+            self.duty_cycle = duty_cycle;
+
             self.length_timer.timer = (64 - (nr1_value & 0x3F)).into();
         }
 
         // Zombie mode hack - increase volume by 1 when volume register is written to while
         // envelope pace is 0, wrapping around from 15 to 0
-        if io_registers.is_register_dirty(self.nr2) {
-            io_registers.clear_dirty_bit(self.nr2);
-
+        if nr2_dirty {
             let pending_volume_control = VolumeControl::from_byte(nr2_value);
             if self.volume_control.envelope_enabled
                 && self.volume_control.pace == 0
                 && pending_volume_control.sweep_direction == SweepDirection::Increasing
             {
-                self.volume_control.volume = (self.volume_control.volume + 1) % 16;
+                self.volume_control.volume = (self.volume_control.volume + 1) & 0x0F;
             }
         }
 
@@ -379,10 +390,7 @@ impl PulseChannel {
         }
 
         // Immediately update frequency if NRx3 or NRx4 was written to
-        if io_registers.is_register_dirty(self.nr3) || io_registers.is_register_dirty(self.nr4) {
-            io_registers.clear_dirty_bit(self.nr3);
-            io_registers.clear_dirty_bit(self.nr4);
-
+        if nr3_dirty || nr4_dirty {
             let new_frequency = read_frequency(io_registers, self.nr3, self.nr4);
             self.frequency_timer.set_frequency(new_frequency);
         }
@@ -547,8 +555,7 @@ impl WaveChannel {
         let nr34_value = io_registers.apu_read_register(IoRegister::NR34);
 
         // Update 8-bit length timer immediately if NR31 was written to
-        if io_registers.is_register_dirty(IoRegister::NR31) {
-            io_registers.clear_dirty_bit(IoRegister::NR31);
+        if io_registers.get_and_clear_dirty_bit(IoRegister::NR31) {
             self.length_timer.timer = 256 - u16::from(nr31_value);
         }
 
@@ -693,8 +700,7 @@ impl NoiseChannel {
         let nr44_value = io_registers.apu_read_register(IoRegister::NR44);
 
         // Update 6-bit length timer if NR41 was written to
-        if io_registers.is_register_dirty(IoRegister::NR41) {
-            io_registers.clear_dirty_bit(IoRegister::NR41);
+        if io_registers.get_and_clear_dirty_bit(IoRegister::NR41) {
             self.length_timer.timer = (64 - (nr41_value & 0x3F)).into();
         }
 
@@ -766,12 +772,12 @@ impl NoiseChannel {
         self.frequency_timer += CLOCK_CYCLES_PER_M_CYCLE;
 
         // LFSR timer clocks at a rate of (16 * divider * 2^shift) Hz, treating divider of 0 as 0.5
-        let divisor = if self.clock_divider != 0 {
-            f64::from(u32::from(self.clock_divider) << self.clock_shift)
+        let lfsr_period: u64 = if self.clock_divider != 0 {
+            16 * (u32::from(self.clock_divider) << self.clock_shift)
         } else {
-            0.5 * 2_f64.powi(self.clock_shift.into())
-        };
-        let lfsr_period = (16.0 * divisor).round() as u64;
+            8 * (1 << self.clock_shift)
+        }
+        .into();
 
         if prev_clock / lfsr_period != self.frequency_timer / lfsr_period {
             // Update and shift LFSR
@@ -1057,21 +1063,21 @@ const ALL_AUDIO_REGISTERS: [IoRegister; 21] = [
     IoRegister::NR52,
 ];
 
+static SAMPLE_RATE: Lazy<f64> = Lazy::new(|| OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64);
+static SAMPLE_RATE_60HZ: Lazy<f64> =
+    Lazy::new(|| OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64 * 59.7 / 60.0);
+
 // Return whether the APU emulator should output audio samples during the current M-cycle tick.
 // This is currently just a naive "output every 4.194304 MHz / <output_frequency> clock cycles"
 fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) -> bool {
-    let prev_period = prev_clock_ticks as f64 * OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64;
-    let current_period =
-        apu_state.clock_ticks as f64 * OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64;
-
-    let (prev_period, current_period) = if audio_60hz {
-        (
-            (prev_period * 59.7 / 60.0).round() as u64,
-            (current_period * 59.7 / 60.0).round() as u64,
-        )
+    let sample_rate = if audio_60hz {
+        *SAMPLE_RATE_60HZ
     } else {
-        (prev_period.round() as u64, current_period.round() as u64)
+        *SAMPLE_RATE
     };
+
+    let prev_period = (prev_clock_ticks as f64 * sample_rate).round() as u64;
+    let current_period = (apu_state.clock_ticks as f64 * sample_rate).round() as u64;
 
     prev_period != current_period
 }
@@ -1079,12 +1085,12 @@ fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) 
 // Progress the APU by 1 M-cycle (4 APU clock cycles). Audio samples will be written to the APU
 // state's sample queue if appropriate.
 pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, audio_60hz: bool) {
+    let nr52_value = io_registers.apu_read_register(IoRegister::NR52);
+    let apu_enabled = nr52_value & 0x80 != 0;
+
     // Tick M-cycle / APU clock cycle timers
     let prev_clock = apu_state.clock_ticks;
     apu_state.tick_clock(io_registers);
-
-    let nr52_value = io_registers.apu_read_register(IoRegister::NR52);
-    let apu_enabled = nr52_value & 0x80 != 0;
 
     if !apu_enabled {
         if apu_state.enabled {

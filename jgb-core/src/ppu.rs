@@ -229,13 +229,9 @@ const LY_0_VBLANK_START: State = State::VBlank {
 pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
     if ppu_state.oam_dma_status.is_none()
         && address_space
-            .get_io_registers()
-            .is_register_dirty(IoRegister::DMA)
-    {
-        address_space
             .get_io_registers_mut()
-            .clear_dirty_bit(IoRegister::DMA);
-
+            .get_and_clear_dirty_bit(IoRegister::DMA)
+    {
         let source_high_bits = address_space
             .get_io_registers()
             .read_register(IoRegister::DMA);

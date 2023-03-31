@@ -101,51 +101,55 @@ impl IoRegister {
         Some(register)
     }
 
+    const fn to_relative_address(self) -> usize {
+        match self {
+            Self::JOYP => 0x00,
+            Self::SB => 0x01,
+            Self::SC => 0x02,
+            Self::DIV => 0x04,
+            Self::TIMA => 0x05,
+            Self::TMA => 0x06,
+            Self::TAC => 0x07,
+            Self::IF => 0x0F,
+            Self::NR10 => 0x10,
+            Self::NR11 => 0x11,
+            Self::NR12 => 0x12,
+            Self::NR13 => 0x13,
+            Self::NR14 => 0x14,
+            Self::NR21 => 0x16,
+            Self::NR22 => 0x17,
+            Self::NR23 => 0x18,
+            Self::NR24 => 0x19,
+            Self::NR30 => 0x1A,
+            Self::NR31 => 0x1B,
+            Self::NR32 => 0x1C,
+            Self::NR33 => 0x1D,
+            Self::NR34 => 0x1E,
+            Self::NR41 => 0x20,
+            Self::NR42 => 0x21,
+            Self::NR43 => 0x22,
+            Self::NR44 => 0x23,
+            Self::NR50 => 0x24,
+            Self::NR51 => 0x25,
+            Self::NR52 => 0x26,
+            Self::LCDC => 0x40,
+            Self::STAT => 0x41,
+            Self::SCY => 0x42,
+            Self::SCX => 0x43,
+            Self::LY => 0x44,
+            Self::LYC => 0x45,
+            Self::DMA => 0x46,
+            Self::BGP => 0x47,
+            Self::OBP0 => 0x48,
+            Self::OBP1 => 0x49,
+            Self::WY => 0x4A,
+            Self::WX => 0x4B,
+        }
+    }
+
     /// Return the address for this hardware register.
     pub fn to_address(self) -> u16 {
-        match self {
-            Self::JOYP => 0xFF00,
-            Self::SB => 0xFF01,
-            Self::SC => 0xFF02,
-            Self::DIV => 0xFF04,
-            Self::TIMA => 0xFF05,
-            Self::TMA => 0xFF06,
-            Self::TAC => 0xFF07,
-            Self::IF => 0xFF0F,
-            Self::NR10 => 0xFF10,
-            Self::NR11 => 0xFF11,
-            Self::NR12 => 0xFF12,
-            Self::NR13 => 0xFF13,
-            Self::NR14 => 0xFF14,
-            Self::NR21 => 0xFF16,
-            Self::NR22 => 0xFF17,
-            Self::NR23 => 0xFF18,
-            Self::NR24 => 0xFF19,
-            Self::NR30 => 0xFF1A,
-            Self::NR31 => 0xFF1B,
-            Self::NR32 => 0xFF1C,
-            Self::NR33 => 0xFF1D,
-            Self::NR34 => 0xFF1E,
-            Self::NR41 => 0xFF20,
-            Self::NR42 => 0xFF21,
-            Self::NR43 => 0xFF22,
-            Self::NR44 => 0xFF23,
-            Self::NR50 => 0xFF24,
-            Self::NR51 => 0xFF25,
-            Self::NR52 => 0xFF26,
-            Self::LCDC => 0xFF40,
-            Self::STAT => 0xFF41,
-            Self::SCY => 0xFF42,
-            Self::SCX => 0xFF43,
-            Self::LY => 0xFF44,
-            Self::LYC => 0xFF45,
-            Self::DMA => 0xFF46,
-            Self::BGP => 0xFF47,
-            Self::OBP0 => 0xFF48,
-            Self::OBP1 => 0xFF49,
-            Self::WY => 0xFF4A,
-            Self::WX => 0xFF4B,
-        }
+        0xFF00 + self.to_relative_address() as u16
     }
 
     /// Return whether or not the CPU is allowed to read this hardware register.
@@ -231,20 +235,21 @@ impl<'a> InterruptFlags<'a> {
 
 fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
     let bit = match io_register {
-        IoRegister::NR11 => 1 << 0,
-        IoRegister::NR13 => 1 << 1,
-        IoRegister::NR14 => 1 << 2,
-        IoRegister::NR21 => 1 << 3,
-        IoRegister::NR23 => 1 << 4,
-        IoRegister::NR24 => 1 << 5,
-        IoRegister::NR31 => 1 << 6,
-        IoRegister::NR33 => 1 << 7,
-        IoRegister::NR34 => 1 << 8,
-        IoRegister::NR41 => 1 << 9,
-        IoRegister::NR44 => 1 << 10,
-        IoRegister::DMA => 1 << 11,
-        IoRegister::NR12 => 1 << 12,
-        IoRegister::NR22 => 1 << 13,
+        IoRegister::NR11 => 0x0001,
+        IoRegister::NR13 => 0x0002,
+        IoRegister::NR14 => 0x0004,
+        IoRegister::NR21 => 0x0008,
+        IoRegister::NR23 => 0x0010,
+        IoRegister::NR24 => 0x0020,
+        IoRegister::NR31 => 0x0040,
+        IoRegister::NR33 => 0x0080,
+        IoRegister::NR34 => 0x0100,
+        IoRegister::NR41 => 0x0200,
+        IoRegister::NR44 => 0x0400,
+        IoRegister::DMA => 0x0800,
+        IoRegister::NR12 => 0x1000,
+        IoRegister::NR22 => 0x2000,
+        IoRegister::NR10 => 0x4000,
         _ => return None,
     };
 
@@ -258,13 +263,13 @@ pub struct IoRegisters {
 }
 
 impl IoRegisters {
-    const JOYP_RELATIVE_ADDR: usize = 0x00;
-    const DIV_RELATIVE_ADDR: usize = 0x04;
-    const IF_RELATIVE_ADDR: usize = 0x0F;
-    const NR52_RELATIVE_ADDR: usize = 0x26;
-    const LCDC_RELATIVE_ADDR: usize = 0x40;
-    const STAT_RELATIVE_ADDR: usize = 0x41;
-    const LY_RELATIVE_ADDR: usize = 0x44;
+    const JOYP_RELATIVE_ADDR: usize = IoRegister::JOYP.to_relative_address();
+    const DIV_RELATIVE_ADDR: usize = IoRegister::DIV.to_relative_address();
+    const IF_RELATIVE_ADDR: usize = IoRegister::IF.to_relative_address();
+    const NR52_RELATIVE_ADDR: usize = IoRegister::NR52.to_relative_address();
+    const LCDC_RELATIVE_ADDR: usize = IoRegister::LCDC.to_relative_address();
+    const STAT_RELATIVE_ADDR: usize = IoRegister::STAT.to_relative_address();
+    const LY_RELATIVE_ADDR: usize = IoRegister::LY.to_relative_address();
 
     pub fn new() -> Self {
         let mut contents = [0; 0x80];
@@ -313,11 +318,30 @@ impl IoRegisters {
 
         let Some(register) = IoRegister::from_address(address) else { return 0xFF; };
 
+        self.read_register(register)
+    }
+
+    /// Assign a value to the hardware register at the given address. Does nothing if the address
+    /// is invalid or the register is not writable by the CPU.
+    pub fn write_address(&mut self, address: u16, value: u8) {
+        if is_waveform_address(address) {
+            self.contents[(address - address::IO_REGISTERS_START) as usize] = value;
+            return;
+        }
+
+        let Some(register) = IoRegister::from_address(address) else { return; };
+
+        self.write_register(register, value);
+    }
+
+    /// Read the value from the given hardware register. Returns 0xFF if the register is not
+    /// readable by the CPU.
+    pub fn read_register(&self, register: IoRegister) -> u8 {
         if !register.is_cpu_readable() {
             return 0xFF;
         }
 
-        let byte = self.contents[(address - address::IO_REGISTERS_START) as usize];
+        let byte = self.contents[register.to_relative_address()];
         match register {
             IoRegister::JOYP => (byte & 0x0F) | 0xC0,
             IoRegister::STAT | IoRegister::NR10 => byte | 0x80,
@@ -332,16 +356,9 @@ impl IoRegisters {
         }
     }
 
-    /// Assign a value to the hardware register at the given address. Does nothing if the address
-    /// is invalid or the register is not writable by the CPU.
-    pub fn write_address(&mut self, address: u16, value: u8) {
-        if is_waveform_address(address) {
-            self.contents[(address - address::IO_REGISTERS_START) as usize] = value;
-            return;
-        }
-
-        let Some(register) = IoRegister::from_address(address) else { return; };
-
+    /// Assign a value to the given hardware register. Does nothing if the register is not
+    /// writable by the CPU.
+    pub fn write_register(&mut self, register: IoRegister, value: u8) {
         if !register.is_cpu_writable() {
             return;
         }
@@ -356,7 +373,7 @@ impl IoRegisters {
             self.dirty_bits |= bit;
         }
 
-        let relative_addr = (address - 0xFF00) as usize;
+        let relative_addr = register.to_relative_address();
         match register {
             IoRegister::DIV => {
                 // All writes to DIV reset the value to 0
@@ -382,18 +399,6 @@ impl IoRegisters {
                 self.contents[relative_addr] = value;
             }
         }
-    }
-
-    /// Read the value from the given hardware register. Returns 0xFF if the register is not
-    /// readable by the CPU.
-    pub fn read_register(&self, register: IoRegister) -> u8 {
-        self.read_address(register.to_address())
-    }
-
-    /// Assign a value to the given hardware register. Does nothing if the register is not
-    /// writable by the CPU.
-    pub fn write_register(&mut self, register: IoRegister, value: u8) {
-        self.write_address(register.to_address(), value);
     }
 
     /// Read the value of the JOYP register, including bits that the CPU cannot read. Intended to
@@ -465,32 +470,23 @@ impl IoRegisters {
         InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
     }
 
-    /// Returns whether or not the given register has been written to.
+    /// Returns whether or not the given register has been written to, and clears it if it was set.
     ///
     /// # Panics
     ///
     /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
     /// will panic if called for a register for which the dirty bit is not tracked.
-    pub fn is_register_dirty(&self, register: IoRegister) -> bool {
+    pub fn get_and_clear_dirty_bit(&mut self, register: IoRegister) -> bool {
         let Some(bit) = dirty_bit_for_register(register) else {
             panic!("dirty bit not tracked for register: {register:?}");
         };
 
-        self.dirty_bits & bit != 0
-    }
-
-    /// Clears the dirty bit for the given register.
-    ///
-    /// # Panics
-    ///
-    /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
-    /// will panic if called for a register for which the dirty bit is not tracked.
-    pub fn clear_dirty_bit(&mut self, register: IoRegister) {
-        let Some(bit) = dirty_bit_for_register(register) else {
-            panic!("dirty bit not tracked for register: {register:?}");
-        };
-
-        self.dirty_bits &= !bit;
+        if self.dirty_bits & bit == 0 {
+            false
+        } else {
+            self.dirty_bits &= !bit;
+            true
+        }
     }
 }
 

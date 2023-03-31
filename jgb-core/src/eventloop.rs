@@ -94,11 +94,6 @@ pub fn run(
 
     let mut total_cycles = 0;
     'running: loop {
-        if *quit_signal.lock().unwrap() {
-            log::info!("Quit signal received, exiting main loop");
-            break;
-        }
-
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
 
         // Read TMA register before executing anything in case the instruction updates the register
@@ -151,6 +146,15 @@ pub fn run(
         if total_cycles / CYCLES_PER_FRAME
             != (total_cycles + u64::from(cycles_required)) / CYCLES_PER_FRAME
         {
+            if *quit_signal.lock().unwrap() {
+                log::info!("Quit signal received, exiting main loop");
+                break;
+            }
+
+            if run_config.audio_enabled && run_config.sync_to_audio {
+                audio::sync(&apu_state);
+            }
+
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
                 match event {
@@ -200,9 +204,6 @@ pub fn run(
                 address_space.get_io_registers_mut(),
                 run_config.audio_60hz,
             );
-            if run_config.audio_enabled && run_config.sync_to_audio {
-                audio::sync(&apu_state);
-            }
         }
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready

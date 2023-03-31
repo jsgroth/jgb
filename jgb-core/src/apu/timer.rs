@@ -24,21 +24,23 @@ impl FrequencyTimer {
 
     // Tick the timer for 1 M-cycle (4 APU clock cycles). Returns whether the timer clocked.
     pub(crate) fn tick_m_cycle(&mut self) -> bool {
-        let mut reset = false;
-        for _ in 0..apu::CLOCK_CYCLES_PER_M_CYCLE {
-            reset |= self.tick();
+        if self.timer > apu::CLOCK_CYCLES_PER_M_CYCLE as u16 {
+            self.timer -= apu::CLOCK_CYCLES_PER_M_CYCLE as u16;
+            return false;
         }
-        reset
+
+        for _ in 0..apu::CLOCK_CYCLES_PER_M_CYCLE {
+            self.tick();
+        }
+        true
     }
 
     // Tick the timer for 1 APU clock cycle. Returns whether the timer clocked.
-    fn tick(&mut self) -> bool {
-        self.timer -= 1;
-        if self.timer == 0 {
+    fn tick(&mut self) {
+        if self.timer == 1 {
             self.reset_timer();
-            true
         } else {
-            false
+            self.timer -= 1;
         }
     }
 
