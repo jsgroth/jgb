@@ -10,7 +10,7 @@ Additionally, this project requires [SDL2](https://www.libsdl.org/) headers.
 
 Linux (Debian-based):
 ```shell
-sudo apt-get install libsdl2-dev
+sudo apt install libsdl2-dev
 ```
 
 ## Build & Run
