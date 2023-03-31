@@ -1,6 +1,6 @@
 # jgb
 
-An attempt at writing a Game Boy emulator. jgb uses low-level emulation but is not cycle-accurate.
+An attempt at writing a Game Boy emulator. jgb is not cycle-accurate but does use low-level emulation.
 
 ## Requirements
 
