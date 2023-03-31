@@ -1,6 +1,6 @@
 # jgb
 
-An attempt at writing a Game Boy emulator.
+An attempt at writing a Game Boy emulator. jgb uses low-level emulation but is not cycle-accurate.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ cargo build --release
 
 To run a ROM file with audio enabled:
 ```shell
-target/release/jgb-cli -a --gb-file-path <gb_file>
+target/release/jgb-cli -a -f <gb_file>
 ```
 
 To view all command-line options:
