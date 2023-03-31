@@ -308,13 +308,13 @@ impl PulseChannel {
     // Update the channel's internal state based on audio register contents and updates.
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters, divider_ticks: u64) {
         let nr0_dirty = match self.nr0 {
-            Some(nr0) => io_registers.get_and_clear_dirty_bit(nr0),
+            Some(nr0) => io_registers.get_dirty_bit(nr0),
             None => false,
         };
-        let nr1_dirty = io_registers.get_and_clear_dirty_bit(self.nr1);
-        let nr2_dirty = io_registers.get_and_clear_dirty_bit(self.nr2);
-        let nr3_dirty = io_registers.get_and_clear_dirty_bit(self.nr3);
-        let nr4_dirty = io_registers.get_and_clear_dirty_bit(self.nr4);
+        let nr1_dirty = io_registers.get_dirty_bit(self.nr1);
+        let nr2_dirty = io_registers.get_dirty_bit(self.nr2);
+        let nr3_dirty = io_registers.get_dirty_bit(self.nr3);
+        let nr4_dirty = io_registers.get_dirty_bit(self.nr4);
 
         if !nr0_dirty && !nr1_dirty && !nr2_dirty && !nr3_dirty && !nr4_dirty {
             return;
@@ -325,29 +325,36 @@ impl PulseChannel {
 
         // Only check sweep if an NRx0 register is configured
         if let Some(nr0) = self.nr0 {
-            let nr0_value = io_registers.apu_read_register(nr0);
+            if nr0_dirty {
+                io_registers.clear_dirty_bit(nr0);
 
-            let sweep_pace = (nr0_value & 0x70) >> 4;
-            let sweep_direction = if nr0_value & 0x08 != 0 {
-                SweepDirection::Decreasing
-            } else {
-                SweepDirection::Increasing
-            };
-            let sweep_shift = nr0_value & 0x07;
+                let nr0_value = io_registers.apu_read_register(nr0);
 
-            self.sweep.pace = sweep_pace;
-            self.sweep.direction = sweep_direction;
-            self.sweep.shift = sweep_shift;
+                let sweep_pace = (nr0_value & 0x70) >> 4;
+                let sweep_direction = if nr0_value & 0x08 != 0 {
+                    SweepDirection::Decreasing
+                } else {
+                    SweepDirection::Increasing
+                };
+                let sweep_shift = nr0_value & 0x07;
 
-            // If the sweep generated any frequency calculations with decreasing sweep since the
-            // last trigger, switching to increasing sweep should disable the channel
-            if self.sweep.generated_with_negate && sweep_direction == SweepDirection::Increasing {
-                self.generation_on = false;
+                self.sweep.pace = sweep_pace;
+                self.sweep.direction = sweep_direction;
+                self.sweep.shift = sweep_shift;
+
+                // If the sweep generated any frequency calculations with decreasing sweep since the
+                // last trigger, switching to increasing sweep should disable the channel
+                if self.sweep.generated_with_negate && sweep_direction == SweepDirection::Increasing
+                {
+                    self.generation_on = false;
+                }
             }
         }
 
         // Check if 6-bit length timer has been reset (NRx1 bits 0-5)
         if nr1_dirty {
+            io_registers.clear_dirty_bit(self.nr1);
+
             let nr1_value = io_registers.apu_read_register(self.nr1);
 
             // Sync duty cycle with NRx1 register (bits 6-7), updates take effect immediately
@@ -366,6 +373,8 @@ impl PulseChannel {
         // Zombie mode hack - increase volume by 1 when volume register is written to while
         // envelope pace is 0, wrapping around from 15 to 0
         if nr2_dirty {
+            io_registers.clear_dirty_bit(self.nr2);
+
             let pending_volume_control = VolumeControl::from_byte(nr2_value);
             if self.volume_control.envelope_enabled
                 && self.volume_control.pace == 0
@@ -391,16 +400,20 @@ impl PulseChannel {
 
         // Immediately update frequency if NRx3 or NRx4 was written to
         if nr3_dirty || nr4_dirty {
+            if nr3_dirty {
+                io_registers.clear_dirty_bit(self.nr3);
+            }
+            if nr4_dirty {
+                io_registers.clear_dirty_bit(self.nr4);
+            }
+
             let new_frequency = read_frequency(io_registers, self.nr3, self.nr4);
             self.frequency_timer.set_frequency(new_frequency);
         }
 
         // Re-initialize the channel if a value was written to NRx4 with bit 7 set
-        let triggered = nr4_value & 0x80 != 0;
+        let triggered = nr4_dirty && nr4_value & 0x80 != 0;
         if triggered {
-            // Clear trigger flag
-            io_registers.apu_write_register(self.nr4, nr4_value & 0x7F);
-
             // Re-initialize sweep (if applicable)
             self.sweep.trigger(self.frequency_timer.frequency());
 
@@ -555,7 +568,8 @@ impl WaveChannel {
         let nr34_value = io_registers.apu_read_register(IoRegister::NR34);
 
         // Update 8-bit length timer immediately if NR31 was written to
-        if io_registers.get_and_clear_dirty_bit(IoRegister::NR31) {
+        if io_registers.get_dirty_bit(IoRegister::NR31) {
+            io_registers.clear_dirty_bit(IoRegister::NR31);
             self.length_timer.timer = 256 - u16::from(nr31_value);
         }
 
@@ -700,7 +714,9 @@ impl NoiseChannel {
         let nr44_value = io_registers.apu_read_register(IoRegister::NR44);
 
         // Update 6-bit length timer if NR41 was written to
-        if io_registers.get_and_clear_dirty_bit(IoRegister::NR41) {
+        if io_registers.get_dirty_bit(IoRegister::NR41) {
+            io_registers.clear_dirty_bit(IoRegister::NR41);
+
             self.length_timer.timer = (64 - (nr41_value & 0x3F)).into();
         }
 

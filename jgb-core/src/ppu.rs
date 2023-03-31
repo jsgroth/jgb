@@ -86,6 +86,7 @@ enum State {
         sprite_fetcher_x: u8,
         dot: u32,
         sprites: SortedOamData,
+        sprite_tiles: Vec<TileData>,
         bg_pixel_queue: VecDeque<u8>,
         sprite_pixel_queue: VecDeque<QueuedObjPixel>,
     },
@@ -229,9 +230,13 @@ const LY_0_VBLANK_START: State = State::VBlank {
 pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
     if ppu_state.oam_dma_status.is_none()
         && address_space
-            .get_io_registers_mut()
-            .get_and_clear_dirty_bit(IoRegister::DMA)
+            .get_io_registers()
+            .get_dirty_bit(IoRegister::DMA)
     {
+        address_space
+            .get_io_registers_mut()
+            .clear_dirty_bit(IoRegister::DMA);
+
         let source_high_bits = address_space
             .get_io_registers()
             .read_register(IoRegister::DMA);
@@ -424,13 +429,16 @@ fn process_scanning_oam_state(
 
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == OAM_SCAN_DOTS {
+        let sorted_sprites = SortedOamData::from_vec(sprites);
+        let sprite_tiles = lookup_sprite_tiles(&sorted_sprites, address_space, scanline);
         State::RenderingScanline {
             scanline,
             pixel: 0,
             bg_fetcher_x: 0,
             sprite_fetcher_x: 0,
             dot: new_dot,
-            sprites: SortedOamData::from_vec(sprites),
+            sprites: sorted_sprites,
+            sprite_tiles,
             bg_pixel_queue: VecDeque::with_capacity(16),
             sprite_pixel_queue: VecDeque::with_capacity(16),
         }
@@ -499,6 +507,7 @@ fn process_render_state(
         mut sprite_fetcher_x,
         dot,
         sprites,
+        sprite_tiles,
         mut bg_pixel_queue,
         mut sprite_pixel_queue,
     } = state else {
@@ -520,6 +529,7 @@ fn process_render_state(
             sprite_fetcher_x,
             dot: dot + DOTS_PER_M_CYCLE,
             sprites,
+            sprite_tiles,
             bg_pixel_queue,
             sprite_pixel_queue,
         };
@@ -587,6 +597,7 @@ fn process_render_state(
             sprite_fetcher_x,
             dot: dot + DOTS_PER_M_CYCLE,
             sprites,
+            sprite_tiles,
             bg_pixel_queue,
             sprite_pixel_queue,
         };
@@ -676,19 +687,9 @@ fn process_render_state(
     }
 
     // Populate the sprite pixel queue
-    let sprite_tiles = lookup_sprite_tiles(&sprites.0, address_space, scanline);
-    let sprites_with_tiles: Vec<_> = sprites.0.iter().copied().zip(sprite_tiles).collect();
     while sprite_pixel_queue.len() < 8 {
         if !sprites_enabled {
             // If sprites are disabled, push transparent pixels onto the queue
-            sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
-            sprite_fetcher_x += 1;
-            continue;
-        }
-
-        let overlapping_sprites = find_overlapping_sprites(&sprites_with_tiles, sprite_fetcher_x);
-        if overlapping_sprites.is_empty() {
-            // If no sprites overlap this coordinate, push transparent pixels onto the queue
             sprite_pixel_queue.push_back(QueuedObjPixel::TRANSPARENT);
             sprite_fetcher_x += 1;
             continue;
@@ -699,8 +700,7 @@ fn process_render_state(
         //
         // If all sprites have a transparent pixel in this coordinate then queue a transparent
         // pixel.
-        let pixel_to_queue = overlapping_sprites
-            .into_iter()
+        let pixel_to_queue = find_overlapping_sprites(&sprites.0, &sprite_tiles, sprite_fetcher_x)
             .find_map(|(sprite_data, tile_data)| {
                 let bg_over_obj = sprite_data.flags & 0x80 != 0;
                 let flip_x = sprite_data.flags & 0x20 != 0;
@@ -740,63 +740,70 @@ fn process_render_state(
         sprite_fetcher_x,
         dot: dot + DOTS_PER_M_CYCLE,
         sprites,
+        sprite_tiles,
         bg_pixel_queue,
         sprite_pixel_queue,
     }
 }
 
 fn lookup_sprite_tiles(
-    sprites: &[OamSpriteData],
+    sprites: &SortedOamData,
     address_space: &AddressSpace,
     scanline: u8,
 ) -> Vec<TileData> {
     let sprite_mode = address_space.get_io_registers().lcdc().sprite_mode();
 
-    let mut sprite_tiles = Vec::with_capacity(sprites.len());
-    for sprite in sprites {
-        let flip_y = sprite.flags & 0x40 != 0;
+    sprites
+        .0
+        .iter()
+        .copied()
+        .map(|sprite| {
+            let flip_y = sprite.flags & 0x40 != 0;
 
-        let sprite_y = scanline + 16 - sprite.y_pos;
+            let sprite_y = scanline + 16 - sprite.y_pos;
 
-        let (tile_index, y) = match sprite_mode {
-            SpriteMode::Single => {
-                let y = if flip_y { 7 - sprite_y } else { sprite_y };
-                (sprite.tile_index, y)
-            }
-            SpriteMode::Stacked => {
-                let y = if flip_y { 15 - sprite_y } else { sprite_y };
-                let tile_index = if y < 8 {
-                    sprite.tile_index & 0xFE
-                } else {
-                    (sprite.tile_index & 0xFE) + 1
-                };
-                (tile_index, y % 8)
-            }
-        };
+            let (tile_index, y) = match sprite_mode {
+                SpriteMode::Single => {
+                    let y = if flip_y { 7 - sprite_y } else { sprite_y };
+                    (sprite.tile_index, y)
+                }
+                SpriteMode::Stacked => {
+                    let y = if flip_y { 15 - sprite_y } else { sprite_y };
+                    let tile_index = if y < 8 {
+                        sprite.tile_index & 0xFE
+                    } else {
+                        (sprite.tile_index & 0xFE) + 1
+                    };
+                    (tile_index, y % 8)
+                }
+            };
 
-        let y: u16 = y.into();
+            let y: u16 = y.into();
 
-        let tile_address = 0x8000 + 16 * u16::from(tile_index);
+            let tile_address = 0x8000 + 16 * u16::from(tile_index);
 
-        let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
-        let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+            let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
+            let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
 
-        sprite_tiles.push(TileData(tile_data_0, tile_data_1));
-    }
-    sprite_tiles
+            TileData(tile_data_0, tile_data_1)
+        })
+        .collect()
 }
 
-fn find_overlapping_sprites(
-    sprites: &[(OamSpriteData, TileData)],
+fn find_overlapping_sprites<'a>(
+    sprites: &'a [OamSpriteData],
+    tiles: &'a [TileData],
     x: u8,
-) -> Vec<(OamSpriteData, TileData)> {
+) -> impl Iterator<Item = (OamSpriteData, TileData)> + 'a {
+    // Add 8 because sprite X pos is one past the right edge of the sprite
+    let x_plus_8 = x + 8;
     sprites
         .iter()
-        .filter(|&(sprite_data, _)| {
-            (sprite_data.x_pos..sprite_data.x_pos.saturating_add(8)).contains(&(x + 8))
-        })
         .copied()
-        .collect()
+        .zip(tiles.iter().copied())
+        .filter(move |&(sprite_data, _)| {
+            (sprite_data.x_pos..sprite_data.x_pos.saturating_add(8)).contains(&x_plus_8)
+        })
 }
 
 fn get_bg_tile_address(bg_tile_data_area: TileDataRange, tile_index: u8) -> u16 {

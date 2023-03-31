@@ -147,11 +147,6 @@ impl IoRegister {
         }
     }
 
-    /// Return the address for this hardware register.
-    pub fn to_address(self) -> u16 {
-        0xFF00 + self.to_relative_address() as u16
-    }
-
     /// Return whether or not the CPU is allowed to read this hardware register.
     pub fn is_cpu_readable(self) -> bool {
         !matches!(
@@ -234,26 +229,24 @@ impl<'a> InterruptFlags<'a> {
 }
 
 fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
-    let bit = match io_register {
-        IoRegister::NR11 => 0x0001,
-        IoRegister::NR13 => 0x0002,
-        IoRegister::NR14 => 0x0004,
-        IoRegister::NR21 => 0x0008,
-        IoRegister::NR23 => 0x0010,
-        IoRegister::NR24 => 0x0020,
-        IoRegister::NR31 => 0x0040,
-        IoRegister::NR33 => 0x0080,
-        IoRegister::NR34 => 0x0100,
-        IoRegister::NR41 => 0x0200,
-        IoRegister::NR44 => 0x0400,
-        IoRegister::DMA => 0x0800,
-        IoRegister::NR12 => 0x1000,
-        IoRegister::NR22 => 0x2000,
-        IoRegister::NR10 => 0x4000,
-        _ => return None,
-    };
-
-    Some(bit)
+    match io_register {
+        IoRegister::NR10 => Some(0x0001),
+        IoRegister::NR11 => Some(0x0002),
+        IoRegister::NR12 => Some(0x0004),
+        IoRegister::NR13 => Some(0x0008),
+        IoRegister::NR14 => Some(0x0010),
+        IoRegister::NR21 => Some(0x0020),
+        IoRegister::NR22 => Some(0x0040),
+        IoRegister::NR23 => Some(0x0080),
+        IoRegister::NR24 => Some(0x0100),
+        IoRegister::NR31 => Some(0x0200),
+        IoRegister::NR33 => Some(0x0400),
+        IoRegister::NR34 => Some(0x0800),
+        IoRegister::NR41 => Some(0x1000),
+        IoRegister::NR44 => Some(0x2000),
+        IoRegister::DMA => Some(0x4000),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -442,7 +435,7 @@ impl IoRegisters {
             "apu_read_register can only be used to read audio registers, was: {register:?}"
         );
 
-        self.contents[(register.to_address() - address::IO_REGISTERS_START) as usize]
+        self.contents[register.to_relative_address()]
     }
 
     /// Assign a value to an audio register from the perspective of the APU, bypassing CPU access
@@ -457,7 +450,7 @@ impl IoRegisters {
             "apu_write_register can only be used to write audio registers, was: {register:?}"
         );
 
-        self.contents[(register.to_address() - address::IO_REGISTERS_START) as usize] = value;
+        self.contents[register.to_relative_address()] = value;
     }
 
     /// Obtain a read-only view around the LCDC register (LCD control).
@@ -470,23 +463,31 @@ impl IoRegisters {
         InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
     }
 
-    /// Returns whether or not the given register has been written to, and clears it if it was set.
+    /// Returns whether or not the given register has been written to.
     ///
     /// # Panics
     ///
     /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
     /// will panic if called for a register for which the dirty bit is not tracked.
-    pub fn get_and_clear_dirty_bit(&mut self, register: IoRegister) -> bool {
+    pub fn get_dirty_bit(&self, register: IoRegister) -> bool {
+        match dirty_bit_for_register(register) {
+            Some(bit) => self.dirty_bits & bit != 0,
+            None => panic!("dirty bit not tracked for register: {register:?}"),
+        }
+    }
+
+    /// Clears the dirty bit for the given register.
+    ///
+    /// # Panics
+    ///
+    /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
+    /// will panic if called for a register for which the dirty bit is not tracked.
+    pub fn clear_dirty_bit(&mut self, register: IoRegister) {
         let Some(bit) = dirty_bit_for_register(register) else {
             panic!("dirty bit not tracked for register: {register:?}");
         };
 
-        if self.dirty_bits & bit == 0 {
-            false
-        } else {
-            self.dirty_bits &= !bit;
-            true
-        }
+        self.dirty_bits &= !bit;
     }
 }
 
