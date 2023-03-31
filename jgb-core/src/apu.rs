@@ -355,7 +355,11 @@ impl PulseChannel {
         if io_registers.is_register_dirty(self.nr2) {
             io_registers.clear_dirty_bit(self.nr2);
 
-            if self.volume_control.envelope_enabled && self.volume_control.pace == 0 {
+            let pending_volume_control = VolumeControl::from_byte(nr2_value);
+            if self.volume_control.envelope_enabled
+                && self.volume_control.pace == 0
+                && pending_volume_control.sweep_direction == SweepDirection::Increasing
+            {
                 self.volume_control.volume = (self.volume_control.volume + 1) % 16;
             }
         }
