@@ -28,7 +28,7 @@ pub fn initialize(
     apu_state: &ApuState,
 ) -> Result<AudioDevice<ApuCallback>, String> {
     let callback = ApuCallback {
-        sample_queue: apu_state.get_sample_queue(),
+        sample_queue: Arc::clone(apu_state.get_sample_queue()),
     };
     let device = audio_subsystem.open_playback(
         None,

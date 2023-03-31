@@ -872,8 +872,8 @@ impl ApuState {
         }
     }
 
-    pub fn get_sample_queue(&self) -> Arc<Mutex<VecDeque<i16>>> {
-        Arc::clone(&self.sample_queue)
+    pub fn get_sample_queue(&self) -> &Arc<Mutex<VecDeque<i16>>> {
+        &self.sample_queue
     }
 
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
