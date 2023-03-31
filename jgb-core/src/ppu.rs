@@ -88,7 +88,7 @@ enum State {
         sprite_fetcher_x: u8,
         dot: u32,
         window_internal_y: u8,
-        window_on_line: bool,
+        window_ends_line: bool,
         sprites: Vec<(OamSpriteData, TileData)>,
         bg_pixel_queue: VecDeque<u8>,
         sprite_pixel_queue: VecDeque<QueuedObjPixel>,
@@ -450,7 +450,7 @@ fn process_scanning_oam_state(
             sprite_fetcher_x: 0,
             dot: new_dot,
             window_internal_y,
-            window_on_line: false,
+            window_ends_line: false,
             sprites: sprites_with_tiles,
             bg_pixel_queue: VecDeque::with_capacity(16),
             sprite_pixel_queue: VecDeque::with_capacity(16),
@@ -521,7 +521,7 @@ fn process_render_state(
         mut sprite_fetcher_x,
         dot,
         window_internal_y,
-        mut window_on_line,
+        mut window_ends_line,
         sprites,
         mut bg_pixel_queue,
         mut sprite_pixel_queue,
@@ -535,7 +535,7 @@ fn process_render_state(
             return State::HBlank {
                 scanline,
                 dot: dot + DOTS_PER_M_CYCLE,
-                window_internal_y: if window_on_line {
+                window_internal_y: if window_ends_line {
                     window_internal_y + 1
                 } else {
                     window_internal_y
@@ -549,7 +549,7 @@ fn process_render_state(
             sprite_fetcher_x,
             dot: dot + DOTS_PER_M_CYCLE,
             window_internal_y,
-            window_on_line,
+            window_ends_line,
             sprites,
             bg_pixel_queue,
             sprite_pixel_queue,
@@ -618,7 +618,7 @@ fn process_render_state(
             sprite_fetcher_x,
             dot: dot + DOTS_PER_M_CYCLE,
             window_internal_y,
-            window_on_line,
+            window_ends_line,
             sprites,
             bg_pixel_queue,
             sprite_pixel_queue,
@@ -638,7 +638,7 @@ fn process_render_state(
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
             log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}");
 
-            window_on_line = true;
+            window_ends_line = true;
 
             // Clear any existing BG pixels if we just entered the window
             if bg_fetcher_x + 7 == window_x_plus_7 {
@@ -666,6 +666,8 @@ fn process_render_state(
                 bg_fetcher_x += 1;
             }
         } else {
+            window_ends_line = false;
+
             let viewport_y = address_space
                 .get_io_registers()
                 .read_register(IoRegister::SCY);
@@ -764,7 +766,7 @@ fn process_render_state(
         sprite_fetcher_x,
         dot: dot + DOTS_PER_M_CYCLE,
         window_internal_y,
-        window_on_line,
+        window_ends_line,
         sprites,
         bg_pixel_queue,
         sprite_pixel_queue,
