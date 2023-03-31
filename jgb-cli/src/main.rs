@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use env_logger::Env;
-use jgb_core::{InputConfig, PersistentConfig, RunConfig};
+use jgb_core::{InputConfig, RunConfig};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -93,7 +93,6 @@ fn main() -> Result<()> {
         None => Default::default(),
     };
 
-    let persistent_config = PersistentConfig {};
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
         audio_enabled: args.audio_enabled,
@@ -106,7 +105,7 @@ fn main() -> Result<()> {
         input_config,
     };
 
-    if let Err(err) = jgb_core::run(persistent_config, run_config) {
+    if let Err(err) = jgb_core::run(&run_config) {
         log::error!("emulator terminated with error: {err}");
         return Err(err.into());
     }

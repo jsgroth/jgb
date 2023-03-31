@@ -1,7 +1,5 @@
-use crate::apu::ApuState;
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
-use crate::debug::FileApuDebugSink;
 use crate::graphics::RenderError;
 use crate::input::{JoypadState, KeyMap, KeyMapError};
 use crate::memory::ioregisters::IoRegister;
@@ -69,10 +67,12 @@ pub fn run(
         mut address_space,
         mut cpu_registers,
         mut ppu_state,
+        mut apu_state,
     } = emulation_state;
 
+    // Don't need explicit handles to subsystems or audio device because they won't be dropped until
+    // the function returns
     let SdlState {
-        audio,
         mut canvas,
         mut event_pump,
         ..
@@ -85,21 +85,10 @@ pub fn run(
         ppu::SCREEN_HEIGHT.into(),
     )?;
 
-    let mut apu_state = if run_config.audio_debugging_enabled {
-        ApuState::new_with_debug_sink(Box::new(FileApuDebugSink::new()?))
-    } else {
-        ApuState::new()
-    };
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
 
     let key_map = KeyMap::from_config(&run_config.input_config)?;
-
-    let _audio_device = if run_config.audio_enabled {
-        Some(audio::initialize_audio(&audio, &apu_state))
-    } else {
-        None
-    };
 
     let mut total_cycles = 0;
     'running: loop {

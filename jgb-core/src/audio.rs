@@ -23,7 +23,7 @@ impl AudioCallback for ApuCallback {
     }
 }
 
-pub fn initialize_audio(
+pub fn initialize(
     audio_subsystem: &AudioSubsystem,
     apu_state: &ApuState,
 ) -> Result<AudioDevice<ApuCallback>, String> {

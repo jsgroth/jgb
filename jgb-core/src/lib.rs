@@ -17,10 +17,11 @@ use crate::cpu::CpuRegisters;
 use crate::memory::AddressSpace;
 use thiserror::Error;
 
+use crate::apu::ApuState;
 use crate::eventloop::RunError;
 use crate::ppu::PpuState;
 use crate::startup::StartupError;
-pub use config::{InputConfig, PersistentConfig, RunConfig};
+pub use config::{InputConfig, RunConfig};
 
 #[derive(Error, Debug)]
 pub enum EmulationError {
@@ -40,18 +41,16 @@ pub struct EmulationState {
     address_space: AddressSpace,
     cpu_registers: CpuRegisters,
     ppu_state: PpuState,
+    apu_state: ApuState,
 }
 
 /// Initialize the emulator using the given configs and then run until it terminates.
-pub fn run(
-    persistent_config: PersistentConfig,
-    run_config: RunConfig,
-) -> Result<(), EmulationError> {
-    let emulation_state = startup::init_emulation_state(&persistent_config, &run_config)?;
+pub fn run(run_config: &RunConfig) -> Result<(), EmulationError> {
+    let emulation_state = startup::init_emulation_state(run_config)?;
 
-    let sdl_state = startup::init_sdl_state(&persistent_config, &run_config)?;
+    let sdl_state = startup::init_sdl_state(run_config, &emulation_state)?;
 
-    eventloop::run(emulation_state, sdl_state, &run_config)?;
+    eventloop::run(emulation_state, sdl_state, run_config)?;
 
     Ok(())
 }

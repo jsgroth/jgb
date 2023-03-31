@@ -1,13 +1,18 @@
-use crate::config::{PersistentConfig, RunConfig};
+use crate::apu::ApuState;
+use crate::audio::ApuCallback;
+use crate::config::RunConfig;
 use crate::cpu::CpuRegisters;
+use crate::debug::FileApuDebugSink;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
-use crate::{graphics, EmulationState};
+use crate::{audio, graphics, EmulationState};
+use sdl2::audio::AudioDevice;
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
 use sdl2::{
     AudioSubsystem, EventPump, GameControllerSubsystem, IntegerOrSdlError, Sdl, VideoSubsystem,
 };
+use std::io;
 use std::path::Path;
 use thiserror::Error;
 
@@ -21,6 +26,11 @@ pub enum StartupError {
     },
     #[error("unable to get file name from path: {file_path}")]
     FileName { file_path: String },
+    #[error("error initializing audio debugging sink: {source}")]
+    AudioDebugInit {
+        #[source]
+        source: io::Error,
+    },
     #[error("SDL2 error: {sdl_error}")]
     GenericSdl { sdl_error: String },
     #[error("error building SDL2 window: {source}")]
@@ -33,6 +43,8 @@ pub enum StartupError {
         #[from]
         source: IntegerOrSdlError,
     },
+    #[error("SDL2 audio initialization error: {msg}")]
+    SdlAudioInit { msg: String },
 }
 
 impl From<String> for StartupError {
@@ -45,15 +57,13 @@ pub struct SdlState {
     pub sdl: Sdl,
     pub video: VideoSubsystem,
     pub audio: AudioSubsystem,
+    pub audio_device: Option<AudioDevice<ApuCallback>>,
     pub game_controller: GameControllerSubsystem,
     pub canvas: WindowCanvas,
     pub event_pump: EventPump,
 }
 
-pub fn init_emulation_state(
-    _: &PersistentConfig,
-    run_config: &RunConfig,
-) -> Result<EmulationState, StartupError> {
+pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, StartupError> {
     let cartridge = match Cartridge::from_file(&run_config.gb_file_path) {
         Ok(cartridge) => cartridge,
         Err(err) => {
@@ -67,17 +77,25 @@ pub fn init_emulation_state(
     let address_space = AddressSpace::new(cartridge);
     let cpu_registers = CpuRegisters::new();
     let ppu_state = PpuState::new();
+    let apu_state = if run_config.audio_enabled && run_config.audio_debugging_enabled {
+        let debug_sink =
+            FileApuDebugSink::new().map_err(|err| StartupError::AudioDebugInit { source: err })?;
+        ApuState::new_with_debug_sink(Box::new(debug_sink))
+    } else {
+        ApuState::new()
+    };
 
     Ok(EmulationState {
         address_space,
         cpu_registers,
         ppu_state,
+        apu_state,
     })
 }
 
 pub fn init_sdl_state(
-    _: &PersistentConfig,
     run_config: &RunConfig,
+    emulation_state: &EmulationState,
 ) -> Result<SdlState, StartupError> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
@@ -97,10 +115,19 @@ pub fn init_sdl_state(
 
     let event_pump = sdl.event_pump()?;
 
+    let audio_device = if run_config.audio_enabled {
+        let audio_device = audio::initialize(&audio, &emulation_state.apu_state)
+            .map_err(|msg| StartupError::SdlAudioInit { msg })?;
+        Some(audio_device)
+    } else {
+        None
+    };
+
     Ok(SdlState {
         sdl,
         video,
         audio,
+        audio_device,
         game_controller,
         canvas,
         event_pump,
