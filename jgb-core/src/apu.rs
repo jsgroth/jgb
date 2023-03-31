@@ -940,6 +940,7 @@ impl ApuState {
         let mut sample_r = 0.0;
 
         // Sample channel 1
+        log::debug!("ch1: {:?}", self.channel_1);
         let ch1_sample = self.channel_1.sample_analog();
         let ch1_l = ch1_sample * f64::from(nr51_value & 0x10 != 0);
         let ch1_r = ch1_sample * f64::from(nr51_value & 0x01 != 0);
@@ -947,6 +948,7 @@ impl ApuState {
         sample_r += ch1_r;
 
         // Sample channel 2
+        log::debug!("ch2: {:?}", self.channel_2);
         let ch2_sample = self.channel_2.sample_analog();
         let ch2_l = ch2_sample * f64::from(nr51_value & 0x20 != 0);
         let ch2_r = ch2_sample * f64::from(nr51_value & 0x02 != 0);

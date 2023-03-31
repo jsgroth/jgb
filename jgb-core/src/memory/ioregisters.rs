@@ -296,9 +296,11 @@ impl IoRegisters {
         // BGP
         contents[0x47] = 0xFC;
 
+        init_audio_registers(&mut contents);
+
         Self {
             contents,
-            dirty_bits: 0x00,
+            dirty_bits: 0xFFFF,
         }
     }
 
@@ -490,6 +492,62 @@ impl IoRegisters {
 
         self.dirty_bits &= !bit;
     }
+}
+
+fn init_audio_registers(contents: &mut [u8; 0x80]) {
+    // NR10
+    contents[0x10] = 0x80;
+
+    // NR11
+    contents[0x11] = 0xBF;
+
+    // NR12
+    contents[0x12] = 0xF3;
+
+    // NR13
+    contents[0x13] = 0xFF;
+
+    // NR14
+    contents[0x14] = 0xBF;
+
+    // NR21
+    contents[0x16] = 0x3F;
+
+    // NR23
+    contents[0x18] = 0xFF;
+
+    // NR24
+    contents[0x19] = 0xBF;
+
+    // NR30
+    contents[0x1A] = 0x7F;
+
+    // NR31
+    contents[0x1B] = 0xFF;
+
+    // NR32
+    contents[0x1C] = 0x9F;
+
+    // NR33
+    contents[0x1D] = 0xFF;
+
+    // NR34
+    contents[0x1E] = 0xBF;
+
+    // NR41
+    contents[0x20] = 0xFF;
+
+    // NR44
+    contents[0x23] = 0xBF;
+
+    // NR50
+    contents[0x24] = 0x77;
+
+    // NR51
+    contents[0x25] = 0xF3;
+
+    // NR52
+    contents[0x26] = 0xF1;
 }
 
 fn is_waveform_address(address: u16) -> bool {
