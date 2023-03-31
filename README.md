@@ -6,7 +6,7 @@ An attempt at writing a Game Boy emulator. jgb is not cycle-accurate but does us
 
 This project requires the [Rust toolchain](https://doc.rust-lang.org/book/ch01-01-installation.html) to build.
 
-Additionally, this project requires [SDL2](https://www.libsdl.org/) headers.
+Additionally, this project requires the core [SDL2](https://www.libsdl.org/) headers.
 
 Linux (Debian-based):
 ```shell
