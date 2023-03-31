@@ -824,6 +824,9 @@ pub trait DebugSink {
 // High-pass filter capacitor charge factor
 static HPF_CHARGE_FACTOR: Lazy<f64> =
     Lazy::new(|| 0.999958_f64.powf((4 * 1024 * 1024) as f64 / OUTPUT_FREQUENCY as f64));
+static HPF_CHARGE_FACTOR_60HZ: Lazy<f64> = Lazy::new(|| {
+    0.999958_f64.powf((4 * 1024 * 1024) as f64 / OUTPUT_FREQUENCY as f64 * 60.0 / 59.7)
+});
 
 pub struct ApuState {
     enabled: bool,
@@ -924,7 +927,7 @@ impl ApuState {
     //
     // Downsampling from the raw 1.048576MHz signal to the output frequency is done using dumb
     // nearest-neighbor sampling.
-    fn sample(&mut self, nr50_value: u8, nr51_value: u8) -> (i16, i16) {
+    fn sample(&mut self, nr50_value: u8, nr51_value: u8, audio_60hz: bool) -> (i16, i16) {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
@@ -970,8 +973,8 @@ impl ApuState {
             || self.channel_3.dac_on
             || self.channel_4.dac_on
         {
-            sample_l = high_pass_filter(sample_l, &mut self.hpf_capacitor_l);
-            sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r);
+            sample_l = high_pass_filter(sample_l, &mut self.hpf_capacitor_l, audio_60hz);
+            sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r, audio_60hz);
         }
 
         // Map [-1, 1] to [-30000, 30000] and apply L/R volume multipliers
@@ -998,10 +1001,16 @@ impl ApuState {
 }
 
 // Apply a simple high-pass filter to the given sample. This mimics what the actual hardware does.
-fn high_pass_filter(sample: f64, capacitor: &mut f64) -> f64 {
+fn high_pass_filter(sample: f64, capacitor: &mut f64, audio_60hz: bool) -> f64 {
     let filtered_sample = sample - *capacitor;
 
-    *capacitor = sample - *HPF_CHARGE_FACTOR * filtered_sample;
+    let charge_factor = if audio_60hz {
+        *HPF_CHARGE_FACTOR_60HZ
+    } else {
+        *HPF_CHARGE_FACTOR
+    };
+
+    *capacitor = sample - charge_factor * filtered_sample;
 
     filtered_sample
 }
@@ -1107,6 +1116,7 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
         let (sample_l, sample_r) = apu_state.sample(
             io_registers.apu_read_register(IoRegister::NR50),
             io_registers.apu_read_register(IoRegister::NR51),
+            audio_60hz,
         );
 
         let mut sample_queue = apu_state.sample_queue.lock().unwrap();
