@@ -10,6 +10,6 @@ jgb-core = { path = "../jgb-core" }
 
 eframe = "0.21"
 egui = "0.21"
+env_logger = "0.10"
 log = "0.4"
 rfd = "0.11"
-tracing-subscriber = "0.3"
