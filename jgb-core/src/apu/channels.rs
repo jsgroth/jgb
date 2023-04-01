@@ -59,7 +59,7 @@ impl LengthTimer {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SweepDirection {
+enum SlopeDirection {
     Increasing,
     Decreasing,
 }
@@ -68,7 +68,7 @@ enum SweepDirection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct VolumeControl {
     volume: u8,
-    sweep_direction: SweepDirection,
+    envelope_direction: SlopeDirection,
     pace: u8,
     timer: u8,
     envelope_enabled: bool,
@@ -78,7 +78,7 @@ impl VolumeControl {
     fn new() -> Self {
         Self {
             volume: 0,
-            sweep_direction: SweepDirection::Decreasing,
+            envelope_direction: SlopeDirection::Decreasing,
             pace: 0,
             timer: 0,
             envelope_enabled: false,
@@ -90,10 +90,10 @@ impl VolumeControl {
         let pace = byte & 0x07;
         Self {
             volume: byte >> 4,
-            sweep_direction: if byte & 0x08 != 0 {
-                SweepDirection::Increasing
+            envelope_direction: if byte & 0x08 != 0 {
+                SlopeDirection::Increasing
             } else {
-                SweepDirection::Decreasing
+                SlopeDirection::Decreasing
             },
             pace,
             timer: pace,
@@ -110,16 +110,16 @@ impl VolumeControl {
             if self.timer == 0 {
                 self.timer = self.pace;
 
-                let overflowed = match self.sweep_direction {
-                    SweepDirection::Increasing => self.volume == 0x0F,
-                    SweepDirection::Decreasing => self.volume == 0x00,
+                let overflowed = match self.envelope_direction {
+                    SlopeDirection::Increasing => self.volume == 0x0F,
+                    SlopeDirection::Decreasing => self.volume == 0x00,
                 };
                 if overflowed {
                     self.envelope_enabled = false;
                 } else {
-                    let new_volume = match self.sweep_direction {
-                        SweepDirection::Increasing => self.volume + 1,
-                        SweepDirection::Decreasing => self.volume - 1,
+                    let new_volume = match self.envelope_direction {
+                        SlopeDirection::Increasing => self.volume + 1,
+                        SlopeDirection::Decreasing => self.volume - 1,
                     };
                     self.volume = new_volume;
                 }

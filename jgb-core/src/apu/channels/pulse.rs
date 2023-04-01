@@ -1,5 +1,5 @@
 use crate::apu::channels;
-use crate::apu::channels::{Channel, LengthTimer, SweepDirection, VolumeControl};
+use crate::apu::channels::{Channel, LengthTimer, SlopeDirection, VolumeControl};
 use crate::apu::timer::FrequencyTimer;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 
@@ -37,7 +37,7 @@ enum SweepResult {
 #[derive(Debug, Clone, Copy)]
 struct PulseSweep {
     pace: u8,
-    direction: SweepDirection,
+    direction: SlopeDirection,
     shift: u8,
     timer: u8,
     enabled: bool,
@@ -48,7 +48,7 @@ struct PulseSweep {
 impl PulseSweep {
     const DISABLED: Self = Self {
         pace: 0,
-        direction: SweepDirection::Decreasing,
+        direction: SlopeDirection::Decreasing,
         shift: 0,
         timer: 0,
         enabled: false,
@@ -102,7 +102,7 @@ impl PulseSweep {
 
     // Compute the next frequency given the current sweep. Returns None on overflow/underflow.
     fn next_frequency(&mut self) -> Option<u16> {
-        if self.direction == SweepDirection::Decreasing {
+        if self.direction == SlopeDirection::Decreasing {
             self.generated_with_negate = true;
         }
 
@@ -110,8 +110,8 @@ impl PulseSweep {
 
         let delta = frequency >> self.shift;
         let next_frequency = match self.direction {
-            SweepDirection::Increasing => frequency + delta,
-            SweepDirection::Decreasing => frequency.wrapping_sub(delta),
+            SlopeDirection::Increasing => frequency + delta,
+            SlopeDirection::Decreasing => frequency.wrapping_sub(delta),
         };
 
         if next_frequency <= 0x07FF {
@@ -218,9 +218,9 @@ impl PulseChannel {
 
                 let sweep_pace = (nr0_value & 0x70) >> 4;
                 let sweep_direction = if nr0_value & 0x08 != 0 {
-                    SweepDirection::Decreasing
+                    SlopeDirection::Decreasing
                 } else {
-                    SweepDirection::Increasing
+                    SlopeDirection::Increasing
                 };
                 let sweep_shift = nr0_value & 0x07;
 
@@ -230,7 +230,7 @@ impl PulseChannel {
 
                 // If the sweep generated any frequency calculations with decreasing sweep since the
                 // last trigger, switching to increasing sweep should disable the channel
-                if self.sweep.generated_with_negate && sweep_direction == SweepDirection::Increasing
+                if self.sweep.generated_with_negate && sweep_direction == SlopeDirection::Increasing
                 {
                     self.generation_on = false;
                 }
@@ -264,7 +264,7 @@ impl PulseChannel {
             let pending_volume_control = VolumeControl::from_byte(nr2_value);
             if self.volume_control.envelope_enabled
                 && self.volume_control.pace == 0
-                && pending_volume_control.sweep_direction == SweepDirection::Increasing
+                && pending_volume_control.envelope_direction == SlopeDirection::Increasing
             {
                 self.volume_control.volume = (self.volume_control.volume + 1) & 0x0F;
             }
