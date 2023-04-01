@@ -121,3 +121,26 @@ fn determine_integer_scale_rect(w: u32, h: u32) -> Option<Rect> {
         scaled_height,
     ))
 }
+
+pub fn toggle_fullscreen(
+    canvas: &mut WindowCanvas,
+    run_config: &RunConfig,
+) -> Result<(), GraphicsError> {
+    let fullscreen_mode = if run_config.borderless_fullscreen {
+        FullscreenType::Desktop
+    } else {
+        FullscreenType::True
+    };
+
+    let current_fullscreen = canvas.window().fullscreen_state();
+    match current_fullscreen {
+        FullscreenType::Off => canvas
+            .window_mut()
+            .set_fullscreen(fullscreen_mode)
+            .map_err(|msg| GraphicsError::Fullscreen { msg }),
+        FullscreenType::True | FullscreenType::Desktop => canvas
+            .window_mut()
+            .set_fullscreen(FullscreenType::Off)
+            .map_err(|msg| GraphicsError::Fullscreen { msg }),
+    }
+}

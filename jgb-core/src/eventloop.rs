@@ -92,6 +92,10 @@ pub fn run(
 
     let key_map = KeyMap::from_config(&run_config.input_config)?;
 
+    let mut return_down = false;
+    let mut lalt_down = false;
+    let mut ralt_down = false;
+
     let mut total_cycles = 0;
     'running: loop {
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
@@ -170,12 +174,32 @@ pub fn run(
                         ..
                     } => {
                         joypad_state.key_down(keycode, &key_map);
+
+                        // TODO this code should really go somewhere else
+                        match keycode {
+                            Keycode::Return => return_down = true,
+                            Keycode::LAlt => lalt_down = true,
+                            Keycode::RAlt => ralt_down = true,
+                            _ => {}
+                        }
+
+                        if return_down && (lalt_down || ralt_down) {
+                            graphics::toggle_fullscreen(&mut canvas, run_config)?;
+                        }
                     }
                     Event::KeyUp {
                         keycode: Some(keycode),
                         ..
                     } => {
                         joypad_state.key_up(keycode, &key_map);
+
+                        // TODO this code should really go somewhere else
+                        match keycode {
+                            Keycode::Return => return_down = false,
+                            Keycode::LAlt => lalt_down = false,
+                            Keycode::RAlt => ralt_down = false,
+                            _ => {}
+                        }
                     }
                     _ => {}
                 }
