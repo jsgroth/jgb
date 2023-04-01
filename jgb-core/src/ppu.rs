@@ -248,7 +248,7 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
         }
     }
 
-    let Some(oam_dma_status) = ppu_state.oam_dma_status else { return; };
+    let Some(oam_dma_status) = ppu_state.oam_dma_status else { return };
 
     address_space.copy_byte(
         oam_dma_status.current_source_address(),
@@ -428,7 +428,8 @@ fn process_scanning_oam_state(
 ) -> State {
     let State::ScanningOAM {
         scanline, dot, mut sprites, window_internal_y
-    } = state else {
+    } = state
+    else {
         panic!("process_scanning_oam_state only accepts ScanningOAM state");
     };
 
@@ -525,7 +526,8 @@ fn process_render_state(
         sprites,
         mut bg_pixel_queue,
         mut sprite_pixel_queue,
-    } = state else {
+    } = state
+    else {
         panic!("process render_state only accepts RenderingScanline state, was: {state:?}");
     };
 

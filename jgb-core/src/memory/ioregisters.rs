@@ -309,7 +309,7 @@ impl IoRegisters {
             return self.contents[(address - address::IO_REGISTERS_START) as usize];
         }
 
-        let Some(register) = IoRegister::from_address(address) else { return 0xFF; };
+        let Some(register) = IoRegister::from_address(address) else { return 0xFF };
 
         self.read_register(register)
     }
@@ -322,7 +322,7 @@ impl IoRegisters {
             return;
         }
 
-        let Some(register) = IoRegister::from_address(address) else { return; };
+        let Some(register) = IoRegister::from_address(address) else { return };
 
         self.write_register(register, value);
     }
