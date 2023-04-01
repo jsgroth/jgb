@@ -190,7 +190,7 @@ impl ApuState {
         sample_l += ch4_l;
         sample_r += ch4_r;
 
-        // Master volume multiplers range from [1, 8]
+        // Master volume multipliers range from [1, 8]
         let l_volume = ((nr50_value & 0x70) >> 4) + 1;
         let r_volume = (nr50_value & 0x07) + 1;
 
