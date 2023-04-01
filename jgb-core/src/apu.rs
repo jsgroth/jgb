@@ -141,6 +141,8 @@ impl ApuState {
     // Turn off the APU and disable all channels and DACs
     fn disable(&mut self) {
         self.enabled = false;
+        self.divider_ticks = 0;
+
         self.channel_1 = PulseChannel::new_channel_1();
         self.channel_2 = PulseChannel::new_channel_2();
         self.channel_3 = WaveChannel::new();
