@@ -5,6 +5,18 @@ use std::collections::VecDeque;
 
 type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
+pub const SCREEN_WIDTH: u8 = 160;
+pub const SCREEN_HEIGHT: u8 = 144;
+
+const DOTS_PER_M_CYCLE: u32 = 4;
+const DOTS_PER_SCANLINE: u32 = 456;
+const OAM_SCAN_DOTS: u32 = 80;
+const MIN_RENDER_DOTS: u32 = 172;
+
+const LAST_VBLANK_SCANLINE: u8 = 153;
+
+const MAX_SPRITES_PER_SCANLINE: usize = 10;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     HBlank,
@@ -72,6 +84,9 @@ struct ScanningOAMStateData {
     sprites: Vec<OamSpriteData>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TileData(u8, u8);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RenderingScanlineStateData {
     scanline: u8,
@@ -129,6 +144,21 @@ impl State {
         }
     }
 }
+
+const DUMMY_STATE: State = State::VBlank {
+    scanline: 0,
+    dot: 0,
+};
+
+const VBLANK_START: State = State::VBlank {
+    scanline: SCREEN_HEIGHT,
+    dot: 0,
+};
+
+const LY_0_VBLANK_START: State = State::VBlank {
+    scanline: LAST_VBLANK_SCANLINE,
+    dot: 4,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OamDmaStatus {
@@ -203,32 +233,6 @@ impl PpuState {
         &self.frame_buffer
     }
 }
-
-pub const SCREEN_WIDTH: u8 = 160;
-pub const SCREEN_HEIGHT: u8 = 144;
-
-const DOTS_PER_M_CYCLE: u32 = 4;
-const DOTS_PER_SCANLINE: u32 = 456;
-const OAM_SCAN_DOTS: u32 = 80;
-const MIN_RENDER_DOTS: u32 = 172;
-
-const LAST_VBLANK_SCANLINE: u8 = 153;
-
-const MAX_SPRITES_PER_SCANLINE: usize = 10;
-
-const DUMMY_STATE: State = State::VBlank {
-    scanline: 0,
-    dot: 0,
-};
-
-const VBLANK_START: State = State::VBlank {
-    scanline: SCREEN_HEIGHT,
-    dot: 0,
-};
-const LY_0_VBLANK_START: State = State::VBlank {
-    scanline: LAST_VBLANK_SCANLINE,
-    dot: 4,
-};
 
 /// If an OAM DMA transfer is in progress, progress it by 1 M-cycle (4 clock cycles) which means
 /// copying one byte and incrementing the OAM DMA status. If the transfer has completed then the
@@ -508,9 +512,6 @@ fn scan_oam(
         });
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct TileData(u8, u8);
 
 // This function is not even remotely cycle-accurate but it attempts to approximate the pixel queue
 // behavior of actual hardware
