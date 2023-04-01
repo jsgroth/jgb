@@ -148,7 +148,8 @@ impl eframe::App for JgbApp {
                         ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Borderless, "Borderless");
                     });
 
-                    ui.checkbox(&mut self.config.force_integer_scaling, "Force integer scaling");
+                    ui.checkbox(&mut self.config.force_integer_scaling, "Force integer scaling")
+                        .on_hover_text("Always display emulator output in the highest possible integer scale");
 
                     ui.checkbox(&mut self.config.audio_enabled, "Audio enabled");
 
