@@ -20,6 +20,7 @@ pub use config::AppConfig;
 struct AppState {
     running_emulator: Option<EmulatorInstance>,
     settings_open: bool,
+    emulation_error: Option<EmulationError>,
     window_width_text: String,
     window_width_invalid: bool,
     window_height_text: String,
@@ -89,7 +90,40 @@ impl JgbApp {
 
 impl eframe::App for JgbApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
+        if self
+            .state
+            .running_emulator
+            .as_ref()
+            .map(|running_emulator| running_emulator.thread.is_finished())
+            .unwrap_or(false)
+        {
+            let thread = self.state.running_emulator.take().unwrap().thread;
+            self.state.emulation_error = thread.join().unwrap().err();
+        }
+
         let prev_config = self.config.clone();
+
+        if let Some(emulation_error) = self
+            .state
+            .emulation_error
+            .as_ref()
+            .map(|err| err.to_string())
+        {
+            let mut error_open = true;
+            Window::new("Error")
+                .id("error".into())
+                .resizable(false)
+                .open(&mut error_open)
+                .show(ctx, |ui| {
+                    ui.with_layout(Layout::top_down(Align::Center), |ui| {
+                        ui.label("Emulator terminated with unexpected error");
+                        ui.colored_label(Color32::RED, emulation_error);
+                    });
+                });
+            if !error_open {
+                self.state.emulation_error = None;
+            }
+        }
 
         let open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
         if ctx.input_mut(|input| input.consume_shortcut(&open_shortcut)) {
@@ -102,7 +136,7 @@ impl eframe::App for JgbApp {
         }
 
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.set_enabled(!self.state.settings_open);
+            ui.set_enabled(!self.state.settings_open && self.state.emulation_error.is_none());
             menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     let open_button = Button::new("Open GB ROM")
