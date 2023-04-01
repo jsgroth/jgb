@@ -3,7 +3,8 @@ mod config;
 use eframe::epaint::Color32;
 use eframe::Frame;
 use egui::{
-    menu, Button, Key, KeyboardShortcut, Modifiers, TextEdit, TopBottomPanel, Widget, Window,
+    menu, Align, Button, Key, KeyboardShortcut, Layout, Modifiers, TextEdit, TopBottomPanel,
+    Widget, Window,
 };
 use jgb_core::{EmulationError, InputConfig, RunConfig};
 use rfd::FileDialog;
@@ -101,8 +102,7 @@ impl eframe::App for JgbApp {
         }
 
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.set_enabled(!self.state.settings_open && !self.state.is_emulator_running());
-
+            ui.set_enabled(!self.state.settings_open);
             menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     let open_button = Button::new("Open GB ROM")
@@ -121,8 +121,9 @@ impl eframe::App for JgbApp {
                     }
                 });
 
+                ui.set_enabled(!self.state.is_emulator_running());
                 ui.menu_button("Options", |ui| {
-                    if ui.button("Settings").clicked() {
+                    if ui.button("Video/Audio").clicked() {
                         self.state.settings_open = true;
                         ui.close_menu();
                     }
@@ -134,8 +135,9 @@ impl eframe::App for JgbApp {
             // Create a temp bool to pass to open() because we can't modify self.state.settings_open
             // if it is mutably borrowed by the window
             let mut settings_open = true;
-            Window::new("Settings")
-                .id("settings".into())
+            Window::new("Video/Audio Settings")
+                .id("av_settings".into())
+                .resizable(false)
                 .open(&mut settings_open)
                 .show(ctx, |ui| {
                     ui.checkbox(&mut self.config.vsync_enabled, "VSync enabled");
@@ -204,9 +206,11 @@ impl eframe::App for JgbApp {
                         ui.colored_label(Color32::RED, "Window height is not a valid number");
                     }
 
-                    if ui.button("Close").clicked() {
-                        self.state.settings_open = false;
-                    }
+                    ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                        if ui.button("Close").clicked() {
+                            self.state.settings_open = false;
+                        }
+                    });
                 });
             self.state.settings_open &= settings_open;
         }
