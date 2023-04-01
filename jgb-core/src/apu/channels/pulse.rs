@@ -1,6 +1,5 @@
 use crate::apu::channels;
-use crate::apu::channels::{Channel, LengthTimer, SlopeDirection, VolumeControl};
-use crate::apu::timer::FrequencyTimer;
+use crate::apu::channels::{Channel, FrequencyTimer, LengthTimer, SlopeDirection, VolumeControl};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 
 const OUTPUT_FREQUENCY: u64 = crate::apu::OUTPUT_FREQUENCY;

@@ -1,5 +1,4 @@
 mod channels;
-mod timer;
 
 use crate::apu::channels::{Channel, NoiseChannel, PulseChannel, WaveChannel};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
