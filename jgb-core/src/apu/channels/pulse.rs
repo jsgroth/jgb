@@ -293,14 +293,14 @@ impl PulseChannel {
             }
 
             let new_frequency = channels::read_frequency(io_registers, self.nr3, self.nr4);
-            self.frequency_timer.set_frequency(new_frequency);
+            self.frequency_timer.frequency = new_frequency;
         }
 
         // Re-initialize the channel if a value was written to NRx4 with bit 7 set
         let triggered = nr4_dirty && nr4_value & 0x80 != 0;
         if triggered {
             // Re-initialize sweep (if applicable)
-            self.sweep.trigger(self.frequency_timer.frequency());
+            self.sweep.trigger(self.frequency_timer.frequency);
 
             // Re-initialize volume & envelope
             self.volume_control = VolumeControl::from_byte(nr2_value);
@@ -367,7 +367,7 @@ impl PulseChannel {
             SweepResult::Changed(frequency) => {
                 // Only update frequency timer if shift is non-zero
                 if self.sweep.shift > 0 {
-                    self.frequency_timer.set_frequency(frequency);
+                    self.frequency_timer.frequency = frequency;
 
                     // Write out updated frequency to NRx3 and NRx4
                     io_registers.apu_write_register(self.nr3, (frequency & 0xFF) as u8);
@@ -406,7 +406,7 @@ impl Channel for PulseChannel {
         }
 
         // TODO this is a hack, remove once better audio downsampling is implemented
-        if 131072.0 / f64::from(2048 - self.frequency_timer.frequency())
+        if 131072.0 / f64::from(2048 - self.frequency_timer.frequency)
             > OUTPUT_FREQUENCY as f64 / 2.0
         {
             return Some(0);

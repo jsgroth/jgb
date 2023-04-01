@@ -58,7 +58,7 @@ impl WaveChannel {
         // Sync frequency with NR33 and NR34 registers, updates take effect "immediately" (the next
         // time the frequency timer clocks)
         let frequency = (u16::from(nr34_value & 0x07) << 8) | u16::from(nr33_value);
-        self.frequency_timer.set_frequency(frequency);
+        self.frequency_timer.frequency = frequency;
 
         // Sync length timer enabled flag with NRx4 bit 6, updates take effect immediately
         let prev_length_timer_enabled = self.length_timer.enabled;
@@ -147,7 +147,7 @@ impl Channel for WaveChannel {
         }
 
         // TODO this is a hack, remove once better audio downsampling is implemented
-        if 65536.0 / f64::from(2048 - self.frequency_timer.frequency())
+        if 65536.0 / f64::from(2048 - self.frequency_timer.frequency)
             > OUTPUT_FREQUENCY as f64 / 2.0
         {
             return Some(0);
