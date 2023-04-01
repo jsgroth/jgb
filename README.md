@@ -1,6 +1,6 @@
 # jgb
 
-An attempt at writing a Game Boy emulator. jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a low-level emulator.
+An attempt at writing a Game Boy emulator. jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a functional low-level emulator.
 
 ## Requirements
 
