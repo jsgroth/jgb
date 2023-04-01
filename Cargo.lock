@@ -1306,12 +1306,16 @@ dependencies = [
 name = "jgb-gui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "clap",
  "eframe",
  "egui",
  "env_logger",
  "jgb-core",
  "log",
  "rfd",
+ "serde",
+ "toml",
 ]
 
 [[package]]

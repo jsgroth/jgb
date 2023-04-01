@@ -1,3 +1,3 @@
 mod app;
 
-pub use app::JgbApp;
+pub use app::{AppConfig, JgbApp};
