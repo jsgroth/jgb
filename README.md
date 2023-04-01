@@ -44,7 +44,7 @@ To run the GUI:
 target/release/jgb-gui
 ```
 
-By the default the GUI app will read and save its config using the file `jgb-config.toml` in the current working directory. To override this and use a custom path, use the `--config` command-line arg:
+By default the GUI app will read and save its config using the file `jgb-config.toml` in the current working directory. To override this and use a custom path, use the `--config` command-line arg:
 ```shell
 target/release/jgb-gui --config /path/to/my/config.toml
 ```
