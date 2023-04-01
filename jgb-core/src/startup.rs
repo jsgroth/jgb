@@ -102,6 +102,9 @@ pub fn init_sdl_state(
     let audio = sdl.audio()?;
     let game_controller = sdl.game_controller()?;
 
+    // Hide mouse cursor
+    sdl.mouse().show_cursor(false);
+
     let window_title = get_window_title(&run_config.gb_file_path)?;
     let window = video
         .window(
