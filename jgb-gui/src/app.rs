@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
+use crate::app::config::FullscreenMode;
 pub use config::AppConfig;
 
 #[derive(Debug, Default)]
@@ -139,6 +140,16 @@ impl eframe::App for JgbApp {
                 .show(ctx, |ui| {
                     ui.checkbox(&mut self.config.vsync_enabled, "VSync enabled");
 
+                    ui.checkbox(&mut self.config.launch_in_fullscreen, "Launch in fullscreen");
+
+                    ui.group(|ui| {
+                        ui.label("Fullscreen mode");
+                        ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Exclusive, "Exclusive");
+                        ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Borderless, "Borderless");
+                    });
+
+                    ui.checkbox(&mut self.config.force_integer_scaling, "Force integer scaling");
+
                     ui.checkbox(&mut self.config.audio_enabled, "Audio enabled");
 
                     ui.checkbox(&mut self.config.audio_sync_enabled, "Sync emulation speed to audio");
@@ -226,6 +237,9 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
         audio_enabled: app_config.audio_enabled,
         sync_to_audio: app_config.audio_sync_enabled,
         vsync_enabled: app_config.vsync_enabled,
+        launch_fullscreen: app_config.launch_in_fullscreen,
+        borderless_fullscreen: app_config.fullscreen_mode == FullscreenMode::Borderless,
+        force_integer_scaling: app_config.force_integer_scaling,
         window_width: app_config.window_width,
         window_height: app_config.window_height,
         audio_debugging_enabled: false,

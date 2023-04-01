@@ -25,6 +25,18 @@ struct CliArgs {
     #[arg(long = "no-vsync", default_value_t = true, action = clap::ArgAction::SetFalse)]
     vsync_enabled: bool,
 
+    /// Launch in fullscreen
+    #[arg(long = "fullscreen")]
+    launch_fullscreen: bool,
+
+    /// Disable borderless fullscreen mode
+    #[arg(long = "no-borderless", default_value_t = true, action = clap::ArgAction::SetFalse)]
+    borderless_fullscreen: bool,
+
+    /// Disable integer scaling
+    #[arg(long = "no-integer-scaling", default_value_t = true, action = clap::ArgAction::SetFalse)]
+    force_integer_scaling: bool,
+
     /// Display window width
     #[arg(short = 'w', long = "window-width", default_value_t = 640)]
     window_width: u32,
@@ -99,6 +111,9 @@ fn main() -> anyhow::Result<()> {
         audio_enabled: args.audio_enabled,
         sync_to_audio: args.sync_to_audio,
         vsync_enabled: args.vsync_enabled,
+        launch_fullscreen: args.launch_fullscreen,
+        borderless_fullscreen: args.borderless_fullscreen,
+        force_integer_scaling: args.force_integer_scaling,
         window_width: args.window_width,
         window_height: args.window_height,
         audio_debugging_enabled: args.audio_debugging_enabled,

@@ -3,15 +3,14 @@ use crate::audio::ApuCallback;
 use crate::config::RunConfig;
 use crate::cpu::CpuRegisters;
 use crate::debug::FileApuDebugSink;
+use crate::graphics::GraphicsError;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
 use crate::{audio, graphics, EmulationState};
 use sdl2::audio::AudioDevice;
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
-use sdl2::{
-    AudioSubsystem, EventPump, GameControllerSubsystem, IntegerOrSdlError, Sdl, VideoSubsystem,
-};
+use sdl2::{AudioSubsystem, EventPump, GameControllerSubsystem, Sdl, VideoSubsystem};
 use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
@@ -42,7 +41,7 @@ pub enum StartupError {
     #[error("error building SDL2 canvas: {source}")]
     SdlCanvasBuild {
         #[from]
-        source: IntegerOrSdlError,
+        source: GraphicsError,
     },
     #[error("SDL2 audio initialization error: {msg}")]
     SdlAudioInit { msg: String },

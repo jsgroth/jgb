@@ -3,10 +3,31 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FullscreenMode {
+    Exclusive,
+    Borderless,
+}
+
+impl Default for FullscreenMode {
+    fn default() -> Self {
+        Self::Borderless
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default = "default_vsync_enabled")]
     pub vsync_enabled: bool,
+
+    #[serde(default)]
+    pub launch_in_fullscreen: bool,
+
+    #[serde(default)]
+    pub fullscreen_mode: FullscreenMode,
+
+    #[serde(default = "default_force_integer_scaling")]
+    pub force_integer_scaling: bool,
 
     #[serde(default = "default_audio_enabled")]
     pub audio_enabled: bool,
@@ -25,6 +46,10 @@ pub struct AppConfig {
 }
 
 fn default_vsync_enabled() -> bool {
+    true
+}
+
+fn default_force_integer_scaling() -> bool {
     true
 }
 
@@ -52,6 +77,9 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             vsync_enabled: default_vsync_enabled(),
+            launch_in_fullscreen: bool::default(),
+            fullscreen_mode: FullscreenMode::default(),
+            force_integer_scaling: default_force_integer_scaling(),
             audio_enabled: default_audio_enabled(),
             audio_sync_enabled: default_audio_sync_enabled(),
             audio_60hz_hack_enabled: default_audio_60hz_hack_enabled(),

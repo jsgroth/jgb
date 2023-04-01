@@ -1,6 +1,6 @@
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
-use crate::graphics::RenderError;
+use crate::graphics::GraphicsError;
 use crate::input::{JoypadState, KeyMap, KeyMapError};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
@@ -35,7 +35,7 @@ pub enum RunError {
     #[error("rendering error: {source}")]
     Rendering {
         #[from]
-        source: RenderError,
+        source: GraphicsError,
     },
     #[error("debug setup error: {source}")]
     DebugSetup {
@@ -209,7 +209,7 @@ pub fn run(
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
         // to render
         if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
-            graphics::render_frame(&ppu_state, &mut canvas, &mut texture)?;
+            graphics::render_frame(&ppu_state, &mut canvas, &mut texture, run_config)?;
         }
     }
 

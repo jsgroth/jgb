@@ -1,13 +1,21 @@
 use crate::ppu::PpuState;
-use crate::RunConfig;
+use crate::{ppu, RunConfig};
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
-use sdl2::video::Window;
+use sdl2::video::{FullscreenType, Window};
 use sdl2::IntegerOrSdlError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum RenderError {
+pub enum GraphicsError {
+    #[error("error setting fullscreen mode: {msg}")]
+    Fullscreen { msg: String },
+    #[error("error creating renderer: {source}")]
+    CreateRenderer {
+        #[from]
+        source: IntegerOrSdlError,
+    },
     #[error("error updating frame texture: {msg}")]
     Texture { msg: String },
     #[error("error copying frame texture to renderer: {msg}")]
@@ -17,9 +25,20 @@ pub enum RenderError {
 /// Create an SDL2 renderer from the given SDL2 window, with VSync enabled and with the display area
 /// initialized to all white pixels.
 pub fn create_renderer(
-    window: Window,
+    mut window: Window,
     run_config: &RunConfig,
-) -> Result<WindowCanvas, IntegerOrSdlError> {
+) -> Result<WindowCanvas, GraphicsError> {
+    if run_config.launch_fullscreen {
+        let fullscreen_mode = if run_config.borderless_fullscreen {
+            FullscreenType::Desktop
+        } else {
+            FullscreenType::True
+        };
+        window
+            .set_fullscreen(fullscreen_mode)
+            .map_err(|msg| GraphicsError::Fullscreen { msg })?;
+    }
+
     let mut canvas_builder = window.into_canvas();
     if run_config.vsync_enabled {
         canvas_builder = canvas_builder.present_vsync();
@@ -44,7 +63,8 @@ pub fn render_frame(
     ppu_state: &PpuState,
     canvas: &mut WindowCanvas,
     texture: &mut Texture,
-) -> Result<(), RenderError> {
+    run_config: &RunConfig,
+) -> Result<(), GraphicsError> {
     let frame_buffer = ppu_state.frame_buffer();
 
     texture
@@ -59,13 +79,45 @@ pub fn render_frame(
                 }
             }
         })
-        .map_err(|msg| RenderError::Texture { msg })?;
+        .map_err(|msg| GraphicsError::Texture { msg })?;
 
+    let dst_rect = if run_config.force_integer_scaling {
+        let (w, h) = canvas.window().size();
+        determine_integer_scale_rect(w, h)
+    } else {
+        None
+    };
+
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
     canvas
-        .copy(texture, None, None)
-        .map_err(|msg| RenderError::CopyToCanvas { msg })?;
+        .copy(texture, None, dst_rect)
+        .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
     canvas.present();
 
     Ok(())
+}
+
+fn determine_integer_scale_rect(w: u32, h: u32) -> Option<Rect> {
+    let screen_width: u32 = ppu::SCREEN_WIDTH.into();
+    let screen_height: u32 = ppu::SCREEN_HEIGHT.into();
+
+    if w < screen_width || h < screen_height {
+        // Give up, display area is too small for 1x scale
+        return None;
+    }
+
+    let scale = (1..)
+        .take_while(|&scale| scale * screen_width <= w && scale * screen_height <= h)
+        .last()
+        .unwrap();
+
+    let scaled_width = scale * screen_width;
+    let scaled_height = scale * screen_height;
+    Some(Rect::new(
+        ((w - scaled_width) / 2) as i32,
+        ((h - scaled_height) / 2) as i32,
+        scaled_width,
+        scaled_height,
+    ))
 }

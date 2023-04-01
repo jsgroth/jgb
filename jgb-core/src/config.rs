@@ -51,6 +51,9 @@ pub struct RunConfig {
     pub audio_enabled: bool,
     pub sync_to_audio: bool,
     pub vsync_enabled: bool,
+    pub launch_fullscreen: bool,
+    pub borderless_fullscreen: bool,
+    pub force_integer_scaling: bool,
     pub window_width: u32,
     pub window_height: u32,
     pub audio_debugging_enabled: bool,
@@ -64,6 +67,9 @@ impl std::fmt::Display for RunConfig {
         writeln!(f, "audio_enabled: {}", self.audio_enabled)?;
         writeln!(f, "sync_to_audio: {}", self.sync_to_audio)?;
         writeln!(f, "vsync_enabled: {}", self.vsync_enabled)?;
+        writeln!(f, "launch_fullscreen: {}", self.launch_fullscreen)?;
+        writeln!(f, "borderless_fullscreen: {}", self.borderless_fullscreen)?;
+        writeln!(f, "force_integer_scaling: {}", self.force_integer_scaling)?;
         writeln!(f, "window_width: {}", self.window_width)?;
         writeln!(f, "window_height: {}", self.window_height)?;
         writeln!(
