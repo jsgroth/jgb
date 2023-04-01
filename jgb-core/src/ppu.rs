@@ -97,12 +97,8 @@ enum State {
         scanline: u8,
         dot: u32,
     },
-    ScanningOAM {
-        data: ScanningOAMStateData,
-    },
-    RenderingScanline {
-        data: RenderingScanlineStateData,
-    },
+    ScanningOAM(ScanningOAMStateData),
+    RenderingScanline(RenderingScanlineStateData),
 }
 
 impl State {
@@ -110,12 +106,8 @@ impl State {
         match self {
             &Self::VBlank { scanline, .. }
             | &Self::HBlank { scanline, .. }
-            | &Self::ScanningOAM {
-                data: ScanningOAMStateData { scanline, .. },
-            }
-            | &Self::RenderingScanline {
-                data: RenderingScanlineStateData { scanline, .. },
-            } => scanline,
+            | &Self::ScanningOAM(ScanningOAMStateData { scanline, .. })
+            | &Self::RenderingScanline(RenderingScanlineStateData { scanline, .. }) => scanline,
         }
     }
 
@@ -123,12 +115,8 @@ impl State {
         match self {
             &Self::VBlank { dot, .. }
             | &Self::HBlank { dot, .. }
-            | &Self::ScanningOAM {
-                data: ScanningOAMStateData { dot, .. },
-            }
-            | &Self::RenderingScanline {
-                data: RenderingScanlineStateData { dot, .. },
-            } => dot,
+            | &Self::ScanningOAM(ScanningOAMStateData { dot, .. })
+            | &Self::RenderingScanline(RenderingScanlineStateData { dot, .. }) => dot,
         }
     }
 
@@ -383,12 +371,8 @@ fn process_state(
             dot,
             window_internal_y,
         } => hblank_next_state(scanline, dot, window_internal_y),
-        State::ScanningOAM { data } => {
-            process_scanning_oam_state(data, address_space, oam_dma_status)
-        }
-        State::RenderingScanline { data } => {
-            process_render_state(data, address_space, pixel_buffer)
-        }
+        State::ScanningOAM(data) => process_scanning_oam_state(data, address_space, oam_dma_status),
+        State::RenderingScanline(data) => process_render_state(data, address_space, pixel_buffer),
     }
 }
 
@@ -396,14 +380,12 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == DOTS_PER_SCANLINE {
         if scanline == LAST_VBLANK_SCANLINE {
-            State::ScanningOAM {
-                data: ScanningOAMStateData {
-                    scanline: 0,
-                    dot: 0,
-                    window_internal_y: 0,
-                    sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
-                },
-            }
+            State::ScanningOAM(ScanningOAMStateData {
+                scanline: 0,
+                dot: 0,
+                window_internal_y: 0,
+                sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
+            })
         } else {
             State::VBlank {
                 scanline: scanline + 1,
@@ -427,14 +409,12 @@ fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: u8) -> State {
                 dot: 0,
             }
         } else {
-            State::ScanningOAM {
-                data: ScanningOAMStateData {
-                    scanline: scanline + 1,
-                    dot: 0,
-                    window_internal_y,
-                    sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
-                },
-            }
+            State::ScanningOAM(ScanningOAMStateData {
+                scanline: scanline + 1,
+                dot: 0,
+                window_internal_y,
+                sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
+            })
         }
     } else {
         State::HBlank {
@@ -468,29 +448,25 @@ fn process_scanning_oam_state(
     if new_dot == OAM_SCAN_DOTS {
         let sorted_sprites = SortedOamData::from_vec(sprites);
         let sprites_with_tiles = lookup_sprite_tiles(&sorted_sprites, address_space, scanline);
-        State::RenderingScanline {
-            data: RenderingScanlineStateData {
-                scanline,
-                pixel: 0,
-                bg_fetcher_x: 0,
-                sprite_fetcher_x: 0,
-                dot: new_dot,
-                window_internal_y,
-                window_ends_line: false,
-                sprites: sprites_with_tiles,
-                bg_pixel_queue: VecDeque::with_capacity(16),
-                sprite_pixel_queue: VecDeque::with_capacity(16),
-            },
-        }
+        State::RenderingScanline(RenderingScanlineStateData {
+            scanline,
+            pixel: 0,
+            bg_fetcher_x: 0,
+            sprite_fetcher_x: 0,
+            dot: new_dot,
+            window_internal_y,
+            window_ends_line: false,
+            sprites: sprites_with_tiles,
+            bg_pixel_queue: VecDeque::with_capacity(16),
+            sprite_pixel_queue: VecDeque::with_capacity(16),
+        })
     } else {
-        State::ScanningOAM {
-            data: ScanningOAMStateData {
-                scanline,
-                dot: new_dot,
-                sprites,
-                window_internal_y,
-            },
-        }
+        State::ScanningOAM(ScanningOAMStateData {
+            scanline,
+            dot: new_dot,
+            sprites,
+            window_internal_y,
+        })
     }
 }
 
@@ -565,12 +541,10 @@ fn process_render_state(
                 },
             };
         }
-        return State::RenderingScanline {
-            data: RenderingScanlineStateData {
-                dot: dot + DOTS_PER_M_CYCLE,
-                ..state_data
-            },
-        };
+        return State::RenderingScanline(RenderingScanlineStateData {
+            dot: dot + DOTS_PER_M_CYCLE,
+            ..state_data
+        });
     }
 
     log::trace!(
@@ -589,12 +563,10 @@ fn process_render_state(
     state_data = populate_bg_pixel_queue(state_data, address_space);
     state_data = populate_sprite_pixel_queue(state_data, address_space);
 
-    State::RenderingScanline {
-        data: RenderingScanlineStateData {
-            dot: state_data.dot + DOTS_PER_M_CYCLE,
-            ..state_data
-        },
-    }
+    State::RenderingScanline(RenderingScanlineStateData {
+        dot: state_data.dot + DOTS_PER_M_CYCLE,
+        ..state_data
+    })
 }
 
 fn render_to_frame_buffer(
@@ -653,20 +625,18 @@ fn render_to_frame_buffer(
         pixel += 1;
     }
 
-    State::RenderingScanline {
-        data: RenderingScanlineStateData {
-            scanline,
-            pixel,
-            bg_fetcher_x,
-            sprite_fetcher_x,
-            dot: dot + DOTS_PER_M_CYCLE,
-            window_internal_y,
-            window_ends_line,
-            sprites,
-            bg_pixel_queue,
-            sprite_pixel_queue,
-        },
-    }
+    State::RenderingScanline(RenderingScanlineStateData {
+        scanline,
+        pixel,
+        bg_fetcher_x,
+        sprite_fetcher_x,
+        dot: dot + DOTS_PER_M_CYCLE,
+        window_internal_y,
+        window_ends_line,
+        sprites,
+        bg_pixel_queue,
+        sprite_pixel_queue,
+    })
 }
 
 fn populate_bg_pixel_queue(
