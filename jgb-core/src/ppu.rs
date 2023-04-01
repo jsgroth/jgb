@@ -430,7 +430,7 @@ fn process_scanning_oam_state(
         scanline, dot, mut sprites, window_internal_y
     } = state
     else {
-        panic!("process_scanning_oam_state only accepts ScanningOAM state");
+        panic!("process_scanning_oam_state only accepts ScanningOAM state, was: {state:?}");
     };
 
     // PPU effectively can't read OAM while an OAM DMA transfer is in progress
