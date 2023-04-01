@@ -102,15 +102,13 @@ fn determine_integer_scale_rect(w: u32, h: u32) -> Option<Rect> {
     let screen_width: u32 = ppu::SCREEN_WIDTH.into();
     let screen_height: u32 = ppu::SCREEN_HEIGHT.into();
 
-    if w < screen_width || h < screen_height {
-        // Give up, display area is too small for 1x scale
-        return None;
-    }
-
-    let scale = (1..)
+    let Some(scale) = (1..)
         .take_while(|&scale| scale * screen_width <= w && scale * screen_height <= h)
         .last()
-        .unwrap();
+    else {
+        // Give up, display area is too small for 1x scale
+        return None;
+    };
 
     let scaled_width = scale * screen_width;
     let scaled_height = scale * screen_height;
