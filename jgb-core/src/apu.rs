@@ -38,7 +38,6 @@ const ALL_AUDIO_REGISTERS: [IoRegister; 21] = [
 ];
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ApuDebugOutput {
     pub ch1_l: f64,
     pub ch1_r: f64,
