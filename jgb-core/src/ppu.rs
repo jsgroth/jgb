@@ -539,7 +539,7 @@ struct TileData(u8, u8);
 // This function is not even remotely cycle-accurate but it attempts to approximate the pixel queue
 // behavior of actual hardware
 fn process_render_state(
-    state_data: RenderingScanlineStateData,
+    mut state_data: RenderingScanlineStateData,
     address_space: &AddressSpace,
     frame_buffer: &mut FrameBuffer,
 ) -> State {
@@ -573,19 +573,6 @@ fn process_render_state(
         };
     }
 
-    let RenderingScanlineStateData {
-        scanline,
-        mut pixel,
-        mut bg_fetcher_x,
-        mut sprite_fetcher_x,
-        dot,
-        window_internal_y,
-        mut window_ends_line,
-        sprites,
-        mut bg_pixel_queue,
-        mut sprite_pixel_queue,
-    } = state_data;
-
     log::trace!(
         "LCDC: {:02X}",
         address_space
@@ -593,13 +580,40 @@ fn process_render_state(
             .read_register(IoRegister::LCDC)
     );
 
-    let lcdc = address_space.get_io_registers().lcdc();
-    let bg_enabled = lcdc.bg_enabled();
-    let sprites_enabled = lcdc.sprites_enabled();
-    let window_tile_map_area = lcdc.window_tile_map_area();
-    let bg_tile_data_area = lcdc.bg_tile_data_area();
-    let bg_tile_map_area = lcdc.bg_tile_map_area();
-    let window_enabled = lcdc.window_enabled();
+    // If both pixel queues are full enough, render pixels to the frame buffer until one of the
+    // queues is empty or we've finished this scanline
+    if state_data.bg_pixel_queue.len() >= 8 && state_data.sprite_pixel_queue.len() >= 8 {
+        return render_to_frame_buffer(state_data, address_space, frame_buffer);
+    }
+
+    state_data = populate_bg_pixel_queue(state_data, address_space);
+    state_data = populate_sprite_pixel_queue(state_data, address_space);
+
+    State::RenderingScanline {
+        data: RenderingScanlineStateData {
+            dot: state_data.dot + DOTS_PER_M_CYCLE,
+            ..state_data
+        },
+    }
+}
+
+fn render_to_frame_buffer(
+    state_data: RenderingScanlineStateData,
+    address_space: &AddressSpace,
+    frame_buffer: &mut FrameBuffer,
+) -> State {
+    let RenderingScanlineStateData {
+        scanline,
+        mut pixel,
+        bg_fetcher_x,
+        sprite_fetcher_x,
+        dot,
+        window_internal_y,
+        window_ends_line,
+        sprites,
+        mut bg_pixel_queue,
+        mut sprite_pixel_queue,
+    } = state_data;
 
     let bg_palette = address_space
         .get_io_registers()
@@ -611,21 +625,19 @@ fn process_render_state(
         .get_io_registers()
         .read_register(IoRegister::OBP1);
 
-    // If both pixel queues are full enough, render pixels to the frame buffer until one of the
-    // queues is empty or we've finished this scanline
-    if bg_pixel_queue.len() >= 8 && sprite_pixel_queue.len() >= 8 {
-        while !bg_pixel_queue.is_empty() && !sprite_pixel_queue.is_empty() && pixel < SCREEN_WIDTH {
-            let bg_pixel = bg_pixel_queue.pop_front().unwrap();
-            let sprite_pixel = sprite_pixel_queue.pop_front().unwrap();
+    let bg_enabled = address_space.get_io_registers().lcdc().bg_enabled();
 
-            // Discard BG pixel if BG is disabled
-            let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
+    while !bg_pixel_queue.is_empty() && !sprite_pixel_queue.is_empty() && pixel < SCREEN_WIDTH {
+        let bg_pixel = bg_pixel_queue.pop_front().unwrap();
+        let sprite_pixel = sprite_pixel_queue.pop_front().unwrap();
 
-            // BG pixel takes priority if the sprite pixel is transparent, or if the sprite's
-            // BG-over-OBJ flag is set and the BG color id is not 0
-            let pixel_color = if sprite_pixel.color_id == 0x00
-                || (sprite_pixel.bg_over_obj && bg_pixel != 0x00)
-            {
+        // Discard BG pixel if BG is disabled
+        let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
+
+        // BG pixel takes priority if the sprite pixel is transparent, or if the sprite's
+        // BG-over-OBJ flag is set and the BG color id is not 0
+        let pixel_color =
+            if sprite_pixel.color_id == 0x00 || (sprite_pixel.bg_over_obj && bg_pixel != 0x00) {
                 get_bg_pixel_color(bg_pixel, bg_palette)
             } else {
                 let sprite_palette = match sprite_pixel.obj_palette {
@@ -635,27 +647,44 @@ fn process_render_state(
                 get_obj_pixel_color(sprite_pixel.color_id, sprite_palette)
             };
 
-            log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
+        log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
 
-            frame_buffer[scanline as usize][pixel as usize] = pixel_color;
-            pixel += 1;
-        }
-
-        return State::RenderingScanline {
-            data: RenderingScanlineStateData {
-                scanline,
-                pixel,
-                bg_fetcher_x,
-                sprite_fetcher_x,
-                dot: dot + DOTS_PER_M_CYCLE,
-                window_internal_y,
-                window_ends_line,
-                sprites,
-                bg_pixel_queue,
-                sprite_pixel_queue,
-            },
-        };
+        frame_buffer[scanline as usize][pixel as usize] = pixel_color;
+        pixel += 1;
     }
+
+    State::RenderingScanline {
+        data: RenderingScanlineStateData {
+            scanline,
+            pixel,
+            bg_fetcher_x,
+            sprite_fetcher_x,
+            dot: dot + DOTS_PER_M_CYCLE,
+            window_internal_y,
+            window_ends_line,
+            sprites,
+            bg_pixel_queue,
+            sprite_pixel_queue,
+        },
+    }
+}
+
+fn populate_bg_pixel_queue(
+    state_data: RenderingScanlineStateData,
+    address_space: &AddressSpace,
+) -> RenderingScanlineStateData {
+    let RenderingScanlineStateData {
+        scanline,
+        pixel,
+        mut bg_fetcher_x,
+        sprite_fetcher_x,
+        dot,
+        window_internal_y,
+        mut window_ends_line,
+        sprites,
+        mut bg_pixel_queue,
+        sprite_pixel_queue,
+    } = state_data;
 
     let window_y = address_space
         .get_io_registers()
@@ -664,7 +693,12 @@ fn process_render_state(
         .get_io_registers()
         .read_register(IoRegister::WX);
 
-    // Populate the BG pixel queue
+    let lcdc = address_space.get_io_registers().lcdc();
+    let window_enabled = lcdc.window_enabled();
+    let window_tile_map_area = lcdc.window_tile_map_area();
+    let bg_tile_map_area = lcdc.bg_tile_map_area();
+    let bg_tile_data_area = lcdc.bg_tile_data_area();
+
     while bg_pixel_queue.len() < 8 {
         // If the window is enabled and we're inside it, populate the BG pixel queue with window pixels
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
@@ -744,7 +778,39 @@ fn process_render_state(
         }
     }
 
-    // Populate the sprite pixel queue
+    RenderingScanlineStateData {
+        scanline,
+        pixel,
+        bg_fetcher_x,
+        sprite_fetcher_x,
+        dot,
+        window_internal_y,
+        window_ends_line,
+        sprites,
+        bg_pixel_queue,
+        sprite_pixel_queue,
+    }
+}
+
+fn populate_sprite_pixel_queue(
+    state_data: RenderingScanlineStateData,
+    address_space: &AddressSpace,
+) -> RenderingScanlineStateData {
+    let RenderingScanlineStateData {
+        scanline,
+        pixel,
+        bg_fetcher_x,
+        mut sprite_fetcher_x,
+        dot,
+        window_internal_y,
+        window_ends_line,
+        sprites,
+        bg_pixel_queue,
+        mut sprite_pixel_queue,
+    } = state_data;
+
+    let sprites_enabled = address_space.get_io_registers().lcdc().sprites_enabled();
+
     while sprite_pixel_queue.len() < 8 {
         if !sprites_enabled {
             // If sprites are disabled, push transparent pixels onto the queue
@@ -791,19 +857,17 @@ fn process_render_state(
         sprite_fetcher_x += 1;
     }
 
-    State::RenderingScanline {
-        data: RenderingScanlineStateData {
-            scanline,
-            pixel,
-            bg_fetcher_x,
-            sprite_fetcher_x,
-            dot: dot + DOTS_PER_M_CYCLE,
-            window_internal_y,
-            window_ends_line,
-            sprites,
-            bg_pixel_queue,
-            sprite_pixel_queue,
-        },
+    RenderingScanlineStateData {
+        scanline,
+        pixel,
+        bg_fetcher_x,
+        sprite_fetcher_x,
+        dot,
+        window_internal_y,
+        window_ends_line,
+        sprites,
+        bg_pixel_queue,
+        sprite_pixel_queue,
     }
 }
 
