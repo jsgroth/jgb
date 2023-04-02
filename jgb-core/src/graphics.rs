@@ -131,14 +131,12 @@ pub fn toggle_fullscreen(
     };
 
     let current_fullscreen = canvas.window().fullscreen_state();
-    match current_fullscreen {
-        FullscreenType::Off => canvas
-            .window_mut()
-            .set_fullscreen(fullscreen_mode)
-            .map_err(|msg| GraphicsError::Fullscreen { msg }),
-        FullscreenType::True | FullscreenType::Desktop => canvas
-            .window_mut()
-            .set_fullscreen(FullscreenType::Off)
-            .map_err(|msg| GraphicsError::Fullscreen { msg }),
-    }
+    let new_fullscreen = match current_fullscreen {
+        FullscreenType::Off => fullscreen_mode,
+        FullscreenType::True | FullscreenType::Desktop => FullscreenType::Off,
+    };
+    canvas
+        .window_mut()
+        .set_fullscreen(new_fullscreen)
+        .map_err(|msg| GraphicsError::Fullscreen { msg })
 }
