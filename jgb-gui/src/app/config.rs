@@ -71,24 +71,33 @@ impl Default for AppConfig {
 impl AppConfig {
     pub fn from_toml_file<P>(path: P) -> Result<Self, anyhow::Error>
     where
-        P: AsRef<Path> + std::fmt::Debug,
+        P: AsRef<Path>,
     {
-        let config_str = fs::read_to_string(path.as_ref())
-            .with_context(|| format!("error reading TOML config file from '{path:?}'"))?;
-        let config: Self = toml::from_str(&config_str)
-            .with_context(|| format!("error parsing app config from TOML file at '{path:?}'"))?;
+        let config_str = fs::read_to_string(path.as_ref()).with_context(|| {
+            format!(
+                "error reading TOML config file from '{}'",
+                path.as_ref().display()
+            )
+        })?;
+        let config: Self = toml::from_str(&config_str).with_context(|| {
+            format!(
+                "error parsing app config from TOML file at '{}'",
+                path.as_ref().display()
+            )
+        })?;
 
         Ok(config)
     }
 
     pub fn save_to_file<P>(&self, path: P) -> Result<(), anyhow::Error>
     where
-        P: AsRef<Path> + std::fmt::Debug,
+        P: AsRef<Path>,
     {
         let config_str =
             toml::to_string_pretty(self).context("error serializing config into TOML")?;
-        fs::write(path.as_ref(), config_str)
-            .with_context(|| format!("error writing app config to '{path:?}'"))?;
+        fs::write(path.as_ref(), config_str).with_context(|| {
+            format!("error writing app config to '{}'", path.as_ref().display())
+        })?;
 
         Ok(())
     }
