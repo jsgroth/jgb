@@ -588,15 +588,10 @@ fn render_to_frame_buffer(
         mut sprite_pixel_queue,
     } = state_data;
 
-    let bg_palette = address_space
-        .get_io_registers()
-        .read_register(IoRegister::BGP);
-    let obj_palette_0 = address_space
-        .get_io_registers()
-        .read_register(IoRegister::OBP0);
-    let obj_palette_1 = address_space
-        .get_io_registers()
-        .read_register(IoRegister::OBP1);
+    let io_registers = address_space.get_io_registers();
+    let bg_palette = io_registers.read_register(IoRegister::BGP);
+    let obj_palette_0 = io_registers.read_register(IoRegister::OBP0);
+    let obj_palette_1 = io_registers.read_register(IoRegister::OBP1);
 
     let bg_enabled = address_space.get_io_registers().lcdc().bg_enabled();
 
@@ -657,12 +652,13 @@ fn populate_bg_pixel_queue(
         sprite_pixel_queue,
     } = state_data;
 
-    let window_y = address_space
-        .get_io_registers()
-        .read_register(IoRegister::WY);
-    let window_x_plus_7 = address_space
-        .get_io_registers()
-        .read_register(IoRegister::WX);
+    let io_registers = address_space.get_io_registers();
+
+    let window_y = io_registers.read_register(IoRegister::WY);
+    let window_x_plus_7 = io_registers.read_register(IoRegister::WX);
+
+    let viewport_y = io_registers.read_register(IoRegister::SCY);
+    let viewport_x = io_registers.read_register(IoRegister::SCX);
 
     let lcdc = address_space.get_io_registers().lcdc();
     let window_enabled = lcdc.window_enabled();
@@ -704,13 +700,6 @@ fn populate_bg_pixel_queue(
             }
         } else {
             window_ends_line = false;
-
-            let viewport_y = address_space
-                .get_io_registers()
-                .read_register(IoRegister::SCY);
-            let viewport_x = address_space
-                .get_io_registers()
-                .read_register(IoRegister::SCX);
 
             log::trace!("Viewport at x={viewport_x}, y={viewport_y}");
 
