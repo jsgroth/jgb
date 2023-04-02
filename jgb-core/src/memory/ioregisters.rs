@@ -483,7 +483,8 @@ impl IoRegisters {
     /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
     /// will panic if called for a register for which the dirty bit is not tracked.
     pub fn clear_dirty_bit(&mut self, register: IoRegister) {
-        let Some(bit) = dirty_bit_for_register(register) else {
+        let Some(bit) = dirty_bit_for_register(register)
+        else {
             panic!("dirty bit not tracked for register: {register:?}");
         };
 
