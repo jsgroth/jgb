@@ -3,8 +3,8 @@ mod config;
 use eframe::epaint::Color32;
 use eframe::Frame;
 use egui::{
-    menu, Align, Button, CentralPanel, Direction, Key, KeyboardShortcut, Layout, Modifiers,
-    TextEdit, TopBottomPanel, Widget, Window,
+    menu, Align, Button, CentralPanel, Context, Direction, Key, KeyboardShortcut, Layout,
+    Modifiers, TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use jgb_core::{EmulationError, InputConfig, RunConfig};
@@ -144,23 +144,8 @@ impl JgbApp {
         // TODO actually handle errors
         self.config.save_to_file(&self.config_path).unwrap();
     }
-}
 
-impl eframe::App for JgbApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
-        if self
-            .state
-            .running_emulator
-            .as_ref()
-            .map(|running_emulator| running_emulator.thread.is_finished())
-            .unwrap_or(false)
-        {
-            let thread = self.state.running_emulator.take().unwrap().thread;
-            self.state.emulation_error = thread.join().unwrap().err();
-        }
-
-        let prev_config = self.config.clone();
-
+    fn render_error_window(&mut self, ctx: &Context) {
         if let Some(emulation_error) = self
             .state
             .emulation_error
@@ -182,7 +167,9 @@ impl eframe::App for JgbApp {
                 self.state.emulation_error = None;
             }
         }
+    }
 
+    fn render_menu(&mut self, ctx: &Context, frame: &mut Frame) {
         let open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
         if ctx.input_mut(|input| input.consume_shortcut(&open_shortcut)) {
             self.handle_open();
@@ -222,7 +209,113 @@ impl eframe::App for JgbApp {
                 });
             });
         });
+    }
 
+    fn render_settings_window(&mut self, ctx: &Context) {
+        // Create a temp bool to pass to open() because we can't modify self.state.settings_open
+        // if it is mutably borrowed by the window
+        let mut settings_open = true;
+        Window::new("General Settings")
+            .id("general_settings".into())
+            .resizable(false)
+            .open(&mut settings_open)
+            .show(ctx, |ui| {
+                ui.checkbox(&mut self.config.vsync_enabled, "VSync enabled");
+
+                ui.checkbox(&mut self.config.launch_in_fullscreen, "Launch in fullscreen");
+
+                ui.group(|ui| {
+                    ui.label("Fullscreen mode");
+                    ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Exclusive, "Exclusive");
+                    ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Borderless, "Borderless");
+                });
+
+                ui.checkbox(&mut self.config.force_integer_scaling, "Force integer scaling")
+                    .on_hover_text("Always display emulator output in the highest possible integer scale");
+
+                ui.checkbox(&mut self.config.audio_enabled, "Audio enabled");
+
+                ui.checkbox(&mut self.config.audio_sync_enabled, "Sync emulation speed to audio");
+
+                ui.checkbox(&mut self.config.audio_60hz_hack_enabled, "Audio 60Hz hack enabled")
+                    .on_hover_text("Very slightly increases audio frequency to time audio to 60Hz display speed instead of ~59.7Hz");
+
+                ui.horizontal(|ui| {
+                    if !TextEdit::singleline(&mut self.state.window_width_text)
+                        .id("window_width".into())
+                        .desired_width(60.0)
+                        .ui(ui)
+                        .has_focus()
+                    {
+                        match self.state.window_width_text.parse::<u32>() {
+                            Ok(window_width) => {
+                                self.config.window_width = window_width;
+                                self.state.window_width_invalid = false;
+                            }
+                            Err(_) => {
+                                self.state.window_width_invalid = true;
+                            }
+                        }
+                    }
+                    ui.label("Window width in pixels");
+                });
+                if self.state.window_width_invalid {
+                    ui.colored_label(Color32::RED, "Window width is not a valid number");
+                }
+
+                ui.horizontal(|ui| {
+                    if !TextEdit::singleline(&mut self.state.window_height_text)
+                        .id("window_height".into())
+                        .desired_width(60.0)
+                        .ui(ui)
+                        .has_focus()
+                    {
+                        match self.state.window_height_text.parse::<u32>() {
+                            Ok(window_height) => {
+                                self.config.window_height = window_height;
+                                self.state.window_height_invalid = false;
+                            }
+                            Err(_) => {
+                                self.state.window_height_invalid = true;
+                            }
+                        }
+                    }
+                    ui.label("Window height in pixels");
+                });
+                if self.state.window_height_invalid {
+                    ui.colored_label(Color32::RED, "Window height is not a valid number");
+                }
+
+                ui.horizontal(|ui| {
+                    let search_dir_text = match &self.config.rom_search_dir {
+                        Some(rom_search_dir) => rom_search_dir.clone(),
+                        None => "<None>".into(),
+                    };
+                    if ui.button(search_dir_text).clicked() {
+                        if let Some(new_search_dir) = FileDialog::new().pick_folder() {
+                            if let Some(new_search_dir) = new_search_dir.to_str().map(String::from) {
+                                self.config.rom_search_dir = Some(new_search_dir);
+                            }
+                        }
+                    }
+
+                    ui.label("ROM search directory");
+
+                    if ui.button("Clear").clicked() {
+                        self.config.rom_search_dir = None;
+                    }
+                });
+
+                ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                    if ui.button("Close").clicked() {
+                        self.state.settings_open = false;
+                    }
+                });
+            });
+        self.state.settings_open &= settings_open;
+    }
+
+    fn render_rom_list(&mut self, ctx: &Context) {
         CentralPanel::default().show(ctx, |ui| {
             ui.set_enabled(!self.state.settings_open);
 
@@ -271,109 +364,34 @@ impl eframe::App for JgbApp {
                 });
             }
         });
+    }
+}
+
+impl eframe::App for JgbApp {
+    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+        if self
+            .state
+            .running_emulator
+            .as_ref()
+            .map(|running_emulator| running_emulator.thread.is_finished())
+            .unwrap_or(false)
+        {
+            let thread = self.state.running_emulator.take().unwrap().thread;
+            self.state.emulation_error = thread.join().unwrap().err();
+        }
+
+        let prev_config = self.config.clone();
+
+        self.render_menu(ctx, frame);
+
+        self.render_rom_list(ctx);
 
         if self.state.settings_open {
-            // Create a temp bool to pass to open() because we can't modify self.state.settings_open
-            // if it is mutably borrowed by the window
-            let mut settings_open = true;
-            Window::new("General Settings")
-                .id("general_settings".into())
-                .resizable(false)
-                .open(&mut settings_open)
-                .show(ctx, |ui| {
-                    ui.checkbox(&mut self.config.vsync_enabled, "VSync enabled");
+            self.render_settings_window(ctx);
+        }
 
-                    ui.checkbox(&mut self.config.launch_in_fullscreen, "Launch in fullscreen");
-
-                    ui.group(|ui| {
-                        ui.label("Fullscreen mode");
-                        ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Exclusive, "Exclusive");
-                        ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Borderless, "Borderless");
-                    });
-
-                    ui.checkbox(&mut self.config.force_integer_scaling, "Force integer scaling")
-                        .on_hover_text("Always display emulator output in the highest possible integer scale");
-
-                    ui.checkbox(&mut self.config.audio_enabled, "Audio enabled");
-
-                    ui.checkbox(&mut self.config.audio_sync_enabled, "Sync emulation speed to audio");
-
-                    ui.checkbox(&mut self.config.audio_60hz_hack_enabled, "Audio 60Hz hack enabled")
-                        .on_hover_text("Very slightly increases audio frequency to time audio to 60Hz display speed instead of ~59.7Hz");
-
-                    ui.horizontal(|ui| {
-                        if !TextEdit::singleline(&mut self.state.window_width_text)
-                            .id("window_width".into())
-                            .desired_width(60.0)
-                            .ui(ui)
-                            .has_focus()
-                        {
-                            match self.state.window_width_text.parse::<u32>() {
-                                Ok(window_width) => {
-                                    self.config.window_width = window_width;
-                                    self.state.window_width_invalid = false;
-                                }
-                                Err(_) => {
-                                    self.state.window_width_invalid = true;
-                                }
-                            }
-                        }
-                        ui.label("Window width in pixels");
-                    });
-                    if self.state.window_width_invalid {
-                        ui.colored_label(Color32::RED, "Window width is not a valid number");
-                    }
-
-                    ui.horizontal(|ui| {
-                        if !TextEdit::singleline(&mut self.state.window_height_text)
-                            .id("window_height".into())
-                            .desired_width(60.0)
-                            .ui(ui)
-                            .has_focus()
-                        {
-                            match self.state.window_height_text.parse::<u32>() {
-                                Ok(window_height) => {
-                                    self.config.window_height = window_height;
-                                    self.state.window_height_invalid = false;
-                                }
-                                Err(_) => {
-                                    self.state.window_height_invalid = true;
-                                }
-                            }
-                        }
-                        ui.label("Window height in pixels");
-                    });
-                    if self.state.window_height_invalid {
-                        ui.colored_label(Color32::RED, "Window height is not a valid number");
-                    }
-
-                    ui.horizontal(|ui| {
-                        let search_dir_text = match &self.config.rom_search_dir {
-                            Some(rom_search_dir) => rom_search_dir.clone(),
-                            None => "<None>".into(),
-                        };
-                        if ui.button(search_dir_text).clicked() {
-                            if let Some(new_search_dir) = FileDialog::new().pick_folder() {
-                                if let Some(new_search_dir) = new_search_dir.to_str().map(String::from) {
-                                    self.config.rom_search_dir = Some(new_search_dir);
-                                }
-                            }
-                        }
-
-                        ui.label("ROM search directory");
-
-                        if ui.button("Clear").clicked() {
-                            self.config.rom_search_dir = None;
-                        }
-                    });
-
-                    ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                        if ui.button("Close").clicked() {
-                            self.state.settings_open = false;
-                        }
-                    });
-                });
-            self.state.settings_open &= settings_open;
+        if self.state.emulation_error.is_some() {
+            self.render_error_window(ctx);
         }
 
         if prev_config != self.config {
