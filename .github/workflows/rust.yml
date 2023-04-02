@@ -13,7 +13,6 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -75,3 +74,37 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: tarpaulin
+  linux-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install latest stable Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install libsdl2 and libgtk-3
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsdl2-dev libgtk-3-dev
+
+      - name: Build release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+      - name: Upload CLI binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-linux-x86_64
+          path: target/release/jgb-cli
+          retention-days: 1
+
+      - name: Upload GUI binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: gui-linux-x86_64
+          path: target/release/jgb-gui
+          retention-days: 1
