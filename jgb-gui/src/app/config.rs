@@ -43,6 +43,8 @@ pub struct AppConfig {
 
     #[serde(default = "default_window_height")]
     pub window_height: u32,
+
+    pub rom_search_dir: Option<String>,
 }
 
 fn default_vsync_enabled() -> bool {
@@ -85,6 +87,7 @@ impl Default for AppConfig {
             audio_60hz_hack_enabled: default_audio_60hz_hack_enabled(),
             window_width: default_window_width(),
             window_height: default_window_height(),
+            rom_search_dir: Option::default(),
         }
     }
 }

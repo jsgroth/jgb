@@ -3,18 +3,27 @@ mod config;
 use eframe::epaint::Color32;
 use eframe::Frame;
 use egui::{
-    menu, Align, Button, Key, KeyboardShortcut, Layout, Modifiers, TextEdit, TopBottomPanel,
-    Widget, Window,
+    menu, Align, Button, CentralPanel, Direction, Key, KeyboardShortcut, Layout, Modifiers,
+    TextEdit, TopBottomPanel, Widget, Window,
 };
+use egui_extras::{Column, TableBuilder};
 use jgb_core::{EmulationError, InputConfig, RunConfig};
 use rfd::FileDialog;
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::thread::JoinHandle;
+use std::{fs, thread};
 
 use crate::app::config::FullscreenMode;
 pub use config::AppConfig;
+
+#[derive(Debug, Clone)]
+struct RomSearchResult {
+    full_path: String,
+    file_name_no_ext: String,
+    file_size_kb: u64,
+}
 
 #[derive(Debug, Default)]
 struct AppState {
@@ -25,15 +34,20 @@ struct AppState {
     window_width_invalid: bool,
     window_height_text: String,
     window_height_invalid: bool,
+    rom_search_results: Vec<RomSearchResult>,
 }
 
 impl AppState {
     fn from_config(app_config: &AppConfig) -> Self {
-        Self {
+        let mut state = Self {
             window_width_text: app_config.window_width.to_string(),
             window_height_text: app_config.window_height.to_string(),
             ..Self::default()
-        }
+        };
+
+        state.refresh_rom_search_results(app_config.rom_search_dir.as_ref());
+
+        state
     }
 
     fn is_emulator_running(&self) -> bool {
@@ -41,6 +55,50 @@ impl AppState {
             Some(running_emulator) => !running_emulator.thread.is_finished(),
             None => false,
         }
+    }
+
+    fn refresh_rom_search_results(&mut self, rom_search_dir: Option<&String>) {
+        let Some(rom_search_dir) = rom_search_dir
+        else {
+            self.rom_search_results = Vec::new();
+            return;
+        };
+
+        let Ok(mut rom_search_results) = fs::read_dir(Path::new(rom_search_dir)).map(|read_dir| {
+            read_dir
+                .filter_map(|dir_entry| dir_entry.ok())
+                .filter_map(|dir_entry| {
+                    let is_gb_file = dir_entry.path().extension() == Some(OsStr::new("gb"));
+                    let Ok(metadata) = dir_entry.metadata() else { return None };
+
+                    if is_gb_file && metadata.is_file() {
+                        let full_path = dir_entry.path().to_str()?.into();
+                        let file_name_no_ext = dir_entry
+                            .path()
+                            .with_extension("")
+                            .file_name()?
+                            .to_str()?
+                            .into();
+                        let file_size_kb = metadata.len() / 1024;
+
+                        Some(RomSearchResult {
+                            full_path,
+                            file_name_no_ext,
+                            file_size_kb,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        }) else {
+            log::error!("Unable to refresh ROM list using path {rom_search_dir}");
+            return;
+        };
+
+        rom_search_results.sort_by_key(|search_result| search_result.file_name_no_ext.clone());
+
+        self.rom_search_results = rom_search_results;
     }
 }
 
@@ -157,7 +215,7 @@ impl eframe::App for JgbApp {
 
                 ui.set_enabled(!self.state.is_emulator_running());
                 ui.menu_button("Options", |ui| {
-                    if ui.button("Video/Audio").clicked() {
+                    if ui.button("General Settings").clicked() {
                         self.state.settings_open = true;
                         ui.close_menu();
                     }
@@ -165,12 +223,61 @@ impl eframe::App for JgbApp {
             });
         });
 
+        CentralPanel::default().show(ctx, |ui| {
+            ui.set_enabled(!self.state.settings_open);
+
+            if self.state.rom_search_results.is_empty() {
+                ui.with_layout(
+                    Layout::centered_and_justified(Direction::LeftToRight),
+                    |ui| {
+                        ui.label("Configure a search path to see ROMs here");
+                    },
+                );
+            } else {
+                ui.with_layout(Layout::top_down(Align::Center), |ui| {
+                    TableBuilder::new(ui)
+                        .resizable(false)
+                        .auto_shrink([false; 2])
+                        .striped(true)
+                        .cell_layout(Layout::left_to_right(Align::Center))
+                        .column(Column::auto())
+                        .column(Column::remainder())
+                        .header(30.0, |mut row| {
+                            row.col(|ui| {
+                                ui.heading("Name");
+                            });
+                            row.col(|ui| {
+                                ui.heading("Size");
+                            });
+                        })
+                        .body(|mut body| {
+                            for search_result in self.state.rom_search_results.clone() {
+                                body.row(40.0, |mut row| {
+                                    row.col(|ui| {
+                                        if ui.button(&search_result.file_name_no_ext).clicked() {
+                                            self.stop_emulator_if_running();
+                                            self.state.running_emulator = Some(launch_emulator(
+                                                &search_result.full_path,
+                                                &self.config,
+                                            ));
+                                        }
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(format!("{}KB", search_result.file_size_kb));
+                                    });
+                                });
+                            }
+                        });
+                });
+            }
+        });
+
         if self.state.settings_open {
             // Create a temp bool to pass to open() because we can't modify self.state.settings_open
             // if it is mutably borrowed by the window
             let mut settings_open = true;
-            Window::new("Video/Audio Settings")
-                .id("av_settings".into())
+            Window::new("General Settings")
+                .id("general_settings".into())
                 .resizable(false)
                 .open(&mut settings_open)
                 .show(ctx, |ui| {
@@ -240,6 +347,26 @@ impl eframe::App for JgbApp {
                         ui.colored_label(Color32::RED, "Window height is not a valid number");
                     }
 
+                    ui.horizontal(|ui| {
+                        let search_dir_text = match &self.config.rom_search_dir {
+                            Some(rom_search_dir) => rom_search_dir.clone(),
+                            None => "<None>".into(),
+                        };
+                        if ui.button(search_dir_text).clicked() {
+                            if let Some(new_search_dir) = FileDialog::new().pick_folder() {
+                                if let Some(new_search_dir) = new_search_dir.to_str().map(String::from) {
+                                    self.config.rom_search_dir = Some(new_search_dir);
+                                }
+                            }
+                        }
+
+                        ui.label("ROM search directory");
+
+                        if ui.button("Clear").clicked() {
+                            self.config.rom_search_dir = None;
+                        }
+                    });
+
                     ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                         if ui.button("Close").clicked() {
                             self.state.settings_open = false;
@@ -252,6 +379,9 @@ impl eframe::App for JgbApp {
         if prev_config != self.config {
             // Save config immediately on changes
             self.save_config();
+
+            self.state
+                .refresh_rom_search_results(self.config.rom_search_dir.as_ref());
         }
     }
 
