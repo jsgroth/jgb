@@ -134,9 +134,10 @@ jobs:
           unzip SDL2-$SDL_VERSION-win32-x64.zip
 
       - name: Build release
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target x86_64-pc-windows-gnu
-        env:
-          RUSTFLAGS: -Clink-arg=-ISDL2-$SDL_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2-$SDL_VERSION/x86_64-w64-mingw32/lib
+        run: |
+          RUSTFLAGS="-Clink-arg=-ISDL2-$SDL_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2-$SDL_VERSION/x86_64-w64-mingw32/lib" \
+          cargo build --release --target x86_64-pc-windows-gnu
+
+      - name: Compress binaries
+        run: |
+          tar -czvf jgb-windows.tar.gz SDL.dll -C target/x86_64-pc-windows-gnu/release jgb-cli.exe jgb-gui.exe
