@@ -140,4 +140,11 @@ jobs:
 
       - name: Compress binaries
         run: |
-          tar -czvf jgb-windows.tar.gz SDL.dll -C target/x86_64-pc-windows-gnu/release jgb-cli.exe jgb-gui.exe
+          mv target/x86_64-pc-windows-gnu/release/*.exe ./ && \
+          zip jgb-windows.zip SDL2.dll jgb-cli.exe jgb-gui.exe
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-x86_64-bin
+          path: jgb-windows.zip
