@@ -104,6 +104,7 @@ jobs:
         with:
           name: linux-x86_64-bin
           path: jgb-linux.tar.gz
+          retention-days: 1
   windows-release:
     runs-on: ubuntu-latest
 
@@ -148,3 +149,4 @@ jobs:
         with:
           name: windows-x86_64-bin
           path: jgb-windows.zip
+          retention-days: 1
