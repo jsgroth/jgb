@@ -95,6 +95,15 @@ jobs:
           command: build
           args: --release
 
+      - name: Compress binaries
+        run: |
+          tar -C target/release -czvf jgb-linux.tar.gz jgb-cli jgb-gui
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-x86_64-bin
+          path: jgb-linux.tar.gz
   windows-release:
     runs-on: ubuntu-latest
 
@@ -119,9 +128,9 @@ jobs:
       
       - name: Download & extract Windows SDL2 libraries
         run: |
-          wget https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VERSION/SDL2-devel-$SDL_VERSION-mingw.tar.gz && |
-          wget https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VERSION/SDL2-$SDL_VERSION-win32-x64.zip && |
-          tar zxvf SDL2-devel-$SDL_VERSION-mingw.tar.gz && |
+          wget https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VERSION/SDL2-devel-$SDL_VERSION-mingw.tar.gz && \
+          wget https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VERSION/SDL2-$SDL_VERSION-win32-x64.zip && \
+          tar zxvf SDL2-devel-$SDL_VERSION-mingw.tar.gz && \
           unzip SDL2-$SDL_VERSION-win32-x64.zip
 
       - name: Build release
