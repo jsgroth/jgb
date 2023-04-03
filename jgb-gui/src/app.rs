@@ -120,7 +120,11 @@ impl JgbApp {
     }
 
     fn handle_open(&mut self) {
-        let file = FileDialog::new().add_filter("gb", &["gb"]).pick_file();
+        let mut file_dialog = FileDialog::new().add_filter("gb", &["gb"]);
+        if let Some(rom_search_dir) = &self.config.rom_search_dir {
+            file_dialog = file_dialog.set_directory(Path::new(rom_search_dir));
+        }
+        let file = file_dialog.pick_file();
 
         if let Some(file) = file.and_then(|file| file.to_str().map(String::from)) {
             self.stop_emulator_if_running();
