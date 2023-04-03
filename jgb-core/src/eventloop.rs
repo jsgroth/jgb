@@ -165,6 +165,7 @@ pub fn run(
 
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
+                log::debug!("Received SDL event: {event:?}");
                 match event {
                     Event::Quit { .. } => {
                         break 'running;
