@@ -369,24 +369,25 @@ impl IoRegisters {
         let relative_addr = register.to_relative_address();
         match register {
             IoRegister::DIV => {
-                // All writes to DIV reset the value to 0
+                // All CPU writes to DIV reset the value to 0
                 self.contents[relative_addr] = 0x00;
             }
             IoRegister::JOYP => {
                 let existing_value = self.contents[relative_addr];
-                let new_value = existing_value & (value | 0xCF);
-                let new_value = new_value | (value & 0x30);
+                // Only bits 4 and 5 are CPU-writable
+                let new_value = (existing_value & 0xCF) | (value & 0x30);
                 self.contents[relative_addr] = new_value;
             }
             IoRegister::STAT => {
                 let existing_value = self.contents[relative_addr];
-                let new_value = existing_value & (value | 0x87);
-                let new_value = new_value | (value & 0x78);
+                // Only bits 3-6 are CPU-writable
+                let new_value = (existing_value & 0x87) | (value & 0x78);
                 self.contents[relative_addr] = new_value;
             }
             IoRegister::NR52 => {
                 let existing_value = self.contents[relative_addr];
-                self.contents[relative_addr] = (value & 0x80) | (existing_value & 0x0F);
+                // Only bit 7 is CPU-writable
+                self.contents[relative_addr] = (existing_value & 0x0F) | (value & 0x80);
             }
             _ => {
                 self.contents[relative_addr] = value;
