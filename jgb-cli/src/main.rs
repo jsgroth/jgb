@@ -1,10 +1,6 @@
-use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
 use jgb_core::{HotkeyConfig, InputConfig, RunConfig};
-use serde::de::DeserializeOwned;
-use std::fs;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 #[derive(Parser)]
@@ -55,26 +51,70 @@ struct CliArgs {
     #[arg(long = "no-audio-60hz", default_value_t = true, action = clap::ArgAction::SetFalse)]
     audio_60hz: bool,
 
-    /// Path to TOML input config file. Must have top-level keys 'up', 'left', 'down', 'right', 'a',
-    /// 'b', 'start', 'select'
-    #[arg(long = "input-config")]
-    input_config_path: Option<String>,
+    #[arg(long)]
+    input_up: Option<String>,
 
-    /// Path to TOML hotkey config file. Must have top-level keys 'exit', 'toggle_fullscreen',
-    /// 'save_state', 'load_state'
-    #[arg(long = "hotkey-config")]
-    hotkey_config_path: Option<String>,
+    #[arg(long)]
+    input_down: Option<String>,
+
+    #[arg(long)]
+    input_left: Option<String>,
+
+    #[arg(long)]
+    input_right: Option<String>,
+
+    #[arg(long)]
+    input_a: Option<String>,
+
+    #[arg(long)]
+    input_b: Option<String>,
+
+    #[arg(long)]
+    input_start: Option<String>,
+
+    #[arg(long)]
+    input_select: Option<String>,
+
+    #[arg(long)]
+    hotkey_exit: Option<String>,
+
+    #[arg(long)]
+    hotkey_toggle_fullscreen: Option<String>,
+
+    #[arg(long)]
+    hotkey_save_state: Option<String>,
+
+    #[arg(long)]
+    hotkey_load_state: Option<String>,
 }
 
-fn parse_config<C>(path: &str) -> anyhow::Result<C>
-where
-    C: DeserializeOwned,
-{
-    let config_str = fs::read_to_string(Path::new(path))
-        .with_context(|| format!("failed to read input config from {path}"))?;
-    let config: C = toml::from_str(&config_str)
-        .with_context(|| format!("failed to parse input config from {path}"))?;
-    Ok(config)
+impl CliArgs {
+    fn input_config(&self) -> InputConfig {
+        let default = InputConfig::default();
+        InputConfig {
+            up: self.input_up.clone().unwrap_or(default.up),
+            down: self.input_down.clone().unwrap_or(default.down),
+            left: self.input_left.clone().unwrap_or(default.left),
+            right: self.input_right.clone().unwrap_or(default.right),
+            a: self.input_a.clone().unwrap_or(default.a),
+            b: self.input_b.clone().unwrap_or(default.b),
+            start: self.input_start.clone().unwrap_or(default.start),
+            select: self.input_select.clone().unwrap_or(default.select),
+        }
+    }
+
+    fn hotkey_config(&self) -> HotkeyConfig {
+        let default = HotkeyConfig::default();
+        HotkeyConfig {
+            exit: self.hotkey_exit.clone().or(default.exit),
+            toggle_fullscreen: self
+                .hotkey_toggle_fullscreen
+                .clone()
+                .or(default.toggle_fullscreen),
+            save_state: self.hotkey_save_state.clone().or(default.save_state),
+            load_state: self.hotkey_load_state.clone().or(default.load_state),
+        }
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -82,15 +122,8 @@ fn main() -> anyhow::Result<()> {
 
     let args = CliArgs::parse();
 
-    let input_config = match args.input_config_path {
-        Some(input_config_path) => parse_config(&input_config_path)?,
-        None => InputConfig::default(),
-    };
-
-    let hotkey_config = match args.hotkey_config_path {
-        Some(hotkey_config_path) => parse_config(&hotkey_config_path)?,
-        None => HotkeyConfig::default(),
-    };
+    let input_config = args.input_config();
+    let hotkey_config = args.hotkey_config();
 
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
