@@ -1,29 +1,30 @@
 use sdl2::keyboard::Keycode;
+use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InputConfig {
-    pub up_keycode: String,
-    pub down_keycode: String,
-    pub left_keycode: String,
-    pub right_keycode: String,
-    pub a_keycode: String,
-    pub b_keycode: String,
-    pub start_keycode: String,
-    pub select_keycode: String,
+    pub up: String,
+    pub down: String,
+    pub left: String,
+    pub right: String,
+    pub a: String,
+    pub b: String,
+    pub start: String,
+    pub select: String,
 }
 
 impl Default for InputConfig {
     fn default() -> Self {
         Self {
-            up_keycode: Keycode::Up.name(),
-            down_keycode: Keycode::Down.name(),
-            left_keycode: Keycode::Left.name(),
-            right_keycode: Keycode::Right.name(),
-            a_keycode: Keycode::Z.name(),
-            b_keycode: Keycode::X.name(),
-            start_keycode: Keycode::Return.name(),
-            select_keycode: Keycode::RShift.name(),
+            up: Keycode::Up.name(),
+            down: Keycode::Down.name(),
+            left: Keycode::Left.name(),
+            right: Keycode::Right.name(),
+            a: Keycode::Z.name(),
+            b: Keycode::X.name(),
+            start: Keycode::Return.name(),
+            select: Keycode::RShift.name(),
         }
     }
 }
@@ -33,33 +34,26 @@ impl std::fmt::Display for InputConfig {
         write!(
             f,
             "Up={}, Down={}, Left={}, Right={}, A={}, B={}, Start={}, Select={}",
-            self.up_keycode,
-            self.down_keycode,
-            self.left_keycode,
-            self.right_keycode,
-            self.a_keycode,
-            self.b_keycode,
-            self.start_keycode,
-            self.select_keycode
+            self.up, self.down, self.left, self.right, self.a, self.b, self.start, self.select
         )
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HotkeyConfig {
-    pub exit_keycode: Option<String>,
-    pub toggle_fullscreen_keycode: Option<String>,
-    pub save_state_keycode: Option<String>,
-    pub load_state_keycode: Option<String>,
+    pub exit: Option<String>,
+    pub toggle_fullscreen: Option<String>,
+    pub save_state: Option<String>,
+    pub load_state: Option<String>,
 }
 
 impl Default for HotkeyConfig {
     fn default() -> Self {
         Self {
-            exit_keycode: Some(Keycode::Escape.name()),
-            toggle_fullscreen_keycode: Some(Keycode::F9.name()),
-            save_state_keycode: Some(Keycode::F5.name()),
-            load_state_keycode: Some(Keycode::F6.name()),
+            exit: Some(Keycode::Escape.name()),
+            toggle_fullscreen: Some(Keycode::F9.name()),
+            save_state: Some(Keycode::F5.name()),
+            load_state: Some(Keycode::F6.name()),
         }
     }
 }
@@ -69,10 +63,10 @@ impl std::fmt::Display for HotkeyConfig {
         write!(
             f,
             "Exit={}, ToggleFullscreen={}, SaveState={}, LoadState={}",
-            fmt_option(self.exit_keycode.as_ref()),
-            fmt_option(self.toggle_fullscreen_keycode.as_ref()),
-            fmt_option(self.save_state_keycode.as_ref()),
-            fmt_option(self.load_state_keycode.as_ref())
+            fmt_option(self.exit.as_ref()),
+            fmt_option(self.toggle_fullscreen.as_ref()),
+            fmt_option(self.save_state.as_ref()),
+            fmt_option(self.load_state.as_ref())
         )
     }
 }

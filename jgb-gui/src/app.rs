@@ -519,8 +519,8 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
         window_height: app_config.window_height,
         audio_debugging_enabled: false,
         audio_60hz: app_config.audio_60hz_hack_enabled,
-        input_config: app_config.input.to_input_config(),
-        hotkey_config: app_config.hotkeys.to_hotkey_config(),
+        input_config: app_config.input.clone(),
+        hotkey_config: app_config.hotkeys.clone(),
     };
 
     let quit_signal = Arc::new(Mutex::new(false));

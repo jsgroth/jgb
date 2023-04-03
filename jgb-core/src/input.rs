@@ -53,14 +53,14 @@ pub struct KeyMap(HashMap<Keycode, Button>);
 impl KeyMap {
     pub fn from_config(input_config: &InputConfig) -> Result<Self, KeyMapError> {
         let map = build_key_map!(
-            input_config.up_keycode => Button::Up,
-            input_config.down_keycode => Button::Down,
-            input_config.left_keycode => Button::Left,
-            input_config.right_keycode => Button::Right,
-            input_config.a_keycode => Button::A,
-            input_config.b_keycode => Button::B,
-            input_config.start_keycode => Button::Start,
-            input_config.select_keycode => Button::Select,
+            input_config.up => Button::Up,
+            input_config.down => Button::Down,
+            input_config.left => Button::Left,
+            input_config.right => Button::Right,
+            input_config.a => Button::A,
+            input_config.b => Button::B,
+            input_config.start => Button::Start,
+            input_config.select => Button::Select,
         );
 
         Ok(Self(map))
@@ -104,10 +104,10 @@ pub struct HotkeyMap(HashMap<Keycode, Hotkey>);
 impl HotkeyMap {
     pub fn from_config(hotkey_config: &HotkeyConfig) -> Result<Self, KeyMapError> {
         let map = build_hotkey_map!(
-            hotkey_config.exit_keycode => Hotkey::Exit,
-            hotkey_config.toggle_fullscreen_keycode => Hotkey::ToggleFullscreen,
-            hotkey_config.save_state_keycode => Hotkey::SaveState,
-            hotkey_config.load_state_keycode => Hotkey::LoadState,
+            hotkey_config.exit => Hotkey::Exit,
+            hotkey_config.toggle_fullscreen => Hotkey::ToggleFullscreen,
+            hotkey_config.save_state => Hotkey::SaveState,
+            hotkey_config.load_state => Hotkey::LoadState,
         );
 
         Ok(Self(map))

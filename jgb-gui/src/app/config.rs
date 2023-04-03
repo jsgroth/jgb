@@ -1,6 +1,5 @@
 use anyhow::Context;
 use jgb_core::{HotkeyConfig, InputConfig};
-use sdl2::keyboard::Keycode;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -14,78 +13,6 @@ pub enum FullscreenMode {
 impl Default for FullscreenMode {
     fn default() -> Self {
         Self::Borderless
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AppInputConfig {
-    pub up: String,
-    pub down: String,
-    pub left: String,
-    pub right: String,
-    pub a: String,
-    pub b: String,
-    pub start: String,
-    pub select: String,
-}
-
-impl AppInputConfig {
-    pub fn to_input_config(&self) -> InputConfig {
-        InputConfig {
-            up_keycode: self.up.clone(),
-            down_keycode: self.down.clone(),
-            left_keycode: self.left.clone(),
-            right_keycode: self.right.clone(),
-            a_keycode: self.a.clone(),
-            b_keycode: self.b.clone(),
-            start_keycode: self.start.clone(),
-            select_keycode: self.select.clone(),
-        }
-    }
-}
-
-impl Default for AppInputConfig {
-    fn default() -> Self {
-        Self {
-            up: Keycode::Up.name(),
-            down: Keycode::Down.name(),
-            left: Keycode::Left.name(),
-            right: Keycode::Right.name(),
-            a: Keycode::Z.name(),
-            b: Keycode::X.name(),
-            start: Keycode::Return.name(),
-            select: Keycode::RShift.name(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AppHotkeyConfig {
-    pub exit: Option<String>,
-    pub toggle_fullscreen: Option<String>,
-    pub save_state: Option<String>,
-    pub load_state: Option<String>,
-}
-
-impl AppHotkeyConfig {
-    pub fn to_hotkey_config(&self) -> HotkeyConfig {
-        HotkeyConfig {
-            exit_keycode: self.exit.clone(),
-            toggle_fullscreen_keycode: self.toggle_fullscreen.clone(),
-            save_state_keycode: self.save_state.clone(),
-            load_state_keycode: self.load_state.clone(),
-        }
-    }
-}
-
-impl Default for AppHotkeyConfig {
-    fn default() -> Self {
-        Self {
-            exit: Some(Keycode::Escape.name()),
-            toggle_fullscreen: Some(Keycode::F9.name()),
-            save_state: Some(Keycode::F5.name()),
-            load_state: Some(Keycode::F6.name()),
-        }
     }
 }
 
@@ -121,10 +48,10 @@ pub struct AppConfig {
     pub rom_search_dir: Option<String>,
 
     #[serde(default)]
-    pub input: AppInputConfig,
+    pub input: InputConfig,
 
     #[serde(default)]
-    pub hotkeys: AppHotkeyConfig,
+    pub hotkeys: HotkeyConfig,
 }
 
 // #[serde(default)] requires a function

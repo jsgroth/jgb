@@ -1,6 +1,6 @@
-use crate::app::config::{AppHotkeyConfig, AppInputConfig};
 use crate::AppConfig;
 use egui::{Grid, Ui};
+use jgb_core::{HotkeyConfig, InputConfig};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -88,11 +88,11 @@ impl<'a> SingleKeyInput<'a> {
 }
 
 pub struct InputSettingsWidget<'a> {
-    input_config: &'a AppInputConfig,
+    input_config: &'a InputConfig,
 }
 
 impl<'a> InputSettingsWidget<'a> {
-    pub fn new(input_config: &'a AppInputConfig) -> Self {
+    pub fn new(input_config: &'a InputConfig) -> Self {
         Self { input_config }
     }
 
@@ -127,11 +127,11 @@ impl<'a> InputSettingsWidget<'a> {
 }
 
 pub struct HotkeySettingsWidget<'a> {
-    hotkey_config: &'a mut AppHotkeyConfig,
+    hotkey_config: &'a mut HotkeyConfig,
 }
 
 impl<'a> HotkeySettingsWidget<'a> {
-    pub fn new(hotkey_config: &'a mut AppHotkeyConfig) -> Self {
+    pub fn new(hotkey_config: &'a mut HotkeyConfig) -> Self {
         Self { hotkey_config }
     }
 
