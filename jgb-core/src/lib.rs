@@ -18,7 +18,7 @@ use thiserror::Error;
 
 use crate::eventloop::RunError;
 use crate::startup::StartupError;
-pub use config::{InputConfig, RunConfig};
+pub use config::{HotkeyConfig, InputConfig, RunConfig};
 
 #[derive(Error, Debug)]
 pub enum EmulationError {

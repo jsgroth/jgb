@@ -1,5 +1,5 @@
 use anyhow::Context;
-use jgb_core::InputConfig;
+use jgb_core::{HotkeyConfig, InputConfig};
 use sdl2::keyboard::Keycode;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -60,6 +60,30 @@ impl Default for AppInputConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppHotkeyConfig {
+    pub exit: Option<String>,
+    pub toggle_fullscreen: Option<String>,
+}
+
+impl AppHotkeyConfig {
+    pub fn to_hotkey_config(&self) -> HotkeyConfig {
+        HotkeyConfig {
+            exit_keycode: self.exit.clone(),
+            toggle_fullscreen_keycode: self.toggle_fullscreen.clone(),
+        }
+    }
+}
+
+impl Default for AppHotkeyConfig {
+    fn default() -> Self {
+        Self {
+            exit: Some(Keycode::Escape.name()),
+            toggle_fullscreen: Some(Keycode::F9.name()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default = "true_fn")]
     pub vsync_enabled: bool,
@@ -92,6 +116,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub input: AppInputConfig,
+
+    #[serde(default)]
+    pub hotkeys: AppHotkeyConfig,
 }
 
 // #[serde(default)] requires a function

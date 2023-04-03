@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
-use jgb_core::{InputConfig, RunConfig};
+use jgb_core::{HotkeyConfig, InputConfig, RunConfig};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -119,6 +119,7 @@ fn main() -> anyhow::Result<()> {
         audio_debugging_enabled: args.audio_debugging_enabled,
         audio_60hz: args.audio_60hz,
         input_config,
+        hotkey_config: HotkeyConfig::default(),
     };
 
     if let Err(err) = jgb_core::run(&run_config, Arc::new(Mutex::new(false))) {

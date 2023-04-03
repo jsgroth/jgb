@@ -1,14 +1,13 @@
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::graphics::GraphicsError;
-use crate::input::{JoypadState, KeyMap, KeyMapError};
+use crate::input::{Hotkey, HotkeyMap, JoypadState, KeyMap, KeyMapError};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
 use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
 use crate::{apu, audio, cpu, graphics, input, ppu, timer, RunConfig};
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::TextureValueError;
 use std::io;
@@ -91,10 +90,7 @@ pub fn run(
     let mut timer_counter = TimerCounter::new();
 
     let key_map = KeyMap::from_config(&run_config.input_config)?;
-
-    let mut return_down = false;
-    let mut lalt_down = false;
-    let mut ralt_down = false;
+    let hotkey_map = HotkeyMap::from_config(&run_config.hotkey_config)?;
 
     let mut total_cycles = 0;
     'running: loop {
@@ -162,11 +158,7 @@ pub fn run(
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit { .. }
-                    | Event::KeyDown {
-                        keycode: Some(Keycode::Escape),
-                        ..
-                    } => {
+                    Event::Quit { .. } => {
                         break 'running;
                     }
                     Event::KeyDown {
@@ -175,16 +167,14 @@ pub fn run(
                     } => {
                         joypad_state.key_down(keycode, &key_map);
 
-                        // TODO this code should really go somewhere else
-                        match keycode {
-                            Keycode::Return => return_down = true,
-                            Keycode::LAlt => lalt_down = true,
-                            Keycode::RAlt => ralt_down = true,
-                            _ => {}
-                        }
-
-                        if return_down && (lalt_down || ralt_down) {
-                            graphics::toggle_fullscreen(&mut canvas, run_config)?;
+                        match input::check_for_hotkey(keycode, &hotkey_map) {
+                            Some(Hotkey::Exit) => {
+                                break 'running;
+                            }
+                            Some(Hotkey::ToggleFullscreen) => {
+                                graphics::toggle_fullscreen(&mut canvas, run_config)?;
+                            }
+                            None => {}
                         }
                     }
                     Event::KeyUp {
@@ -192,14 +182,6 @@ pub fn run(
                         ..
                     } => {
                         joypad_state.key_up(keycode, &key_map);
-
-                        // TODO this code should really go somewhere else
-                        match keycode {
-                            Keycode::Return => return_down = false,
-                            Keycode::LAlt => lalt_down = false,
-                            Keycode::RAlt => ralt_down = false,
-                            _ => {}
-                        }
                     }
                     _ => {}
                 }

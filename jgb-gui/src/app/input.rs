@@ -1,4 +1,5 @@
-use crate::app::config::AppInputConfig;
+use crate::app::config::{AppHotkeyConfig, AppInputConfig};
+use crate::AppConfig;
 use egui::{Grid, Ui};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -7,10 +8,10 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-pub type KeyInputThread = JoinHandle<Result<(GbButton, Keycode), anyhow::Error>>;
+pub type KeyInputThread = JoinHandle<Result<(ConfigurableInput, Keycode), anyhow::Error>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GbButton {
+pub enum ConfigurableInput {
     Up,
     Down,
     Left,
@@ -19,9 +20,11 @@ pub enum GbButton {
     B,
     Start,
     Select,
+    HotkeyExit,
+    HotkeyToggleFullscreen,
 }
 
-impl GbButton {
+impl ConfigurableInput {
     fn to_str(self) -> &'static str {
         match self {
             Self::Up => "Up",
@@ -32,32 +35,47 @@ impl GbButton {
             Self::B => "B",
             Self::Start => "Start",
             Self::Select => "Select",
+            Self::HotkeyExit => "Exit",
+            Self::HotkeyToggleFullscreen => "Toggle Fullscreen",
         }
     }
 }
 
-struct SingleKeyInput {
-    button: GbButton,
+struct SingleKeyInput<'a> {
+    input: ConfigurableInput,
     current_keycode: String,
+    field_to_clear: Option<&'a mut Option<String>>,
 }
 
-impl SingleKeyInput {
-    fn new(button: GbButton, current_keycode: String) -> Self {
+impl<'a> SingleKeyInput<'a> {
+    fn new(input: ConfigurableInput, current_keycode: String) -> Self {
         Self {
-            button,
+            input,
             current_keycode,
+            field_to_clear: None,
         }
+    }
+
+    fn add_clear_button(mut self, field_to_clear: &'a mut Option<String>) -> Self {
+        self.field_to_clear = Some(field_to_clear);
+        self
     }
 
     #[must_use]
     fn ui(self, ui: &mut Ui) -> Option<KeyInputThread> {
-        ui.label(format!("{}:", self.button.to_str()));
+        ui.label(format!("{}:", self.input.to_str()));
 
         let thread = if ui.button(self.current_keycode).clicked() {
-            Some(spawn_key_input_thread(self.button))
+            Some(spawn_key_input_thread(self.input))
         } else {
             None
         };
+
+        if let Some(field_to_clear) = self.field_to_clear {
+            if ui.button("Clear").clicked() {
+                *field_to_clear = None;
+            }
+        }
 
         ui.end_row();
 
@@ -65,11 +83,11 @@ impl SingleKeyInput {
     }
 }
 
-pub struct KeyInputWidget<'a> {
+pub struct InputSettingsWidget<'a> {
     input_config: &'a AppInputConfig,
 }
 
-impl<'a> KeyInputWidget<'a> {
+impl<'a> InputSettingsWidget<'a> {
     pub fn new(input_config: &'a AppInputConfig) -> Self {
         Self { input_config }
     }
@@ -78,30 +96,71 @@ impl<'a> KeyInputWidget<'a> {
     pub fn ui(self, ui: &mut Ui) -> Option<KeyInputThread> {
         Grid::new("input_settings_grid")
             .show(ui, |ui| {
-                SingleKeyInput::new(GbButton::Up, self.input_config.up.clone())
-                    .ui(ui)
-                    .or(SingleKeyInput::new(GbButton::Down, self.input_config.down.clone()).ui(ui))
-                    .or(SingleKeyInput::new(GbButton::Left, self.input_config.left.clone()).ui(ui))
-                    .or(
-                        SingleKeyInput::new(GbButton::Right, self.input_config.right.clone())
-                            .ui(ui),
+                [
+                    SingleKeyInput::new(ConfigurableInput::Up, self.input_config.up.clone()).ui(ui),
+                    SingleKeyInput::new(ConfigurableInput::Down, self.input_config.down.clone())
+                        .ui(ui),
+                    SingleKeyInput::new(ConfigurableInput::Left, self.input_config.left.clone())
+                        .ui(ui),
+                    SingleKeyInput::new(ConfigurableInput::Right, self.input_config.right.clone())
+                        .ui(ui),
+                    SingleKeyInput::new(ConfigurableInput::A, self.input_config.a.clone()).ui(ui),
+                    SingleKeyInput::new(ConfigurableInput::B, self.input_config.b.clone()).ui(ui),
+                    SingleKeyInput::new(ConfigurableInput::Start, self.input_config.start.clone())
+                        .ui(ui),
+                    SingleKeyInput::new(
+                        ConfigurableInput::Select,
+                        self.input_config.select.clone(),
                     )
-                    .or(SingleKeyInput::new(GbButton::A, self.input_config.a.clone()).ui(ui))
-                    .or(SingleKeyInput::new(GbButton::B, self.input_config.b.clone()).ui(ui))
-                    .or(
-                        SingleKeyInput::new(GbButton::Start, self.input_config.start.clone())
-                            .ui(ui),
-                    )
-                    .or(
-                        SingleKeyInput::new(GbButton::Select, self.input_config.select.clone())
-                            .ui(ui),
-                    )
+                    .ui(ui),
+                ]
+                .into_iter()
+                .reduce(|a, b| a.or(b))
+                .unwrap_or(None)
             })
             .inner
     }
 }
 
-pub fn handle_key_input_thread_result(thread: KeyInputThread, input_config: &mut AppInputConfig) {
+pub struct HotkeySettingsWidget<'a> {
+    hotkey_config: &'a mut AppHotkeyConfig,
+}
+
+impl<'a> HotkeySettingsWidget<'a> {
+    pub fn new(hotkey_config: &'a mut AppHotkeyConfig) -> Self {
+        Self { hotkey_config }
+    }
+
+    #[must_use]
+    pub fn ui(self, ui: &mut Ui) -> Option<KeyInputThread> {
+        Grid::new("hotkey_settings_grid")
+            .show(ui, |ui| {
+                [
+                    SingleKeyInput::new(
+                        ConfigurableInput::HotkeyExit,
+                        self.hotkey_config.exit.clone().unwrap_or("<None>".into()),
+                    )
+                    .add_clear_button(&mut self.hotkey_config.exit)
+                    .ui(ui),
+                    SingleKeyInput::new(
+                        ConfigurableInput::HotkeyToggleFullscreen,
+                        self.hotkey_config
+                            .toggle_fullscreen
+                            .clone()
+                            .unwrap_or("<None>".into()),
+                    )
+                    .add_clear_button(&mut self.hotkey_config.toggle_fullscreen)
+                    .ui(ui),
+                ]
+                .into_iter()
+                .reduce(|a, b| a.or(b))
+                .unwrap_or(None)
+            })
+            .inner
+    }
+}
+
+pub fn handle_key_input_thread_result(thread: KeyInputThread, config: &mut AppConfig) {
     let (button, keycode) = match thread.join().unwrap() {
         Ok((button, keycode)) => (button, keycode),
         Err(err) => {
@@ -110,21 +169,43 @@ pub fn handle_key_input_thread_result(thread: KeyInputThread, input_config: &mut
         }
     };
 
-    let config_field = match button {
-        GbButton::Up => &mut input_config.up,
-        GbButton::Down => &mut input_config.down,
-        GbButton::Left => &mut input_config.left,
-        GbButton::Right => &mut input_config.right,
-        GbButton::A => &mut input_config.a,
-        GbButton::B => &mut input_config.b,
-        GbButton::Start => &mut input_config.start,
-        GbButton::Select => &mut input_config.select,
-    };
-    *config_field = keycode.name();
+    let name = keycode.name();
+    match button {
+        ConfigurableInput::Up => {
+            config.input.up = name;
+        }
+        ConfigurableInput::Down => {
+            config.input.down = name;
+        }
+        ConfigurableInput::Left => {
+            config.input.left = name;
+        }
+        ConfigurableInput::Right => {
+            config.input.right = name;
+        }
+        ConfigurableInput::A => {
+            config.input.a = name;
+        }
+        ConfigurableInput::B => {
+            config.input.b = name;
+        }
+        ConfigurableInput::Start => {
+            config.input.start = name;
+        }
+        ConfigurableInput::Select => {
+            config.input.select = name;
+        }
+        ConfigurableInput::HotkeyExit => {
+            config.hotkeys.exit = Some(name);
+        }
+        ConfigurableInput::HotkeyToggleFullscreen => {
+            config.hotkeys.toggle_fullscreen = Some(name);
+        }
+    }
 }
 
 #[must_use]
-fn spawn_key_input_thread(button: GbButton) -> KeyInputThread {
+fn spawn_key_input_thread(button: ConfigurableInput) -> KeyInputThread {
     thread::spawn(move || {
         let sdl = sdl2::init().map_err(anyhow::Error::msg)?;
         let video = sdl.video().map_err(anyhow::Error::msg)?;

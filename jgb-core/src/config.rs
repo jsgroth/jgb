@@ -46,6 +46,39 @@ impl std::fmt::Display for InputConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct HotkeyConfig {
+    pub exit_keycode: Option<String>,
+    pub toggle_fullscreen_keycode: Option<String>,
+}
+
+impl Default for HotkeyConfig {
+    fn default() -> Self {
+        Self {
+            exit_keycode: Some(Keycode::Escape.name()),
+            toggle_fullscreen_keycode: Some(Keycode::F9.name()),
+        }
+    }
+}
+
+impl std::fmt::Display for HotkeyConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Exit={}, ToggleFullscreen={}",
+            fmt_option(self.exit_keycode.as_ref()),
+            fmt_option(self.toggle_fullscreen_keycode.as_ref())
+        )
+    }
+}
+
+fn fmt_option<T: std::fmt::Display>(option: Option<&T>) -> String {
+    match option {
+        Some(value) => format!("{value}"),
+        None => "<None>".into(),
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct RunConfig {
     pub gb_file_path: String,
     pub audio_enabled: bool,
@@ -59,6 +92,7 @@ pub struct RunConfig {
     pub audio_debugging_enabled: bool,
     pub audio_60hz: bool,
     pub input_config: InputConfig,
+    pub hotkey_config: HotkeyConfig,
 }
 
 impl std::fmt::Display for RunConfig {
@@ -79,6 +113,7 @@ impl std::fmt::Display for RunConfig {
         )?;
         writeln!(f, "audio_60hz: {}", self.audio_60hz)?;
         writeln!(f, "input_config: {}", self.input_config)?;
+        writeln!(f, "hotkey_config: {}", self.hotkey_config)?;
 
         Ok(())
     }

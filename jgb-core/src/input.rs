@@ -1,6 +1,7 @@
 use crate::config::InputConfig;
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::IoRegisters;
+use crate::HotkeyConfig;
 use sdl2::keyboard::Keycode;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -67,6 +68,49 @@ impl KeyMap {
 
     fn map(&self, keycode: Keycode) -> Option<Button> {
         self.0.get(&keycode).copied()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hotkey {
+    Exit,
+    ToggleFullscreen,
+}
+
+#[derive(Debug, Clone)]
+pub struct HotkeyMap(HashMap<Keycode, Hotkey>);
+
+impl HotkeyMap {
+    pub fn from_config(hotkey_config: &HotkeyConfig) -> Result<Self, KeyMapError> {
+        let exit_keycode = match hotkey_config.exit_keycode.as_ref() {
+            Some(exit_keycode) => Some(try_parse_keycode(exit_keycode)?),
+            None => None,
+        };
+        let toggle_fullscreen_keycode = match hotkey_config.toggle_fullscreen_keycode.as_ref() {
+            Some(toggle_fullscreen_keycode) => Some(try_parse_keycode(toggle_fullscreen_keycode)?),
+            None => None,
+        };
+
+        let mut map = HashMap::new();
+        if let Some(exit_keycode) = exit_keycode {
+            if map.insert(exit_keycode, Hotkey::Exit).is_some() {
+                return Err(KeyMapError::DuplicateKeycode {
+                    keycode: exit_keycode.name(),
+                });
+            }
+        }
+        if let Some(toggle_fullscreen_keycode) = toggle_fullscreen_keycode {
+            if map
+                .insert(toggle_fullscreen_keycode, Hotkey::ToggleFullscreen)
+                .is_some()
+            {
+                return Err(KeyMapError::DuplicateKeycode {
+                    keycode: toggle_fullscreen_keycode.name(),
+                });
+            }
+        }
+
+        Ok(Self(map))
     }
 }
 
@@ -162,4 +206,9 @@ pub fn update_joyp_register(joypad_state: &JoypadState, io_registers: &mut IoReg
     if should_flag_interrupt(joyp, new_joyp) {
         io_registers.interrupt_flags().set(InterruptType::Joypad);
     }
+}
+
+#[must_use]
+pub fn check_for_hotkey(key_down: Keycode, hotkey_map: &HotkeyMap) -> Option<Hotkey> {
+    hotkey_map.0.get(&key_down).copied()
 }
