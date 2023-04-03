@@ -1,9 +1,10 @@
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::{IoRegister, IoRegisters, SpriteMode, TileDataRange};
 use crate::memory::{address, AddressSpace};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+pub type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
 pub const SCREEN_WIDTH: u8 = 160;
 pub const SCREEN_HEIGHT: u8 = 144;
@@ -36,7 +37,7 @@ impl Mode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 struct OamSpriteData {
     x_pos: u8,
     y_pos: u8,
@@ -55,13 +56,13 @@ impl SortedOamData {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum SpritePalette {
     ObjPalette0,
     ObjPalette1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct QueuedObjPixel {
     color_id: u8,
     obj_palette: SpritePalette,
@@ -76,7 +77,7 @@ impl QueuedObjPixel {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ScanningOAMStateData {
     scanline: u8,
     dot: u32,
@@ -84,10 +85,10 @@ struct ScanningOAMStateData {
     sprites: Vec<OamSpriteData>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct TileData(u8, u8);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct RenderingScanlineStateData {
     scanline: u8,
     pixel: u8,
@@ -101,7 +102,7 @@ struct RenderingScanlineStateData {
     sprite_pixel_queue: VecDeque<QueuedObjPixel>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum State {
     HBlank {
         scanline: u8,
@@ -160,7 +161,7 @@ const POWER_ON_STATE: State = State::VBlank {
     dot: 0,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OamDmaStatus {
     pub source_high_bits: u16,
     pub current_low_bits: u16,
@@ -194,11 +195,15 @@ impl OamDmaStatus {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PpuState {
     enabled: bool,
     state: State,
     oam_dma_status: Option<OamDmaStatus>,
+    #[serde(
+        serialize_with = "crate::serialize::serialize_2d_array",
+        deserialize_with = "crate::serialize::deserialize_2d_array"
+    )]
     frame_buffer: FrameBuffer,
     last_stat_interrupt_line: bool,
 }

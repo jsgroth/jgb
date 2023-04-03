@@ -1,4 +1,5 @@
 use crate::memory::address;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CpuRegister {
@@ -114,7 +115,7 @@ impl CFlag {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CpuRegisters {
     pub accumulator: u8,
     pub flags: u8,

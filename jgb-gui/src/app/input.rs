@@ -22,6 +22,8 @@ pub enum ConfigurableInput {
     Select,
     HotkeyExit,
     HotkeyToggleFullscreen,
+    HotkeySaveState,
+    HotkeyLoadState,
 }
 
 impl ConfigurableInput {
@@ -37,6 +39,8 @@ impl ConfigurableInput {
             Self::Select => "Select",
             Self::HotkeyExit => "Exit",
             Self::HotkeyToggleFullscreen => "Toggle Fullscreen",
+            Self::HotkeySaveState => "Save State",
+            Self::HotkeyLoadState => "Load State",
         }
     }
 }
@@ -151,6 +155,24 @@ impl<'a> HotkeySettingsWidget<'a> {
                     )
                     .add_clear_button(&mut self.hotkey_config.toggle_fullscreen)
                     .ui(ui),
+                    SingleKeyInput::new(
+                        ConfigurableInput::HotkeySaveState,
+                        self.hotkey_config
+                            .save_state
+                            .clone()
+                            .unwrap_or("<None>".into()),
+                    )
+                    .add_clear_button(&mut self.hotkey_config.save_state)
+                    .ui(ui),
+                    SingleKeyInput::new(
+                        ConfigurableInput::HotkeyLoadState,
+                        self.hotkey_config
+                            .load_state
+                            .clone()
+                            .unwrap_or("<None>".into()),
+                    )
+                    .add_clear_button(&mut self.hotkey_config.load_state)
+                    .ui(ui),
                 ]
                 .into_iter()
                 .reduce(|a, b| a.or(b))
@@ -200,6 +222,12 @@ pub fn handle_key_input_thread_result(thread: KeyInputThread, config: &mut AppCo
         }
         ConfigurableInput::HotkeyToggleFullscreen => {
             config.hotkeys.toggle_fullscreen = Some(name);
+        }
+        ConfigurableInput::HotkeySaveState => {
+            config.hotkeys.save_state = Some(name);
+        }
+        ConfigurableInput::HotkeyLoadState => {
+            config.hotkeys.load_state = Some(name);
         }
     }
 }

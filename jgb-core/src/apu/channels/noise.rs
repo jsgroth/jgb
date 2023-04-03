@@ -1,10 +1,11 @@
 use crate::apu::channels::{Channel, LengthTimer, VolumeControl};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
+use serde::{Deserialize, Serialize};
 
 const CLOCK_CYCLES_PER_M_CYCLE: u64 = crate::apu::CLOCK_CYCLES_PER_M_CYCLE;
 
 // A pseudo-random noise channel (channel 4). Internally uses a linear-feedback shift register.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct NoiseChannel {
     generation_on: bool,
     dac_on: bool,

@@ -11,6 +11,7 @@ use sdl2::audio::AudioDevice;
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
 use sdl2::{AudioSubsystem, EventPump, GameControllerSubsystem, Sdl, VideoSubsystem};
+use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
@@ -53,6 +54,7 @@ impl From<String> for StartupError {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct EmulationState {
     pub address_space: AddressSpace,
     pub cpu_registers: CpuRegisters,

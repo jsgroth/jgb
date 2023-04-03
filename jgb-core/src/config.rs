@@ -49,6 +49,8 @@ impl std::fmt::Display for InputConfig {
 pub struct HotkeyConfig {
     pub exit_keycode: Option<String>,
     pub toggle_fullscreen_keycode: Option<String>,
+    pub save_state_keycode: Option<String>,
+    pub load_state_keycode: Option<String>,
 }
 
 impl Default for HotkeyConfig {
@@ -56,6 +58,8 @@ impl Default for HotkeyConfig {
         Self {
             exit_keycode: Some(Keycode::Escape.name()),
             toggle_fullscreen_keycode: Some(Keycode::F9.name()),
+            save_state_keycode: Some(Keycode::F5.name()),
+            load_state_keycode: Some(Keycode::F6.name()),
         }
     }
 }
@@ -64,9 +68,11 @@ impl std::fmt::Display for HotkeyConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Exit={}, ToggleFullscreen={}",
+            "Exit={}, ToggleFullscreen={}, SaveState={}, LoadState={}",
             fmt_option(self.exit_keycode.as_ref()),
-            fmt_option(self.toggle_fullscreen_keycode.as_ref())
+            fmt_option(self.toggle_fullscreen_keycode.as_ref()),
+            fmt_option(self.save_state_keycode.as_ref()),
+            fmt_option(self.load_state_keycode.as_ref())
         )
     }
 }

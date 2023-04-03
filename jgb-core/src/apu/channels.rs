@@ -6,6 +6,7 @@ use crate::apu;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 pub(crate) use noise::NoiseChannel;
 pub(crate) use pulse::PulseChannel;
+use serde::{Deserialize, Serialize};
 pub(crate) use wave::WaveChannel;
 
 pub(crate) trait Channel {
@@ -24,7 +25,7 @@ pub(crate) trait Channel {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct LengthTimer {
     enabled: bool,
     timer: u16,
@@ -59,14 +60,14 @@ impl LengthTimer {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum SlopeDirection {
     Increasing,
     Decreasing,
 }
 
 // Volume state & envelope
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct VolumeControl {
     volume: u8,
     envelope_direction: SlopeDirection,
@@ -130,7 +131,7 @@ impl VolumeControl {
 }
 
 // A timer with a clock period of {period_multiplier} * (2048 - {frequency})
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct FrequencyTimer {
     frequency: u16,
     timer: u16,

@@ -1,12 +1,13 @@
 use crate::apu::channels;
 use crate::apu::channels::{Channel, FrequencyTimer, LengthTimer, SlopeDirection, VolumeControl};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
+use serde::{Deserialize, Serialize};
 
 const OUTPUT_FREQUENCY: u64 = crate::apu::OUTPUT_FREQUENCY;
 
 // Waveform for square wave channels (12.5% / 25% / 50% / 75%). Each waveform has 8 samples which
 // are each 0 or 1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum DutyCycle {
     OneEighth,
     OneFourth,
@@ -33,7 +34,7 @@ enum SweepResult {
 }
 
 // Square wave channel sweep config & state
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct PulseSweep {
     pace: u8,
     direction: SlopeDirection,
@@ -122,7 +123,7 @@ impl PulseSweep {
 }
 
 // A square wave channel (channels 1 & 2).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PulseChannel {
     generation_on: bool,
     dac_on: bool,

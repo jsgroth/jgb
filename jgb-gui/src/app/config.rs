@@ -63,6 +63,8 @@ impl Default for AppInputConfig {
 pub struct AppHotkeyConfig {
     pub exit: Option<String>,
     pub toggle_fullscreen: Option<String>,
+    pub save_state: Option<String>,
+    pub load_state: Option<String>,
 }
 
 impl AppHotkeyConfig {
@@ -70,6 +72,8 @@ impl AppHotkeyConfig {
         HotkeyConfig {
             exit_keycode: self.exit.clone(),
             toggle_fullscreen_keycode: self.toggle_fullscreen.clone(),
+            save_state_keycode: self.save_state.clone(),
+            load_state_keycode: self.load_state.clone(),
         }
     }
 }
@@ -79,6 +83,8 @@ impl Default for AppHotkeyConfig {
         Self {
             exit: Some(Keycode::Escape.name()),
             toggle_fullscreen: Some(Keycode::F9.name()),
+            save_state: Some(Keycode::F5.name()),
+            load_state: Some(Keycode::F6.name()),
         }
     }
 }

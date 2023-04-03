@@ -4,9 +4,10 @@ use crate::graphics::GraphicsError;
 use crate::input::{Hotkey, HotkeyMap, JoypadState, KeyMap, KeyMapError};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
+use crate::serialize::SaveStateError;
 use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
-use crate::{apu, audio, cpu, graphics, input, ppu, timer, RunConfig};
+use crate::{apu, audio, cpu, graphics, input, ppu, serialize, timer, RunConfig};
 use sdl2::event::Event;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::TextureValueError;
@@ -51,6 +52,11 @@ pub enum RunError {
         #[from]
         source: KeyMapError,
     },
+    #[error("error saving/loading save state: {source}")]
+    SaveState {
+        #[from]
+        source: SaveStateError,
+    },
 }
 
 const CYCLES_PER_FRAME: u64 = 4 * 1024 * 1024 / 60;
@@ -91,6 +97,8 @@ pub fn run(
 
     let key_map = KeyMap::from_config(&run_config.input_config)?;
     let hotkey_map = HotkeyMap::from_config(&run_config.hotkey_config)?;
+
+    let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path)?;
 
     let mut total_cycles = 0;
     'running: loop {
@@ -173,6 +181,40 @@ pub fn run(
                             }
                             Some(Hotkey::ToggleFullscreen) => {
                                 graphics::toggle_fullscreen(&mut canvas, run_config)?;
+                            }
+                            Some(Hotkey::SaveState) => {
+                                let state = EmulationState {
+                                    address_space,
+                                    cpu_registers,
+                                    ppu_state,
+                                    apu_state,
+                                };
+
+                                serialize::save_state(&state, &save_state_path)?;
+
+                                address_space = state.address_space;
+                                cpu_registers = state.cpu_registers;
+                                ppu_state = state.ppu_state;
+                                apu_state = state.apu_state;
+                            }
+                            Some(Hotkey::LoadState) => {
+                                match serialize::load_state(
+                                    &save_state_path,
+                                    apu_state,
+                                    &address_space,
+                                ) {
+                                    Ok(state) => {
+                                        address_space = state.address_space;
+                                        cpu_registers = state.cpu_registers;
+                                        ppu_state = state.ppu_state;
+                                        apu_state = state.apu_state;
+                                    }
+                                    Err((err, old_apu_state)) => {
+                                        log::error!("error loading save state: {err}");
+
+                                        apu_state = *old_apu_state;
+                                    }
+                                }
                             }
                             None => {}
                         }

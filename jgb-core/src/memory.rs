@@ -3,6 +3,7 @@ pub mod ioregisters;
 
 use crate::memory::ioregisters::IoRegisters;
 use crate::ppu::{Mode, PpuState};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
@@ -33,7 +34,7 @@ enum MapperType {
     MBC3,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum Mapper {
     None,
     MBC1 {
@@ -279,6 +280,7 @@ impl Mapper {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct FsRamBattery {
     dirty: bool,
     sav_path: PathBuf,
@@ -330,7 +332,9 @@ fn load_sav_file(sav_file: &PathBuf) -> Result<Option<Vec<u8>>, CartridgeLoadErr
     Ok(ram)
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Cartridge {
+    #[serde(skip)]
     rom: Vec<u8>,
     mapper: Mapper,
     ram: Vec<u8>,
@@ -500,12 +504,29 @@ impl Cartridge {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AddressSpace {
     cartridge: Cartridge,
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
     vram: [u8; 8192],
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
     working_ram: [u8; 8192],
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
     oam: [u8; 160],
     io_registers: IoRegisters,
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
     hram: [u8; 127],
     ie_register: u8,
 }
@@ -688,6 +709,10 @@ impl AddressSpace {
 
     pub fn persist_cartridge_ram(&mut self) -> Result<(), io::Error> {
         self.cartridge.persist_external_ram()
+    }
+
+    pub fn copy_cartridge_rom_from(&mut self, other: &Self) {
+        self.cartridge.rom = other.cartridge.rom.clone();
     }
 }
 

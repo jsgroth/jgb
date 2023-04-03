@@ -3,9 +3,10 @@ mod lcdc;
 use crate::cpu::InterruptType;
 use crate::memory::address;
 pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
+use serde::{Deserialize, Serialize};
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IoRegister {
     JOYP,
     SB,
@@ -249,8 +250,12 @@ fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IoRegisters {
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
     contents: [u8; 0x80],
     dirty_bits: u16,
 }

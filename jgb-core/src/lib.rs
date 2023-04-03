@@ -10,6 +10,7 @@ mod graphics;
 mod input;
 mod memory;
 mod ppu;
+mod serialize;
 mod startup;
 mod timer;
 

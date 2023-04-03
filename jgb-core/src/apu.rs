@@ -3,6 +3,7 @@ mod channels;
 use crate::apu::channels::{Channel, NoiseChannel, PulseChannel, WaveChannel};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -54,6 +55,7 @@ pub trait DebugSink {
     fn collect_samples(&self, samples: &ApuDebugOutput);
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct ApuState {
     enabled: bool,
     last_divider: u8,
@@ -65,7 +67,9 @@ pub struct ApuState {
     channel_4: NoiseChannel,
     hpf_capacitor_l: f64,
     hpf_capacitor_r: f64,
+    #[serde(skip)]
     sample_queue: Arc<Mutex<VecDeque<i16>>>,
+    #[serde(skip)]
     debug_sink: Option<Box<dyn DebugSink>>,
 }
 
@@ -96,6 +100,11 @@ impl ApuState {
 
     pub fn get_sample_queue(&self) -> &Arc<Mutex<VecDeque<i16>>> {
         &self.sample_queue
+    }
+
+    pub fn move_unserializable_fields_from(&mut self, other: Self) {
+        self.sample_queue = other.sample_queue;
+        self.debug_sink = other.debug_sink;
     }
 
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {

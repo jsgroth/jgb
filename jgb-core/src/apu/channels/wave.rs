@@ -1,10 +1,11 @@
 use crate::apu::channels::{Channel, FrequencyTimer, LengthTimer};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
+use serde::{Deserialize, Serialize};
 
 const OUTPUT_FREQUENCY: u64 = crate::apu::OUTPUT_FREQUENCY;
 
 // A custom wave channel (channel 3).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct WaveChannel {
     generation_on: bool,
     dac_on: bool,

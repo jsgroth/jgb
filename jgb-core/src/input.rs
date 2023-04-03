@@ -75,6 +75,27 @@ impl KeyMap {
 pub enum Hotkey {
     Exit,
     ToggleFullscreen,
+    SaveState,
+    LoadState,
+}
+
+macro_rules! build_hotkey_map {
+    ($($config_field:expr => $hotkey:expr),+$(,)?) => {
+        {
+            let mut map = std::collections::HashMap::new();
+
+            $(
+                if let Some(keycode) = $config_field.as_ref() {
+                    let keycode = try_parse_keycode(keycode)?;
+                    if map.insert(keycode, $hotkey).is_some() {
+                        Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() })?;
+                    }
+                }
+            )*
+
+            map
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -82,33 +103,12 @@ pub struct HotkeyMap(HashMap<Keycode, Hotkey>);
 
 impl HotkeyMap {
     pub fn from_config(hotkey_config: &HotkeyConfig) -> Result<Self, KeyMapError> {
-        let exit_keycode = match hotkey_config.exit_keycode.as_ref() {
-            Some(exit_keycode) => Some(try_parse_keycode(exit_keycode)?),
-            None => None,
-        };
-        let toggle_fullscreen_keycode = match hotkey_config.toggle_fullscreen_keycode.as_ref() {
-            Some(toggle_fullscreen_keycode) => Some(try_parse_keycode(toggle_fullscreen_keycode)?),
-            None => None,
-        };
-
-        let mut map = HashMap::new();
-        if let Some(exit_keycode) = exit_keycode {
-            if map.insert(exit_keycode, Hotkey::Exit).is_some() {
-                return Err(KeyMapError::DuplicateKeycode {
-                    keycode: exit_keycode.name(),
-                });
-            }
-        }
-        if let Some(toggle_fullscreen_keycode) = toggle_fullscreen_keycode {
-            if map
-                .insert(toggle_fullscreen_keycode, Hotkey::ToggleFullscreen)
-                .is_some()
-            {
-                return Err(KeyMapError::DuplicateKeycode {
-                    keycode: toggle_fullscreen_keycode.name(),
-                });
-            }
-        }
+        let map = build_hotkey_map!(
+            hotkey_config.exit_keycode => Hotkey::Exit,
+            hotkey_config.toggle_fullscreen_keycode => Hotkey::ToggleFullscreen,
+            hotkey_config.save_state_keycode => Hotkey::SaveState,
+            hotkey_config.load_state_keycode => Hotkey::LoadState,
+        );
 
         Ok(Self(map))
     }
