@@ -39,11 +39,12 @@ fn main() -> eframe::Result<()> {
         AppConfig::default()
     });
 
+    let options = NativeOptions {
+        centered: true,
+        ..NativeOptions::default()
+    };
+
     let app = JgbApp::new(app_config, config_path);
 
-    eframe::run_native(
-        "jgb",
-        NativeOptions::default(),
-        Box::new(|_cc| Box::new(app)),
-    )
+    eframe::run_native("jgb", options, Box::new(|_cc| Box::new(app)))
 }
