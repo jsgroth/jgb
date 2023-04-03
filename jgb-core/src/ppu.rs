@@ -301,6 +301,8 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
 
     let scanline = new_state.scanline();
     let ly_value = if scanline == LAST_VBLANK_SCANLINE && new_state.dot() >= 4 {
+        // The LY=0 period begins at the 5th dot of the final VBlank scanline. Yes, LY=153 only
+        // lasts for 4 dots.
         0
     } else {
         scanline
