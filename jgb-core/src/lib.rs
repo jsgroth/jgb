@@ -13,14 +13,10 @@ mod ppu;
 mod startup;
 mod timer;
 
-use crate::cpu::CpuRegisters;
-use crate::memory::AddressSpace;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-use crate::apu::ApuState;
 use crate::eventloop::RunError;
-use crate::ppu::PpuState;
 use crate::startup::StartupError;
 pub use config::{InputConfig, RunConfig};
 
@@ -38,14 +34,8 @@ pub enum EmulationError {
     },
 }
 
-pub struct EmulationState {
-    address_space: AddressSpace,
-    cpu_registers: CpuRegisters,
-    ppu_state: PpuState,
-    apu_state: ApuState,
-}
-
-/// Initialize the emulator using the given configs and then run until it terminates.
+/// Initialize the emulator using the given configs and then run until it terminates or until
+/// quit_signal is set to true.
 ///
 /// # Errors
 ///

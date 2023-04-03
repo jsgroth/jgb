@@ -6,7 +6,7 @@ use crate::debug::FileApuDebugSink;
 use crate::graphics::GraphicsError;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
-use crate::{audio, graphics, EmulationState};
+use crate::{audio, graphics};
 use sdl2::audio::AudioDevice;
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
@@ -51,6 +51,13 @@ impl From<String> for StartupError {
     fn from(value: String) -> Self {
         Self::GenericSdl { sdl_error: value }
     }
+}
+
+pub struct EmulationState {
+    pub address_space: AddressSpace,
+    pub cpu_registers: CpuRegisters,
+    pub ppu_state: PpuState,
+    pub apu_state: ApuState,
 }
 
 pub struct SdlState {
