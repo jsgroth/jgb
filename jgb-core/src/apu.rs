@@ -218,9 +218,9 @@ impl ApuState {
             sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r, audio_60hz);
         }
 
-        // Map [-1, 1] to [-30000, 30000] and apply L/R volume multipliers
-        let sample_l = (sample_l * 30000.0 * f64::from(l_volume) / 8.0).round() as i16;
-        let sample_r = (sample_r * 30000.0 * f64::from(r_volume) / 8.0).round() as i16;
+        // Map [-1, 1] to [-10000, 10000] and apply L/R volume multipliers
+        let sample_l = (sample_l * 10000.0 * f64::from(l_volume) / 8.0).round() as i16;
+        let sample_r = (sample_r * 10000.0 * f64::from(r_volume) / 8.0).round() as i16;
 
         if let Some(debug_sink) = &self.debug_sink {
             debug_sink.collect_samples(&ApuDebugOutput {
