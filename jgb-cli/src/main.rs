@@ -51,39 +51,51 @@ struct CliArgs {
     #[arg(long = "no-audio-60hz", default_value_t = true, action = clap::ArgAction::SetFalse)]
     audio_60hz: bool,
 
+    /// Up input key (default Up)
     #[arg(long)]
     input_up: Option<String>,
 
+    /// Down input key (default Down)
     #[arg(long)]
     input_down: Option<String>,
 
+    /// Left input key (default Left)
     #[arg(long)]
     input_left: Option<String>,
 
+    /// Right input key (default Right)
     #[arg(long)]
     input_right: Option<String>,
 
+    /// A input key (default Z)
     #[arg(long)]
     input_a: Option<String>,
 
+    /// B input key (default X)
     #[arg(long)]
     input_b: Option<String>,
 
+    /// Start input key (default Return)
     #[arg(long)]
     input_start: Option<String>,
 
+    /// Select input key (default Right Shift)
     #[arg(long)]
     input_select: Option<String>,
 
+    /// Exit hotkey (default Escape)
     #[arg(long)]
     hotkey_exit: Option<String>,
 
+    /// Fullscreen toggle hotkey (default F9)
     #[arg(long)]
     hotkey_toggle_fullscreen: Option<String>,
 
+    /// Save state hotkey (default F5)
     #[arg(long)]
     hotkey_save_state: Option<String>,
 
+    /// Load state hotkey (default F6)
     #[arg(long)]
     hotkey_load_state: Option<String>,
 }
