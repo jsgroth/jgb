@@ -1325,6 +1325,7 @@ dependencies = [
  "jgb-core",
  "log",
  "rfd",
+ "sdl2",
  "serde",
  "toml",
 ]

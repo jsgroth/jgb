@@ -1,4 +1,6 @@
 use anyhow::Context;
+use jgb_core::InputConfig;
+use sdl2::keyboard::Keycode;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -12,6 +14,48 @@ pub enum FullscreenMode {
 impl Default for FullscreenMode {
     fn default() -> Self {
         Self::Borderless
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppInputConfig {
+    pub up: String,
+    pub down: String,
+    pub left: String,
+    pub right: String,
+    pub a: String,
+    pub b: String,
+    pub start: String,
+    pub select: String,
+}
+
+impl AppInputConfig {
+    pub fn to_input_config(&self) -> InputConfig {
+        InputConfig {
+            up_keycode: self.up.clone(),
+            down_keycode: self.down.clone(),
+            left_keycode: self.left.clone(),
+            right_keycode: self.right.clone(),
+            a_keycode: self.a.clone(),
+            b_keycode: self.b.clone(),
+            start_keycode: self.start.clone(),
+            select_keycode: self.select.clone(),
+        }
+    }
+}
+
+impl Default for AppInputConfig {
+    fn default() -> Self {
+        Self {
+            up: Keycode::Up.name(),
+            down: Keycode::Down.name(),
+            left: Keycode::Left.name(),
+            right: Keycode::Right.name(),
+            a: Keycode::Z.name(),
+            b: Keycode::X.name(),
+            start: Keycode::Return.name(),
+            select: Keycode::RShift.name(),
+        }
     }
 }
 
@@ -45,6 +89,9 @@ pub struct AppConfig {
     pub window_height: u32,
 
     pub rom_search_dir: Option<String>,
+
+    #[serde(default)]
+    pub input: AppInputConfig,
 }
 
 // #[serde(default)] requires a function

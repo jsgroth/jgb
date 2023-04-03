@@ -1,4 +1,5 @@
 mod config;
+mod input;
 
 use eframe::epaint::Color32;
 use eframe::Frame;
@@ -7,7 +8,7 @@ use egui::{
     Modifiers, TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
-use jgb_core::{EmulationError, InputConfig, RunConfig};
+use jgb_core::{EmulationError, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -16,7 +17,14 @@ use std::thread::JoinHandle;
 use std::{fs, thread};
 
 use crate::app::config::FullscreenMode;
+use crate::app::input::{KeyInputThread, KeyInputWidget};
 pub use config::AppConfig;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OpenWindow {
+    GeneralSettings,
+    InputSettings,
+}
 
 #[derive(Debug, Clone)]
 struct RomSearchResult {
@@ -28,7 +36,8 @@ struct RomSearchResult {
 #[derive(Debug, Default)]
 struct AppState {
     running_emulator: Option<EmulatorInstance>,
-    settings_open: bool,
+    open_window: Option<OpenWindow>,
+    key_input_thread: Option<KeyInputThread>,
     emulation_error: Option<EmulationError>,
     window_width_text: String,
     window_width_invalid: bool,
@@ -185,7 +194,11 @@ impl JgbApp {
         }
 
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.set_enabled(!self.state.settings_open && self.state.emulation_error.is_none());
+            ui.set_enabled(
+                self.state.open_window.is_none()
+                    && self.state.key_input_thread.is_none()
+                    && self.state.emulation_error.is_none(),
+            );
             menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     let open_button = Button::new("Open GB ROM")
@@ -207,7 +220,12 @@ impl JgbApp {
                 ui.set_enabled(!self.state.is_emulator_running());
                 ui.menu_button("Options", |ui| {
                     if ui.button("General Settings").clicked() {
-                        self.state.settings_open = true;
+                        self.state.open_window = Some(OpenWindow::GeneralSettings);
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Input Settings").clicked() {
+                        self.state.open_window = Some(OpenWindow::InputSettings);
                         ui.close_menu();
                     }
                 });
@@ -215,9 +233,7 @@ impl JgbApp {
         });
     }
 
-    fn render_settings_window(&mut self, ctx: &Context) {
-        // Create a temp bool to pass to open() because we can't modify self.state.settings_open
-        // if it is mutably borrowed by the window
+    fn render_general_settings_window(&mut self, ctx: &Context) {
         let mut settings_open = true;
         Window::new("General Settings")
             .id("general_settings".into())
@@ -312,16 +328,38 @@ impl JgbApp {
 
                 ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                     if ui.button("Close").clicked() {
-                        self.state.settings_open = false;
+                        self.state.open_window = None;
                     }
                 });
             });
-        self.state.settings_open &= settings_open;
+        if !settings_open {
+            self.state.open_window = None;
+        };
+    }
+
+    fn render_input_settings_window(&mut self, ctx: &Context) {
+        let mut settings_open = true;
+        Window::new("Input Settings")
+            .id("input_settings".into())
+            .resizable(false)
+            .open(&mut settings_open)
+            .show(ctx, |ui| {
+                ui.set_enabled(self.state.key_input_thread.is_none());
+
+                if let Some(thread) = KeyInputWidget::new(&self.config.input).ui(ui) {
+                    self.state.key_input_thread = Some(thread);
+                }
+            });
+        if !settings_open {
+            self.state.open_window = None;
+        }
     }
 
     fn render_rom_list(&mut self, ctx: &Context) {
         CentralPanel::default().show(ctx, |ui| {
-            ui.set_enabled(!self.state.settings_open);
+            ui.set_enabled(
+                self.state.open_window.is_none() && self.state.key_input_thread.is_none(),
+            );
 
             if self.state.rom_search_results.is_empty() {
                 ui.with_layout(
@@ -384,14 +422,34 @@ impl eframe::App for JgbApp {
             self.state.emulation_error = thread.join().unwrap().err();
         }
 
+        if self
+            .state
+            .key_input_thread
+            .as_ref()
+            .map(|thread| thread.is_finished())
+            .unwrap_or(false)
+        {
+            let thread = self.state.key_input_thread.take().unwrap();
+
+            input::handle_key_input_thread_result(thread, &mut self.config.input);
+
+            self.state.key_input_thread = None;
+        }
+
         let prev_config = self.config.clone();
 
         self.render_menu(ctx, frame);
 
         self.render_rom_list(ctx);
 
-        if self.state.settings_open {
-            self.render_settings_window(ctx);
+        match self.state.open_window {
+            Some(OpenWindow::GeneralSettings) => {
+                self.render_general_settings_window(ctx);
+            }
+            Some(OpenWindow::InputSettings) => {
+                self.render_input_settings_window(ctx);
+            }
+            None => {}
         }
 
         if self.state.emulation_error.is_some() {
@@ -422,7 +480,6 @@ struct EmulatorInstance {
 fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
     log::info!("Launching emulator instance for file path '{gb_file}'");
 
-    // TODO actually make input configurable
     let run_config = RunConfig {
         gb_file_path: gb_file.into(),
         audio_enabled: app_config.audio_enabled,
@@ -435,7 +492,7 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
         window_height: app_config.window_height,
         audio_debugging_enabled: false,
         audio_60hz: app_config.audio_60hz_hack_enabled,
-        input_config: InputConfig::default(),
+        input_config: app_config.input.to_input_config(),
     };
 
     let quit_signal = Arc::new(Mutex::new(false));
