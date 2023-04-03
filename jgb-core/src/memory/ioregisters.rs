@@ -386,7 +386,7 @@ impl IoRegisters {
             }
             IoRegister::NR52 => {
                 let existing_value = self.contents[relative_addr];
-                // Only bit 7 is CPU-writable
+                // Only bit 7 is CPU-writable and bits 4-6 are unused
                 self.contents[relative_addr] = (existing_value & 0x0F) | (value & 0x80);
             }
             _ => {
