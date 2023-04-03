@@ -130,7 +130,6 @@ pub fn init_sdl_state(
 
     // Disable extremely frequent events that are not used
     event_pump.disable_event(EventType::MouseMotion);
-    event_pump.disable_event(EventType::Window);
 
     let audio_device = if run_config.audio_enabled {
         let audio_device = audio::initialize(&audio, &emulation_state.apu_state)
