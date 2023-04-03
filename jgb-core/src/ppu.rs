@@ -155,9 +155,9 @@ const VBLANK_START: State = State::VBlank {
     dot: 0,
 };
 
-const LY_0_VBLANK_START: State = State::VBlank {
-    scanline: LAST_VBLANK_SCANLINE,
-    dot: 4,
+const POWER_ON_STATE: State = State::VBlank {
+    scanline: SCREEN_HEIGHT + 1,
+    dot: 0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -207,10 +207,7 @@ impl PpuState {
     pub fn new() -> Self {
         Self {
             enabled: true,
-            state: State::VBlank {
-                scanline: SCREEN_HEIGHT + 1,
-                dot: 0,
-            },
+            state: POWER_ON_STATE,
             oam_dma_status: None,
             frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
             last_stat_interrupt_line: false,
@@ -285,7 +282,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         // When PPU is powered on, reset state to the beginning of LY=0 VBlank and clear frame
         // buffer. Set the STAT interrupt line high so that interrupts won't trigger immediately
         // after powering on.
-        ppu_state.state = LY_0_VBLANK_START;
+        ppu_state.state = POWER_ON_STATE;
         ppu_state.last_stat_interrupt_line = true;
         ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
     }
