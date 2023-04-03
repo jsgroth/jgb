@@ -4,7 +4,7 @@ use crate::memory::{address, AddressSpace};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-pub type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
 pub const SCREEN_WIDTH: u8 = 160;
 pub const SCREEN_HEIGHT: u8 = 144;

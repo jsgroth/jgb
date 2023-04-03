@@ -432,20 +432,7 @@ impl Cartridge {
                 source: err,
             })?;
 
-        let file_name = Path::new(file_path)
-            .file_name()
-            .map(|file_name| Path::new(file_name).with_extension("sav"))
-            .ok_or_else(|| CartridgeLoadError::PathError {
-                file_path: file_path.into(),
-            })?;
-
-        let rom_dir =
-            Path::new(file_path)
-                .parent()
-                .ok_or_else(|| CartridgeLoadError::PathError {
-                    file_path: file_path.into(),
-                })?;
-        let sav_file = rom_dir.join(file_name);
+        let sav_file = Path::new(file_path).with_extension("sav");
 
         Self::new(rom, Some(sav_file))
     }

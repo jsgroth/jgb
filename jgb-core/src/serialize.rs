@@ -22,8 +22,6 @@ pub enum SaveStateError {
         #[from]
         source: io::Error,
     },
-    #[error("error determining save state path: {msg}")]
-    FilePath { msg: String },
 }
 
 pub fn serialize_array<S, T, const N: usize>(
@@ -176,18 +174,8 @@ where
     deserializer.deserialize_tuple(M * N, Deserialize2dArrayVisitor::new())
 }
 
-pub fn determine_save_state_path(gb_file_path: &str) -> Result<PathBuf, SaveStateError> {
-    let Some(parent) = Path::new(gb_file_path).parent()
-    else {
-        return Err(SaveStateError::FilePath { msg: format!("unable to determine parent dir of {gb_file_path}") });
-    };
-
-    let Some(file_name_ss_ext) = Path::new(gb_file_path).with_extension("ss0").file_name().and_then(|file_name| file_name.to_str().map(String::from))
-    else {
-        return Err(SaveStateError::FilePath { msg: format!("unable to determine file name of {gb_file_path}") });
-    };
-
-    Ok(parent.join(Path::new(&file_name_ss_ext)))
+pub fn determine_save_state_path(gb_file_path: &str) -> PathBuf {
+    Path::new(gb_file_path).with_extension("ss0")
 }
 
 pub fn save_state<P>(state: &EmulationState, path: P) -> Result<(), SaveStateError>

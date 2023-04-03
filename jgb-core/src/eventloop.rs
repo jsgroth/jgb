@@ -98,7 +98,7 @@ pub fn run(
     let key_map = KeyMap::from_config(&run_config.input_config)?;
     let hotkey_map = HotkeyMap::from_config(&run_config.hotkey_config)?;
 
-    let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path)?;
+    let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
 
     let mut total_cycles = 0;
     'running: loop {
