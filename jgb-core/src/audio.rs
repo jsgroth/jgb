@@ -37,25 +37,20 @@ pub fn push_samples(
     apu_state: &mut ApuState,
     run_config: &RunConfig,
 ) -> Result<(), AudioError> {
-    let sync_to_audio = run_config.sync_to_audio;
-    loop {
-        let queue_size_bytes = device_queue.size();
-        // 2 channels * 2 bytes per sample
-        if queue_size_bytes >= 4 * AUDIO_QUEUE_SIZE {
-            if sync_to_audio {
-                thread::sleep(Duration::from_micros(250));
-                continue;
-            } else {
-                return Ok(());
-            }
+    // AudioQueue::size returns size in bytes, so multiply by 4 (2 channels * 2 bytes per sample)
+    while device_queue.size() >= 4 * AUDIO_QUEUE_SIZE {
+        if !run_config.sync_to_audio {
+            return Ok(());
         }
 
-        let sample_queue = apu_state.get_sample_queue_mut();
-        device_queue
-            .queue_audio(sample_queue)
-            .map_err(|msg| AudioError::Playback { msg })?;
-        sample_queue.clear();
-
-        return Ok(());
+        thread::sleep(Duration::from_micros(250));
     }
+
+    let sample_queue = apu_state.get_sample_queue_mut();
+    device_queue
+        .queue_audio(sample_queue)
+        .map_err(|msg| AudioError::Playback { msg })?;
+    sample_queue.clear();
+
+    Ok(())
 }
