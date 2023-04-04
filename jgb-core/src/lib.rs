@@ -36,7 +36,7 @@ pub enum EmulationError {
 }
 
 /// Initialize the emulator using the given configs and then run until it terminates or until
-/// quit_signal is set to true.
+/// `quit_signal` is set to true.
 ///
 /// # Errors
 ///

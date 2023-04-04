@@ -76,7 +76,7 @@ impl AppState {
 
         let Ok(mut rom_search_results) = fs::read_dir(Path::new(rom_search_dir)).map(|read_dir| {
             read_dir
-                .filter_map(|dir_entry| dir_entry.ok())
+                .filter_map(Result::ok)
                 .filter_map(|dir_entry| {
                     let is_gb_file = dir_entry.path().extension() == Some(OsStr::new("gb"));
                     let Ok(metadata) = dir_entry.metadata() else { return None };
@@ -120,6 +120,7 @@ pub struct JgbApp {
 }
 
 impl JgbApp {
+    #[must_use]
     pub fn new(config: AppConfig, config_path: PathBuf) -> Self {
         let state = AppState::from_config(&config);
         Self {
@@ -164,7 +165,7 @@ impl JgbApp {
             .state
             .emulation_error
             .as_ref()
-            .map(|err| err.to_string())
+            .map(EmulationError::to_string)
         {
             let mut error_open = true;
             Window::new("Error")
@@ -441,8 +442,9 @@ impl eframe::App for JgbApp {
             .state
             .running_emulator
             .as_ref()
-            .map(|running_emulator| running_emulator.thread.is_finished())
-            .unwrap_or(false)
+            .map_or(false, |emulator_instance| {
+                emulator_instance.thread.is_finished()
+            })
         {
             let thread = self.state.running_emulator.take().unwrap().thread;
             self.state.emulation_error = thread.join().unwrap().err();
@@ -452,8 +454,7 @@ impl eframe::App for JgbApp {
             .state
             .key_input_thread
             .as_ref()
-            .map(|thread| thread.is_finished())
-            .unwrap_or(false)
+            .map_or(false, KeyInputThread::is_finished)
         {
             let thread = self.state.key_input_thread.take().unwrap();
 

@@ -25,8 +25,7 @@ fn main() -> eframe::Result<()> {
 
     let config_path = args
         .config_path
-        .map(PathBuf::from)
-        .unwrap_or_else(default_config_path);
+        .map_or_else(default_config_path, PathBuf::from);
 
     log::info!("reading app config from '{}'", config_path.display());
 

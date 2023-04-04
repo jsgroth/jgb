@@ -58,7 +58,7 @@ where
     type Value = [T; N];
 
     fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-        write!(formatter, "an array of size {}", N)
+        write!(formatter, "an array of size {N}")
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -71,8 +71,7 @@ where
             let Some(elem) = seq.next_element()?
             else {
                 return Err(de::Error::custom(format!(
-                    "expected array to have {} elements, only got {}",
-                    N, i
+                    "expected array to have {N} elements, only got {i}",
                 )));
             };
 
@@ -81,8 +80,7 @@ where
 
         if seq.next_element::<T>()?.is_some() {
             return Err(de::Error::custom(format!(
-                "array has more than {} elements",
-                N
+                "array has more than {N} elements",
             )));
         }
 
@@ -134,7 +132,7 @@ where
     type Value = [[T; M]; N];
 
     fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-        write!(formatter, "a 2D array with {} rows and {} cols", N, M)
+        write!(formatter, "a 2D array with {N} rows and {M} cols")
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -147,7 +145,7 @@ where
             for value in row.iter_mut() {
                 let Some(elem) = seq.next_element()?
                 else {
-                    return Err(de::Error::custom(format!("array has fewer than {}*{} elements", M, N)));
+                    return Err(de::Error::custom(format!("array has fewer than {M}*{N} elements")));
                 };
                 *value = elem;
             }
@@ -155,8 +153,7 @@ where
 
         if seq.next_element::<T>()?.is_some() {
             return Err(de::Error::custom(format!(
-                "array has more than {}*{} elements",
-                M, N
+                "array has more than {M}*{N} elements",
             )));
         }
 

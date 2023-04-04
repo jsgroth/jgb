@@ -119,7 +119,7 @@ impl<'a> InputSettingsWidget<'a> {
                     .ui(ui),
                 ]
                 .into_iter()
-                .reduce(|a, b| a.or(b))
+                .reduce(Option::or)
                 .unwrap_or(None)
             })
             .inner
@@ -175,7 +175,7 @@ impl<'a> HotkeySettingsWidget<'a> {
                     .ui(ui),
                 ]
                 .into_iter()
-                .reduce(|a, b| a.or(b))
+                .reduce(Option::or)
                 .unwrap_or(None)
             })
             .inner

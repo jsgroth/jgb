@@ -30,7 +30,7 @@ pub fn initialize(audio_subsystem: &AudioSubsystem) -> Result<AudioQueue<i16>, S
 
 /// Push audio samples to the playback queue if it is not full.
 ///
-/// If it is full and sync_to_audio is enabled, this function will block until it is not full and
+/// If it is full and `sync_to_audio` is enabled, this function will block until it is not full and
 /// then push samples.
 pub fn push_samples(
     device_queue: &AudioQueue<i16>,
