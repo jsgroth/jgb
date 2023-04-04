@@ -4,6 +4,7 @@ use crate::apu::channels::{Channel, NoiseChannel, PulseChannel, WaveChannel};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 // Output sample frequency in Hz
 pub const OUTPUT_FREQUENCY: u64 = 48000;
@@ -66,7 +67,7 @@ pub struct ApuState {
     hpf_capacitor_l: f64,
     hpf_capacitor_r: f64,
     #[serde(skip)]
-    sample_queue: Vec<i16>,
+    sample_queue: VecDeque<i16>,
     #[serde(skip)]
     debug_sink: Option<Box<dyn DebugSink>>,
 }
@@ -84,7 +85,7 @@ impl ApuState {
             channel_4: NoiseChannel::new(),
             hpf_capacitor_l: 0.0,
             hpf_capacitor_r: 0.0,
-            sample_queue: Vec::new(),
+            sample_queue: VecDeque::new(),
             debug_sink: None,
         }
     }
@@ -96,7 +97,7 @@ impl ApuState {
         }
     }
 
-    pub fn get_sample_queue_mut(&mut self) -> &mut Vec<i16> {
+    pub fn get_sample_queue_mut(&mut self) -> &mut VecDeque<i16> {
         &mut self.sample_queue
     }
 
@@ -261,8 +262,8 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
         if should_sample(apu_state, prev_clock, audio_60hz) {
             // Output constant 0s if the APU is disabled
             let sample_queue = &mut apu_state.sample_queue;
-            sample_queue.push(0);
-            sample_queue.push(0);
+            sample_queue.push_back(0);
+            sample_queue.push_back(0);
         }
 
         return;
@@ -295,13 +296,13 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
         );
 
         let sample_queue = &mut apu_state.sample_queue;
-        sample_queue.push(sample_l);
-        sample_queue.push(sample_r);
+        sample_queue.push_back(sample_l);
+        sample_queue.push_back(sample_r);
 
         // Ensure that the sample queue doesn't get too large. This should only ever trip if
         // audio sync is disabled.
         while sample_queue.len() > 8192 {
-            sample_queue.pop();
+            sample_queue.pop_front();
         }
     }
 }

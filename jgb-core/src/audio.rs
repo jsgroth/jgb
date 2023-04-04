@@ -47,10 +47,10 @@ pub fn push_samples(
     }
 
     let sample_queue = apu_state.get_sample_queue_mut();
+    let samples: Vec<_> = sample_queue.drain(..).collect();
     device_queue
-        .queue_audio(sample_queue)
+        .queue_audio(&samples)
         .map_err(|msg| AudioError::Playback { msg })?;
-    sample_queue.clear();
 
     Ok(())
 }
