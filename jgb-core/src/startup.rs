@@ -1,5 +1,4 @@
 use crate::apu::ApuState;
-use crate::audio::ApuCallback;
 use crate::config::RunConfig;
 use crate::cpu::CpuRegisters;
 use crate::debug::FileApuDebugSink;
@@ -7,7 +6,7 @@ use crate::graphics::GraphicsError;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
 use crate::{audio, graphics};
-use sdl2::audio::AudioDevice;
+use sdl2::audio::AudioQueue;
 use sdl2::event::EventType;
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
@@ -67,7 +66,7 @@ pub struct SdlState {
     pub sdl: Sdl,
     pub video: VideoSubsystem,
     pub audio: AudioSubsystem,
-    pub audio_device: Option<AudioDevice<ApuCallback>>,
+    pub audio_playback_queue: Option<AudioQueue<i16>>,
     pub game_controller: GameControllerSubsystem,
     pub canvas: WindowCanvas,
     pub event_pump: EventPump,
@@ -103,10 +102,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
     })
 }
 
-pub fn init_sdl_state(
-    run_config: &RunConfig,
-    emulation_state: &EmulationState,
-) -> Result<SdlState, StartupError> {
+pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
     let audio = sdl.audio()?;
@@ -131,10 +127,10 @@ pub fn init_sdl_state(
     // Disable extremely frequent events that are not used
     event_pump.disable_event(EventType::MouseMotion);
 
-    let audio_device = if run_config.audio_enabled {
-        let audio_device = audio::initialize(&audio, &emulation_state.apu_state)
-            .map_err(|msg| StartupError::SdlAudioInit { msg })?;
-        Some(audio_device)
+    let audio_playback_queue = if run_config.audio_enabled {
+        let audio_playback_queue =
+            audio::initialize(&audio).map_err(|msg| StartupError::SdlAudioInit { msg })?;
+        Some(audio_playback_queue)
     } else {
         None
     };
@@ -143,7 +139,7 @@ pub fn init_sdl_state(
         sdl,
         video,
         audio,
-        audio_device,
+        audio_playback_queue,
         game_controller,
         canvas,
         event_pump,

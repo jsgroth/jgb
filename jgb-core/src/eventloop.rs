@@ -1,3 +1,4 @@
+use crate::audio::AudioError;
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::graphics::GraphicsError;
@@ -36,6 +37,11 @@ pub enum RunError {
     Rendering {
         #[from]
         source: GraphicsError,
+    },
+    #[error("audio playback error: {source}")]
+    AudioPlayback {
+        #[from]
+        source: AudioError,
     },
     #[error("debug setup error: {source}")]
     DebugSetup {
@@ -77,9 +83,10 @@ pub fn run(
         mut apu_state,
     } = emulation_state;
 
-    // Don't need explicit handles to subsystems or audio device because they won't be dropped until
-    // the function returns
+    // Don't need explicit handles to subsystems because they won't be dropped until the function
+    // returns
     let SdlState {
+        audio_playback_queue,
         mut canvas,
         mut event_pump,
         ..
@@ -159,8 +166,8 @@ pub fn run(
                 break;
             }
 
-            if run_config.audio_enabled && run_config.sync_to_audio {
-                audio::sync(&apu_state);
+            if let Some(audio_device_queue) = &audio_playback_queue {
+                audio::push_samples(audio_device_queue, &mut apu_state, run_config)?;
             }
 
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames

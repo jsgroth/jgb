@@ -44,7 +44,7 @@ pub enum EmulationError {
 pub fn run(run_config: &RunConfig, quit_signal: Arc<Mutex<bool>>) -> Result<(), EmulationError> {
     let emulation_state = startup::init_emulation_state(run_config)?;
 
-    let sdl_state = startup::init_sdl_state(run_config, &emulation_state)?;
+    let sdl_state = startup::init_sdl_state(run_config)?;
 
     eventloop::run(emulation_state, sdl_state, run_config, quit_signal)?;
 
