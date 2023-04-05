@@ -10,7 +10,7 @@ use sdl2::audio::AudioQueue;
 use sdl2::event::EventType;
 use sdl2::render::WindowCanvas;
 use sdl2::video::WindowBuildError;
-use sdl2::{AudioSubsystem, EventPump, GameControllerSubsystem, Sdl, VideoSubsystem};
+use sdl2::{AudioSubsystem, EventPump, JoystickSubsystem, Sdl, VideoSubsystem};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::io;
@@ -67,7 +67,7 @@ pub struct SdlState {
     pub video: VideoSubsystem,
     pub audio: AudioSubsystem,
     pub audio_playback_queue: Option<AudioQueue<i16>>,
-    pub game_controller: GameControllerSubsystem,
+    pub joystick_subsystem: JoystickSubsystem,
     pub canvas: WindowCanvas,
     pub event_pump: EventPump,
 }
@@ -106,7 +106,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
     let audio = sdl.audio()?;
-    let game_controller = sdl.game_controller()?;
+    let joystick_subsystem = sdl.joystick()?;
 
     // Hide mouse cursor
     sdl.mouse().show_cursor(false);
@@ -140,7 +140,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
         video,
         audio,
         audio_playback_queue,
-        game_controller,
+        joystick_subsystem,
         canvas,
         event_pump,
     })

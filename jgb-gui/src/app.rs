@@ -8,7 +8,7 @@ use egui::{
     Modifiers, TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
-use jgb_core::{EmulationError, RunConfig};
+use jgb_core::{ControllerConfig, EmulationError, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -522,6 +522,7 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
         audio_60hz: app_config.audio_60hz_hack_enabled,
         input_config: app_config.input.clone(),
         hotkey_config: app_config.hotkeys.clone(),
+        controller_config: ControllerConfig::default(),
     };
 
     let quit_signal = Arc::new(Mutex::new(false));

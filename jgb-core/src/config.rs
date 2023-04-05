@@ -78,6 +78,70 @@ fn fmt_option<T: std::fmt::Display>(option: Option<&T>) -> String {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ControllerInput {
+    Button(u8),
+    AxisNegative(u8),
+    AxisPositive(u8),
+}
+
+impl std::fmt::Display for ControllerInput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Self::Button(button) => write!(f, "Button {button}"),
+            Self::AxisNegative(axis) => write!(f, "Axis {axis} -"),
+            Self::AxisPositive(axis) => write!(f, "Axis {axis} +"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControllerConfig {
+    pub up: Option<ControllerInput>,
+    pub down: Option<ControllerInput>,
+    pub left: Option<ControllerInput>,
+    pub right: Option<ControllerInput>,
+    pub a: Option<ControllerInput>,
+    pub b: Option<ControllerInput>,
+    pub start: Option<ControllerInput>,
+    pub select: Option<ControllerInput>,
+    pub axis_deadzone: u16,
+}
+
+impl Default for ControllerConfig {
+    fn default() -> Self {
+        Self {
+            up: None,
+            down: None,
+            left: None,
+            right: None,
+            a: None,
+            b: None,
+            start: None,
+            select: None,
+            axis_deadzone: 5000,
+        }
+    }
+}
+
+impl std::fmt::Display for ControllerConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Up={}, Down={}, Left={}, Right={}, A={}, B={}, Start={}, Select={}, Deadzone={}",
+            fmt_option(self.up.as_ref()),
+            fmt_option(self.down.as_ref()),
+            fmt_option(self.left.as_ref()),
+            fmt_option(self.right.as_ref()),
+            fmt_option(self.a.as_ref()),
+            fmt_option(self.b.as_ref()),
+            fmt_option(self.start.as_ref()),
+            fmt_option(self.select.as_ref()),
+            self.axis_deadzone
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub gb_file_path: String,
@@ -93,6 +157,7 @@ pub struct RunConfig {
     pub audio_60hz: bool,
     pub input_config: InputConfig,
     pub hotkey_config: HotkeyConfig,
+    pub controller_config: ControllerConfig,
 }
 
 impl std::fmt::Display for RunConfig {
@@ -114,6 +179,7 @@ impl std::fmt::Display for RunConfig {
         writeln!(f, "audio_60hz: {}", self.audio_60hz)?;
         writeln!(f, "input_config: {}", self.input_config)?;
         writeln!(f, "hotkey_config: {}", self.hotkey_config)?;
+        writeln!(f, "controller_config: {}", self.controller_config)?;
 
         Ok(())
     }

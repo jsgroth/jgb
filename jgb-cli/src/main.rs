@@ -1,6 +1,6 @@
 use clap::Parser;
 use env_logger::Env;
-use jgb_core::{HotkeyConfig, InputConfig, RunConfig};
+use jgb_core::{ControllerConfig, HotkeyConfig, InputConfig, RunConfig};
 use std::sync::{Arc, Mutex};
 
 #[derive(Parser)]
@@ -136,6 +136,7 @@ fn main() -> anyhow::Result<()> {
 
     let input_config = args.input_config();
     let hotkey_config = args.hotkey_config();
+    let controller_config = ControllerConfig::default();
 
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
@@ -151,6 +152,7 @@ fn main() -> anyhow::Result<()> {
         audio_60hz: args.audio_60hz,
         input_config,
         hotkey_config,
+        controller_config,
     };
 
     if let Err(err) = jgb_core::run(&run_config, Arc::new(Mutex::new(false))) {

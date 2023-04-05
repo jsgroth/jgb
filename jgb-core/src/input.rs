@@ -1,8 +1,11 @@
-use crate::config::InputConfig;
+use crate::config::{ControllerConfig, ControllerInput, InputConfig};
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::IoRegisters;
 use crate::HotkeyConfig;
+use sdl2::joystick::Joystick;
 use sdl2::keyboard::Keycode;
+use sdl2::{IntegerOrSdlError, JoystickSubsystem};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -26,6 +29,19 @@ pub enum KeyMapError {
     DuplicateKeycode { keycode: String },
 }
 
+#[derive(Debug, Error)]
+pub enum JoystickError {
+    #[error("error opening joystick device: {source}")]
+    DeviceOpen {
+        #[source]
+        source: IntegerOrSdlError,
+    },
+    #[error("controller input used for multiple buttons: {input}")]
+    DuplicateInput { input: ControllerInput },
+    #[error("axis deadzone must be at most {}, was: {deadzone}", i16::MAX)]
+    InvalidDeadzone { deadzone: u16 },
+}
+
 fn try_parse_keycode(s: &str) -> Result<Keycode, KeyMapError> {
     Keycode::from_name(s).ok_or_else(|| KeyMapError::InvalidKeycode { keycode: s.into() })
 }
@@ -33,7 +49,7 @@ fn try_parse_keycode(s: &str) -> Result<Keycode, KeyMapError> {
 macro_rules! build_key_map {
     ($($config_field:expr => $button:expr),+$(,)?) => {
         {
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
 
             $(
                 let keycode = try_parse_keycode(&$config_field)?;
@@ -65,10 +81,6 @@ impl KeyMap {
 
         Ok(Self(map))
     }
-
-    fn map(&self, keycode: Keycode) -> Option<Button> {
-        self.0.get(&keycode).copied()
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,7 +94,7 @@ pub enum Hotkey {
 macro_rules! build_hotkey_map {
     ($($config_field:expr => $hotkey:expr),+$(,)?) => {
         {
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
 
             $(
                 if let Some(keycode) = $config_field.as_ref() {
@@ -114,6 +126,94 @@ impl HotkeyMap {
     }
 }
 
+macro_rules! build_controller_map {
+    ($($config_field:expr => $button:expr),+$(,)?) => {
+        {
+            let mut map = HashMap::new();
+
+            $(
+                if let Some(input) = $config_field {
+                    if map.insert(input, $button).is_some() {
+                        Err(JoystickError::DuplicateInput { input })?;
+                    }
+                }
+            )*
+
+            map
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ControllerMap {
+    map: HashMap<ControllerInput, Button>,
+    axis_deadzone: i16,
+}
+
+impl ControllerMap {
+    pub fn from_config(controller_config: &ControllerConfig) -> Result<Self, JoystickError> {
+        let axis_deadzone: i16 = controller_config.axis_deadzone.try_into().map_err(|_err| {
+            JoystickError::InvalidDeadzone {
+                deadzone: controller_config.axis_deadzone,
+            }
+        })?;
+
+        let map = build_controller_map!(
+            controller_config.up => Button::Up,
+            controller_config.down => Button::Down,
+            controller_config.left => Button::Left,
+            controller_config.right => Button::Right,
+            controller_config.a => Button::A,
+            controller_config.b => Button::B,
+            controller_config.start => Button::Start,
+            controller_config.select => Button::Select,
+        );
+
+        Ok(Self { map, axis_deadzone })
+    }
+}
+
+// This struct exists to keep connected Joystick values alive, as SDL will stop generating joystick
+// events once the corresponding Joystick value is dropped
+pub struct Joysticks<'a> {
+    joystick_subsystem: &'a JoystickSubsystem,
+    joysticks: HashMap<u32, Joystick>,
+}
+
+impl<'a> Joysticks<'a> {
+    pub fn new(joystick_subsystem: &'a JoystickSubsystem) -> Self {
+        Self {
+            joystick_subsystem,
+            joysticks: HashMap::new(),
+        }
+    }
+
+    pub fn device_added(&mut self, which: u32) -> Result<(), JoystickError> {
+        let joystick = self
+            .joystick_subsystem
+            .open(which)
+            .map_err(|source| JoystickError::DeviceOpen { source })?;
+        log::info!(
+            "Controller connected: {} ({})",
+            joystick.name(),
+            joystick.guid()
+        );
+        self.joysticks.insert(which, joystick);
+
+        Ok(())
+    }
+
+    pub fn device_removed(&mut self, which: u32) {
+        if let Some(removed) = self.joysticks.remove(&which) {
+            log::info!(
+                "Controller disconnected: {} ({})",
+                removed.name(),
+                removed.guid()
+            );
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct JoypadState {
     up: bool,
@@ -124,6 +224,7 @@ pub struct JoypadState {
     b: bool,
     start: bool,
     select: bool,
+    last_joystick_axis_values: [i16; 256],
 }
 
 impl JoypadState {
@@ -137,11 +238,13 @@ impl JoypadState {
             b: false,
             start: false,
             select: false,
+            // "Map" from axis index to last value
+            last_joystick_axis_values: [0; 256],
         }
     }
 
-    fn get_field_mut(&mut self, keycode: Keycode, key_map: &KeyMap) -> Option<&mut bool> {
-        match key_map.map(keycode) {
+    fn get_field_mut(&mut self, button: Option<Button>) -> Option<&mut bool> {
+        match button {
             Some(Button::Up) => Some(&mut self.up),
             Some(Button::Down) => Some(&mut self.down),
             Some(Button::Left) => Some(&mut self.left),
@@ -150,22 +253,76 @@ impl JoypadState {
             Some(Button::B) => Some(&mut self.b),
             Some(Button::Start) => Some(&mut self.start),
             Some(Button::Select) => Some(&mut self.select),
-            _ => None,
+            None => None,
         }
     }
 
     pub fn key_down(&mut self, keycode: Keycode, key_map: &KeyMap) {
-        if let Some(field) = self.get_field_mut(keycode, key_map) {
+        if let Some(field) = self.get_field_mut(key_map.0.get(&keycode).copied()) {
             *field = true;
         }
         log::debug!("Key pressed: {keycode}, current state: {self:?}");
     }
 
     pub fn key_up(&mut self, keycode: Keycode, key_map: &KeyMap) {
-        if let Some(field) = self.get_field_mut(keycode, key_map) {
+        if let Some(field) = self.get_field_mut(key_map.0.get(&keycode).copied()) {
             *field = false;
         }
         log::debug!("Key released: {keycode}, current state: {self:?}");
+    }
+
+    pub fn joy_button_down(&mut self, button: u8, controller_map: &ControllerMap) {
+        let input = ControllerInput::Button(button);
+        if let Some(field) = self.get_field_mut(controller_map.map.get(&input).copied()) {
+            *field = true;
+        }
+        log::debug!("Joy button pressed: {button}, current state: {self:?}");
+    }
+
+    pub fn joy_button_up(&mut self, button: u8, controller_map: &ControllerMap) {
+        let input = ControllerInput::Button(button);
+        if let Some(field) = self.get_field_mut(controller_map.map.get(&input).copied()) {
+            *field = false;
+        }
+        log::debug!("Joy button released: {button}, current state: {self:?}");
+    }
+
+    pub fn joy_axis_motion(&mut self, axis: u8, value: i16, controller_map: &ControllerMap) {
+        // Apply deadzone, use saturating_abs so as not to leave i16::MIN as a negative number
+        let value = if value.saturating_abs() < controller_map.axis_deadzone {
+            0
+        } else {
+            value
+        };
+
+        // Don't bother checking anything if the value hasn't changed; JoyAxisMotion events are
+        // very frequent on any controller with analog sticks
+        if value == self.last_joystick_axis_values[axis as usize] {
+            return;
+        }
+        self.last_joystick_axis_values[axis as usize] = value;
+
+        let (pos_state, neg_state) = match value.cmp(&0) {
+            Ordering::Greater => (true, false),
+            Ordering::Less => (false, true),
+            Ordering::Equal => (false, false),
+        };
+
+        let pos_button = controller_map
+            .map
+            .get(&ControllerInput::AxisPositive(axis))
+            .copied();
+        let neg_button = controller_map
+            .map
+            .get(&ControllerInput::AxisNegative(axis))
+            .copied();
+        if let Some(field) = self.get_field_mut(pos_button) {
+            *field = pos_state;
+        }
+        if let Some(field) = self.get_field_mut(neg_button) {
+            *field = neg_state;
+        }
+        log::debug!("Joy axis motion: axis={axis}, value={value}, current state: {self:?}");
     }
 }
 

@@ -2,7 +2,9 @@ use crate::audio::AudioError;
 use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::graphics::GraphicsError;
-use crate::input::{Hotkey, HotkeyMap, JoypadState, KeyMap, KeyMapError};
+use crate::input::{
+    ControllerMap, Hotkey, HotkeyMap, JoypadState, JoystickError, Joysticks, KeyMap, KeyMapError,
+};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::Mode;
 use crate::serialize::SaveStateError;
@@ -63,6 +65,11 @@ pub enum RunError {
         #[from]
         source: SaveStateError,
     },
+    #[error("error opening controller device: {source}")]
+    Controller {
+        #[from]
+        source: JoystickError,
+    },
 }
 
 const CYCLES_PER_FRAME: u64 = 4 * 1024 * 1024 / 60;
@@ -87,6 +94,7 @@ pub fn run(
     // returns
     let SdlState {
         audio_playback_queue,
+        joystick_subsystem,
         mut canvas,
         mut event_pump,
         ..
@@ -104,6 +112,8 @@ pub fn run(
 
     let key_map = KeyMap::from_config(&run_config.input_config)?;
     let hotkey_map = HotkeyMap::from_config(&run_config.hotkey_config)?;
+    let mut joysticks = Joysticks::new(&joystick_subsystem);
+    let controller_map = ControllerMap::from_config(&run_config.controller_config)?;
 
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
 
@@ -172,7 +182,11 @@ pub fn run(
 
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
-                log::debug!("Received SDL event: {event:?}");
+                if matches!(event, Event::JoyAxisMotion { .. }) {
+                    log::trace!("Received SDL event: {event:?}");
+                } else {
+                    log::debug!("Received SDL event: {event:?}");
+                }
                 match event {
                     Event::Quit { .. } => {
                         break 'running;
@@ -232,6 +246,23 @@ pub fn run(
                         ..
                     } => {
                         joypad_state.key_up(keycode, &key_map);
+                    }
+                    Event::JoyDeviceAdded { which, .. } => {
+                        joysticks.device_added(which)?;
+                    }
+                    Event::JoyDeviceRemoved { which, .. } => {
+                        joysticks.device_removed(which);
+                    }
+                    Event::JoyButtonDown { button_idx, .. } => {
+                        joypad_state.joy_button_down(button_idx, &controller_map);
+                    }
+                    Event::JoyButtonUp { button_idx, .. } => {
+                        joypad_state.joy_button_up(button_idx, &controller_map);
+                    }
+                    Event::JoyAxisMotion {
+                        axis_idx, value, ..
+                    } => {
+                        joypad_state.joy_axis_motion(axis_idx, value, &controller_map);
                     }
                     _ => {}
                 }
