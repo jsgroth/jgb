@@ -8,7 +8,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-pub type KeyInputThread = JoinHandle<Result<(ConfigurableInput, Keycode), anyhow::Error>>;
+pub type KeyInputThread = JoinHandle<anyhow::Result<Option<(ConfigurableInput, Keycode)>>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigurableInput {
@@ -184,7 +184,11 @@ impl<'a> HotkeySettingsWidget<'a> {
 
 pub fn handle_key_input_thread_result(thread: KeyInputThread, config: &mut AppConfig) {
     let (button, keycode) = match thread.join().unwrap() {
-        Ok((button, keycode)) => (button, keycode),
+        Ok(Some((button, keycode))) => (button, keycode),
+        Ok(None) => {
+            // No change
+            return;
+        }
         Err(err) => {
             log::error!("key input thread terminated with error: {err}");
             return;
@@ -240,19 +244,24 @@ fn spawn_key_input_thread(button: ConfigurableInput) -> KeyInputThread {
 
         let window = video.window("Press a key...", 200, 100).build()?;
         let mut canvas = window.into_canvas().build()?;
-        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
         canvas.present();
 
         let mut event_pump = sdl.event_pump().map_err(anyhow::Error::msg)?;
         loop {
             for event in event_pump.poll_iter() {
-                if let Event::KeyDown {
-                    keycode: Some(keycode),
-                    ..
-                } = event
-                {
-                    return Ok((button, keycode));
+                match event {
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        return Ok(Some((button, keycode)));
+                    }
+                    Event::Quit { .. } => {
+                        return Ok(None);
+                    }
+                    _ => {}
                 }
             }
 
