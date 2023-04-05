@@ -1,6 +1,7 @@
 use sdl2::keyboard::Keycode;
 use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InputConfig {
@@ -91,6 +92,36 @@ impl std::fmt::Display for ControllerInput {
             Self::Button(button) => write!(f, "Button {button}"),
             Self::AxisNegative(axis) => write!(f, "Axis {axis} -"),
             Self::AxisPositive(axis) => write!(f, "Axis {axis} +"),
+        }
+    }
+}
+
+impl FromStr for ControllerInput {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        let split: Vec<_> = s.split(' ').collect();
+        match split.as_slice() {
+            ["button", idx] => {
+                let idx: u8 = idx
+                    .parse()
+                    .map_err(|_err| format!("invalid button index: '{idx}'"))?;
+                Ok(Self::Button(idx))
+            }
+            ["axis", idx, "+"] => {
+                let idx: u8 = idx
+                    .parse()
+                    .map_err(|_err| format!("invalid axis index: '{idx}'"))?;
+                Ok(Self::AxisPositive(idx))
+            }
+            ["axis", idx, "-"] => {
+                let idx: u8 = idx
+                    .parse()
+                    .map_err(|_err| format!("invalid axis index: '{idx}'"))?;
+                Ok(Self::AxisNegative(idx))
+            }
+            _ => Err(format!("invalid controller input string: '{s}'")),
         }
     }
 }

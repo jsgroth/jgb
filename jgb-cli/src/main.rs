@@ -1,6 +1,7 @@
+use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
-use jgb_core::{ControllerConfig, HotkeyConfig, InputConfig, RunConfig};
+use jgb_core::{ControllerConfig, ControllerInput, HotkeyConfig, InputConfig, RunConfig};
 use std::sync::{Arc, Mutex};
 
 #[derive(Parser)]
@@ -98,6 +99,42 @@ struct CliArgs {
     /// Load state hotkey (default F6)
     #[arg(long)]
     hotkey_load_state: Option<String>,
+
+    /// Up controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_up: Option<String>,
+
+    /// Down controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_down: Option<String>,
+
+    /// Left controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_left: Option<String>,
+
+    /// Right controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_right: Option<String>,
+
+    /// A controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_a: Option<String>,
+
+    /// B controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_b: Option<String>,
+
+    /// Start controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_start: Option<String>,
+
+    /// Select controller input ("button N" / "axis N +" / "axis N -")
+    #[arg(long)]
+    controller_select: Option<String>,
+
+    /// Controller axis deadzone on a scale of 0 to 32767
+    #[arg(long, default_value_t = 5000)]
+    controller_deadzone: u16,
 }
 
 impl CliArgs {
@@ -127,6 +164,37 @@ impl CliArgs {
             load_state: self.hotkey_load_state.clone().or(default.load_state),
         }
     }
+
+    fn controller_config(&self) -> Result<ControllerConfig, anyhow::Error> {
+        let default = ControllerConfig::default();
+        let config = ControllerConfig {
+            up: parse_controller_input(self.controller_up.as_ref())?.or(default.up),
+            down: parse_controller_input(self.controller_down.as_ref())?.or(default.down),
+            left: parse_controller_input(self.controller_left.as_ref())?.or(default.left),
+            right: parse_controller_input(self.controller_right.as_ref())?.or(default.right),
+            a: parse_controller_input(self.controller_a.as_ref())?.or(default.a),
+            b: parse_controller_input(self.controller_b.as_ref())?.or(default.b),
+            start: parse_controller_input(self.controller_start.as_ref())?.or(default.start),
+            select: parse_controller_input(self.controller_select.as_ref())?.or(default.select),
+            axis_deadzone: self.controller_deadzone,
+        };
+        Ok(config)
+    }
+}
+
+fn parse_controller_input(
+    option: Option<&String>,
+) -> Result<Option<ControllerInput>, anyhow::Error> {
+    let input_option = match option {
+        Some(input_str) => Some(
+            input_str
+                .parse()
+                .map_err(anyhow::Error::msg)
+                .with_context(|| format!("failed to parse controller input: {input_str}"))?,
+        ),
+        None => None,
+    };
+    Ok(input_option)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -136,7 +204,7 @@ fn main() -> anyhow::Result<()> {
 
     let input_config = args.input_config();
     let hotkey_config = args.hotkey_config();
-    let controller_config = ControllerConfig::default();
+    let controller_config = args.controller_config()?;
 
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
