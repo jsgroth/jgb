@@ -1,5 +1,6 @@
 use sdl2::keyboard::Keycode;
-use serde::{Deserialize, Serialize};
+use serde::de::Visitor;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Formatter;
 use std::str::FromStr;
 
@@ -126,7 +127,43 @@ impl FromStr for ControllerInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Serialize for ControllerInput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+struct ControllerInputVisitor;
+
+impl<'de> Visitor<'de> for ControllerInputVisitor {
+    type Value = ControllerInput;
+
+    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+        write!(formatter, "a string representing a ControllerInput")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let input = v.parse().map_err(de::Error::custom)?;
+        Ok(input)
+    }
+}
+
+impl<'de> Deserialize<'de> for ControllerInput {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ControllerInputVisitor)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ControllerConfig {
     pub up: Option<ControllerInput>,
     pub down: Option<ControllerInput>,

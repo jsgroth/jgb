@@ -1,14 +1,27 @@
 use crate::AppConfig;
-use egui::{Grid, Ui};
-use jgb_core::{HotkeyConfig, InputConfig};
+use egui::{Color32, Grid, Ui};
+use jgb_core::{ControllerConfig, ControllerInput, HotkeyConfig, InputConfig};
 use sdl2::event::Event;
+use sdl2::joystick::Joystick;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-pub type KeyInputThread = JoinHandle<anyhow::Result<Option<(ConfigurableInput, Keycode)>>>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InputType {
+    Keyboard,
+    Controller { deadzone: u16 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputPress {
+    Keyboard(Keycode),
+    Controller(ControllerInput),
+}
+
+pub type InputThread = JoinHandle<anyhow::Result<Option<(ConfigurableInput, InputPress)>>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigurableInput {
@@ -45,32 +58,43 @@ impl ConfigurableInput {
     }
 }
 
-struct SingleKeyInput<'a> {
+struct SingleInput<'a, T> {
     input: ConfigurableInput,
-    current_keycode: String,
-    field_to_clear: Option<&'a mut Option<String>>,
+    current_input: Option<T>,
+    input_type: InputType,
+    field_to_clear: Option<&'a mut Option<T>>,
 }
 
-impl<'a> SingleKeyInput<'a> {
-    fn new(input: ConfigurableInput, current_keycode: String) -> Self {
+impl<'a, T: std::fmt::Display> SingleInput<'a, T> {
+    fn new(input: ConfigurableInput, current_input: Option<T>) -> Self {
         Self {
             input,
-            current_keycode,
+            current_input,
+            input_type: InputType::Keyboard,
             field_to_clear: None,
         }
     }
 
-    fn add_clear_button(mut self, field_to_clear: &'a mut Option<String>) -> Self {
+    fn add_clear_button(mut self, field_to_clear: &'a mut Option<T>) -> Self {
         self.field_to_clear = Some(field_to_clear);
         self
     }
 
+    fn take_controller_input(mut self, deadzone: u16) -> Self {
+        self.input_type = InputType::Controller { deadzone };
+        self
+    }
+
     #[must_use]
-    fn ui(self, ui: &mut Ui) -> Option<KeyInputThread> {
+    fn ui(self, ui: &mut Ui) -> Option<InputThread> {
         ui.label(format!("{}:", self.input.to_str()));
 
-        let thread = if ui.button(self.current_keycode).clicked() {
-            Some(spawn_key_input_thread(self.input))
+        let button_text = match self.current_input {
+            Some(current_input) => current_input.to_string(),
+            None => "<None>".into(),
+        };
+        let thread = if ui.button(button_text).clicked() {
+            Some(spawn_input_thread(self.input, self.input_type))
         } else {
             None
         };
@@ -87,34 +111,49 @@ impl<'a> SingleKeyInput<'a> {
     }
 }
 
-pub struct InputSettingsWidget<'a> {
+pub struct KeyboardSettingsWidget<'a> {
     input_config: &'a InputConfig,
 }
 
-impl<'a> InputSettingsWidget<'a> {
+impl<'a> KeyboardSettingsWidget<'a> {
     pub fn new(input_config: &'a InputConfig) -> Self {
         Self { input_config }
     }
 
     #[must_use]
-    pub fn ui(self, ui: &mut Ui) -> Option<KeyInputThread> {
-        Grid::new("input_settings_grid")
+    pub fn ui(self, ui: &mut Ui) -> Option<InputThread> {
+        Grid::new("keyboard_settings_grid")
             .show(ui, |ui| {
                 [
-                    SingleKeyInput::new(ConfigurableInput::Up, self.input_config.up.clone()).ui(ui),
-                    SingleKeyInput::new(ConfigurableInput::Down, self.input_config.down.clone())
+                    SingleInput::new(ConfigurableInput::Up, Some(self.input_config.up.clone()))
                         .ui(ui),
-                    SingleKeyInput::new(ConfigurableInput::Left, self.input_config.left.clone())
+                    SingleInput::new(
+                        ConfigurableInput::Down,
+                        Some(self.input_config.down.clone()),
+                    )
+                    .ui(ui),
+                    SingleInput::new(
+                        ConfigurableInput::Left,
+                        Some(self.input_config.left.clone()),
+                    )
+                    .ui(ui),
+                    SingleInput::new(
+                        ConfigurableInput::Right,
+                        Some(self.input_config.right.clone()),
+                    )
+                    .ui(ui),
+                    SingleInput::new(ConfigurableInput::A, Some(self.input_config.a.clone()))
                         .ui(ui),
-                    SingleKeyInput::new(ConfigurableInput::Right, self.input_config.right.clone())
+                    SingleInput::new(ConfigurableInput::B, Some(self.input_config.b.clone()))
                         .ui(ui),
-                    SingleKeyInput::new(ConfigurableInput::A, self.input_config.a.clone()).ui(ui),
-                    SingleKeyInput::new(ConfigurableInput::B, self.input_config.b.clone()).ui(ui),
-                    SingleKeyInput::new(ConfigurableInput::Start, self.input_config.start.clone())
-                        .ui(ui),
-                    SingleKeyInput::new(
+                    SingleInput::new(
+                        ConfigurableInput::Start,
+                        Some(self.input_config.start.clone()),
+                    )
+                    .ui(ui),
+                    SingleInput::new(
                         ConfigurableInput::Select,
-                        self.input_config.select.clone(),
+                        Some(self.input_config.select.clone()),
                     )
                     .ui(ui),
                 ]
@@ -136,40 +175,31 @@ impl<'a> HotkeySettingsWidget<'a> {
     }
 
     #[must_use]
-    pub fn ui(self, ui: &mut Ui) -> Option<KeyInputThread> {
+    pub fn ui(self, ui: &mut Ui) -> Option<InputThread> {
         Grid::new("hotkey_settings_grid")
             .show(ui, |ui| {
                 [
-                    SingleKeyInput::new(
+                    SingleInput::new(
                         ConfigurableInput::HotkeyExit,
-                        self.hotkey_config.exit.clone().unwrap_or("<None>".into()),
+                        self.hotkey_config.exit.clone(),
                     )
                     .add_clear_button(&mut self.hotkey_config.exit)
                     .ui(ui),
-                    SingleKeyInput::new(
+                    SingleInput::new(
                         ConfigurableInput::HotkeyToggleFullscreen,
-                        self.hotkey_config
-                            .toggle_fullscreen
-                            .clone()
-                            .unwrap_or("<None>".into()),
+                        self.hotkey_config.toggle_fullscreen.clone(),
                     )
                     .add_clear_button(&mut self.hotkey_config.toggle_fullscreen)
                     .ui(ui),
-                    SingleKeyInput::new(
+                    SingleInput::new(
                         ConfigurableInput::HotkeySaveState,
-                        self.hotkey_config
-                            .save_state
-                            .clone()
-                            .unwrap_or("<None>".into()),
+                        self.hotkey_config.save_state.clone(),
                     )
                     .add_clear_button(&mut self.hotkey_config.save_state)
                     .ui(ui),
-                    SingleKeyInput::new(
+                    SingleInput::new(
                         ConfigurableInput::HotkeyLoadState,
-                        self.hotkey_config
-                            .load_state
-                            .clone()
-                            .unwrap_or("<None>".into()),
+                        self.hotkey_config.load_state.clone(),
                     )
                     .add_clear_button(&mut self.hotkey_config.load_state)
                     .ui(ui),
@@ -182,9 +212,94 @@ impl<'a> HotkeySettingsWidget<'a> {
     }
 }
 
-pub fn handle_key_input_thread_result(thread: KeyInputThread, config: &mut AppConfig) {
-    let (button, keycode) = match thread.join().unwrap() {
-        Ok(Some((button, keycode))) => (button, keycode),
+pub struct ControllerSettingsWidget<'a> {
+    controller_config: &'a mut ControllerConfig,
+    deadzone_text: &'a mut String,
+}
+
+impl<'a> ControllerSettingsWidget<'a> {
+    pub fn new(controller_config: &'a mut ControllerConfig, deadzone_text: &'a mut String) -> Self {
+        Self {
+            controller_config,
+            deadzone_text,
+        }
+    }
+
+    #[must_use]
+    pub fn ui(self, ui: &mut Ui) -> Option<InputThread> {
+        let deadzone = self.controller_config.axis_deadzone;
+        let thread = Grid::new("controller_settings_grid")
+            .show(ui, |ui| {
+                [
+                    SingleInput::new(ConfigurableInput::Up, self.controller_config.up)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.up)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::Down, self.controller_config.down)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.down)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::Left, self.controller_config.left)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.left)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::Right, self.controller_config.right)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.right)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::A, self.controller_config.a)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.a)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::B, self.controller_config.b)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.b)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::Start, self.controller_config.start)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.start)
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::Select, self.controller_config.select)
+                        .take_controller_input(deadzone)
+                        .add_clear_button(&mut self.controller_config.select)
+                        .ui(ui),
+                ]
+                .into_iter()
+                .reduce(Option::or)
+                .unwrap_or(None)
+            })
+            .inner;
+
+        let deadzone_invalid = ui
+            .horizontal(|ui| {
+                ui.label("Axis deadzone:");
+                if !ui.text_edit_singleline(self.deadzone_text).has_focus() {
+                    match self.deadzone_text.parse::<u16>() {
+                        Ok(deadzone @ 0..=32767) => {
+                            self.controller_config.axis_deadzone = deadzone;
+                            false
+                        }
+                        _ => true,
+                    }
+                } else {
+                    false
+                }
+            })
+            .inner;
+        if deadzone_invalid {
+            ui.colored_label(
+                Color32::RED,
+                "Deadzone must be an integer between 0 and 32767",
+            );
+        }
+
+        thread
+    }
+}
+
+pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
+    let (button, input_press) = match thread.join().unwrap() {
+        Ok(Some((button, input_press))) => (button, input_press),
         Ok(None) => {
             // No change
             return;
@@ -195,58 +310,102 @@ pub fn handle_key_input_thread_result(thread: KeyInputThread, config: &mut AppCo
         }
     };
 
-    let name = keycode.name();
-    match button {
-        ConfigurableInput::Up => {
-            config.input.up = name;
+    match input_press {
+        InputPress::Keyboard(keycode) => {
+            let input_str = keycode.name();
+            match button {
+                ConfigurableInput::Up => {
+                    config.input.up = input_str;
+                }
+                ConfigurableInput::Down => {
+                    config.input.down = input_str;
+                }
+                ConfigurableInput::Left => {
+                    config.input.left = input_str;
+                }
+                ConfigurableInput::Right => {
+                    config.input.right = input_str;
+                }
+                ConfigurableInput::A => {
+                    config.input.a = input_str;
+                }
+                ConfigurableInput::B => {
+                    config.input.b = input_str;
+                }
+                ConfigurableInput::Start => {
+                    config.input.start = input_str;
+                }
+                ConfigurableInput::Select => {
+                    config.input.select = input_str;
+                }
+                ConfigurableInput::HotkeyExit => {
+                    config.hotkeys.exit = Some(input_str);
+                }
+                ConfigurableInput::HotkeyToggleFullscreen => {
+                    config.hotkeys.toggle_fullscreen = Some(input_str);
+                }
+                ConfigurableInput::HotkeySaveState => {
+                    config.hotkeys.save_state = Some(input_str);
+                }
+                ConfigurableInput::HotkeyLoadState => {
+                    config.hotkeys.load_state = Some(input_str);
+                }
+            }
         }
-        ConfigurableInput::Down => {
-            config.input.down = name;
-        }
-        ConfigurableInput::Left => {
-            config.input.left = name;
-        }
-        ConfigurableInput::Right => {
-            config.input.right = name;
-        }
-        ConfigurableInput::A => {
-            config.input.a = name;
-        }
-        ConfigurableInput::B => {
-            config.input.b = name;
-        }
-        ConfigurableInput::Start => {
-            config.input.start = name;
-        }
-        ConfigurableInput::Select => {
-            config.input.select = name;
-        }
-        ConfigurableInput::HotkeyExit => {
-            config.hotkeys.exit = Some(name);
-        }
-        ConfigurableInput::HotkeyToggleFullscreen => {
-            config.hotkeys.toggle_fullscreen = Some(name);
-        }
-        ConfigurableInput::HotkeySaveState => {
-            config.hotkeys.save_state = Some(name);
-        }
-        ConfigurableInput::HotkeyLoadState => {
-            config.hotkeys.load_state = Some(name);
-        }
+        InputPress::Controller(controller_input) => match button {
+            ConfigurableInput::Up => {
+                config.controller.up = Some(controller_input);
+            }
+            ConfigurableInput::Down => {
+                config.controller.down = Some(controller_input);
+            }
+            ConfigurableInput::Left => {
+                config.controller.left = Some(controller_input);
+            }
+            ConfigurableInput::Right => {
+                config.controller.right = Some(controller_input);
+            }
+            ConfigurableInput::A => {
+                config.controller.a = Some(controller_input);
+            }
+            ConfigurableInput::B => {
+                config.controller.b = Some(controller_input);
+            }
+            ConfigurableInput::Start => {
+                config.controller.start = Some(controller_input);
+            }
+            ConfigurableInput::Select => {
+                config.controller.select = Some(controller_input);
+            }
+            ConfigurableInput::HotkeyExit
+            | ConfigurableInput::HotkeyToggleFullscreen
+            | ConfigurableInput::HotkeySaveState
+            | ConfigurableInput::HotkeyLoadState => {
+                panic!("should never attempt to set a hotkey to a controller input");
+            }
+        },
     }
 }
 
 #[must_use]
-fn spawn_key_input_thread(button: ConfigurableInput) -> KeyInputThread {
+fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> InputThread {
     thread::spawn(move || {
         let sdl = sdl2::init().map_err(anyhow::Error::msg)?;
         let video = sdl.video().map_err(anyhow::Error::msg)?;
+        let joystick = sdl.joystick().map_err(anyhow::Error::msg)?;
 
-        let window = video.window("Press a key...", 200, 100).build()?;
+        let window_title = match input_type {
+            InputType::Keyboard => "Press a key...",
+            InputType::Controller { .. } => "Press a button...",
+        };
+
+        let window = video.window(window_title, 200, 100).build()?;
         let mut canvas = window.into_canvas().build()?;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
         canvas.present();
+
+        let mut joysticks: Vec<Joystick> = Vec::new();
 
         let mut event_pump = sdl.event_pump().map_err(anyhow::Error::msg)?;
         loop {
@@ -256,7 +415,34 @@ fn spawn_key_input_thread(button: ConfigurableInput) -> KeyInputThread {
                         keycode: Some(keycode),
                         ..
                     } => {
-                        return Ok(Some((button, keycode)));
+                        if input_type == InputType::Keyboard {
+                            return Ok(Some((button, InputPress::Keyboard(keycode))));
+                        }
+                    }
+                    Event::JoyDeviceAdded { which, .. } => {
+                        if matches!(input_type, InputType::Controller { .. }) {
+                            joysticks.push(joystick.open(which)?);
+                        }
+                    }
+                    Event::JoyButtonDown { button_idx, .. } => {
+                        return Ok(Some((
+                            button,
+                            InputPress::Controller(ControllerInput::Button(button_idx)),
+                        )));
+                    }
+                    Event::JoyAxisMotion {
+                        axis_idx, value, ..
+                    } => {
+                        if let InputType::Controller { deadzone } = input_type {
+                            if value.saturating_abs() as u16 >= deadzone {
+                                let input = if value > 0 {
+                                    ControllerInput::AxisPositive(axis_idx)
+                                } else {
+                                    ControllerInput::AxisNegative(axis_idx)
+                                };
+                                return Ok(Some((button, InputPress::Controller(input))));
+                            }
+                        }
                     }
                     Event::Quit { .. } => {
                         return Ok(None);

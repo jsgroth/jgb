@@ -8,7 +8,7 @@ use egui::{
     Modifiers, TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
-use jgb_core::{ControllerConfig, EmulationError, RunConfig};
+use jgb_core::{EmulationError, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -17,13 +17,16 @@ use std::thread::JoinHandle;
 use std::{fs, thread};
 
 use crate::app::config::FullscreenMode;
-use crate::app::input::{HotkeySettingsWidget, InputSettingsWidget, KeyInputThread};
+use crate::app::input::{
+    ControllerSettingsWidget, HotkeySettingsWidget, InputThread, KeyboardSettingsWidget,
+};
 pub use config::AppConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OpenSettingsWindow {
     General,
-    Input,
+    Keyboard,
+    Controller,
     Hotkey,
 }
 
@@ -38,12 +41,13 @@ struct RomSearchResult {
 struct AppState {
     running_emulator: Option<EmulatorInstance>,
     open_settings_window: Option<OpenSettingsWindow>,
-    key_input_thread: Option<KeyInputThread>,
+    input_thread: Option<InputThread>,
     emulation_error: Option<EmulationError>,
     window_width_text: String,
     window_width_invalid: bool,
     window_height_text: String,
     window_height_invalid: bool,
+    deadzone_text: String,
     rom_search_results: Vec<RomSearchResult>,
 }
 
@@ -52,6 +56,7 @@ impl AppState {
         let mut state = Self {
             window_width_text: app_config.window_width.to_string(),
             window_height_text: app_config.window_height.to_string(),
+            deadzone_text: app_config.controller.axis_deadzone.to_string(),
             ..Self::default()
         };
 
@@ -198,7 +203,7 @@ impl JgbApp {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.set_enabled(
                 self.state.open_settings_window.is_none()
-                    && self.state.key_input_thread.is_none()
+                    && self.state.input_thread.is_none()
                     && self.state.emulation_error.is_none(),
             );
             menu::bar(ui, |ui| {
@@ -226,8 +231,13 @@ impl JgbApp {
                         ui.close_menu();
                     }
 
-                    if ui.button("Input Settings").clicked() {
-                        self.state.open_settings_window = Some(OpenSettingsWindow::Input);
+                    if ui.button("Keyboard Settings").clicked() {
+                        self.state.open_settings_window = Some(OpenSettingsWindow::Keyboard);
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Controller Settings").clicked() {
+                        self.state.open_settings_window = Some(OpenSettingsWindow::Controller);
                         ui.close_menu();
                     }
 
@@ -344,17 +354,40 @@ impl JgbApp {
         };
     }
 
-    fn render_input_settings_window(&mut self, ctx: &Context) {
+    fn render_keyboard_settings_window(&mut self, ctx: &Context) {
         let mut settings_open = true;
-        Window::new("Input Settings")
-            .id("input_settings".into())
+        Window::new("Keyboard Settings")
+            .id("keyboard_settings".into())
             .resizable(false)
             .open(&mut settings_open)
             .show(ctx, |ui| {
-                ui.set_enabled(self.state.key_input_thread.is_none());
+                ui.set_enabled(self.state.input_thread.is_none());
 
-                if let Some(thread) = InputSettingsWidget::new(&self.config.input).ui(ui) {
-                    self.state.key_input_thread = Some(thread);
+                if let Some(thread) = KeyboardSettingsWidget::new(&self.config.input).ui(ui) {
+                    self.state.input_thread = Some(thread);
+                }
+            });
+        if !settings_open {
+            self.state.open_settings_window = None;
+        }
+    }
+
+    fn render_controller_settings_window(&mut self, ctx: &Context) {
+        let mut settings_open = true;
+        Window::new("Controller Settings")
+            .id("controller_settings".into())
+            .resizable(false)
+            .open(&mut settings_open)
+            .show(ctx, |ui| {
+                ui.set_enabled(self.state.input_thread.is_none());
+
+                if let Some(thread) = ControllerSettingsWidget::new(
+                    &mut self.config.controller,
+                    &mut self.state.deadzone_text,
+                )
+                .ui(ui)
+                {
+                    self.state.input_thread = Some(thread);
                 }
             });
         if !settings_open {
@@ -369,10 +402,10 @@ impl JgbApp {
             .resizable(false)
             .open(&mut settings_open)
             .show(ctx, |ui| {
-                ui.set_enabled(self.state.key_input_thread.is_none());
+                ui.set_enabled(self.state.input_thread.is_none());
 
                 if let Some(thread) = HotkeySettingsWidget::new(&mut self.config.hotkeys).ui(ui) {
-                    self.state.key_input_thread = Some(thread);
+                    self.state.input_thread = Some(thread);
                 }
             });
         if !settings_open {
@@ -383,7 +416,7 @@ impl JgbApp {
     fn render_rom_list(&mut self, ctx: &Context) {
         CentralPanel::default().show(ctx, |ui| {
             ui.set_enabled(
-                self.state.open_settings_window.is_none() && self.state.key_input_thread.is_none(),
+                self.state.open_settings_window.is_none() && self.state.input_thread.is_none(),
             );
 
             if self.state.rom_search_results.is_empty() {
@@ -452,15 +485,15 @@ impl eframe::App for JgbApp {
 
         if self
             .state
-            .key_input_thread
+            .input_thread
             .as_ref()
-            .map_or(false, KeyInputThread::is_finished)
+            .map_or(false, InputThread::is_finished)
         {
-            let thread = self.state.key_input_thread.take().unwrap();
+            let thread = self.state.input_thread.take().unwrap();
 
-            input::handle_key_input_thread_result(thread, &mut self.config);
+            input::handle_input_thread_result(thread, &mut self.config);
 
-            self.state.key_input_thread = None;
+            self.state.input_thread = None;
         }
 
         self.render_menu(ctx, frame);
@@ -471,8 +504,11 @@ impl eframe::App for JgbApp {
             Some(OpenSettingsWindow::General) => {
                 self.render_general_settings_window(ctx);
             }
-            Some(OpenSettingsWindow::Input) => {
-                self.render_input_settings_window(ctx);
+            Some(OpenSettingsWindow::Keyboard) => {
+                self.render_keyboard_settings_window(ctx);
+            }
+            Some(OpenSettingsWindow::Controller) => {
+                self.render_controller_settings_window(ctx);
             }
             Some(OpenSettingsWindow::Hotkey) => {
                 self.render_hotkey_settings_window(ctx);
@@ -522,7 +558,7 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
         audio_60hz: app_config.audio_60hz_hack_enabled,
         input_config: app_config.input.clone(),
         hotkey_config: app_config.hotkeys.clone(),
-        controller_config: ControllerConfig::default(),
+        controller_config: app_config.controller.clone(),
     };
 
     let quit_signal = Arc::new(Mutex::new(false));

@@ -1,5 +1,5 @@
 use anyhow::Context;
-use jgb_core::{HotkeyConfig, InputConfig};
+use jgb_core::{ControllerConfig, HotkeyConfig, InputConfig};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -52,6 +52,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub hotkeys: HotkeyConfig,
+
+    #[serde(default)]
+    pub controller: ControllerConfig,
 }
 
 // #[serde(default)] requires a function
