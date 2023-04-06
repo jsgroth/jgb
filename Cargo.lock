@@ -1299,7 +1299,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1310,7 +1310,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bincode",
  "log",
@@ -1323,7 +1323,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-gui"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
