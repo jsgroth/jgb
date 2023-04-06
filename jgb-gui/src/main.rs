@@ -20,6 +20,7 @@ fn default_config_path() -> PathBuf {
     cwd.join("jgb-config.toml")
 }
 
+// Returns Ok(None) if more than one display is connected
 fn get_display_resolution() -> Result<Option<Rect>, String> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
@@ -56,10 +57,10 @@ fn main() -> eframe::Result<()> {
         process::exit(1);
     });
 
-    // Manually center window because NativeOptions.centered doesn't appear to work on all platforms
     let initial_window_width = 600;
     let initial_window_height = 500;
 
+    // Manually center window because NativeOptions.centered doesn't appear to work on all platforms
     let initial_window_pos = if let Some(display_resolution) = display_resolution {
         log::info!(
             "Read primary display resolution as {}x{}",
@@ -67,10 +68,8 @@ fn main() -> eframe::Result<()> {
             display_resolution.height(),
         );
 
-        let initial_window_x =
-            display_resolution.x() + (display_resolution.width() - initial_window_width) as i32 / 2;
-        let initial_window_y = display_resolution.y()
-            + (display_resolution.height() - initial_window_height) as i32 / 2;
+        let initial_window_x = (display_resolution.width() - initial_window_width) as i32 / 2;
+        let initial_window_y = (display_resolution.height() - initial_window_height) as i32 / 2;
 
         Some(Pos2::new(initial_window_x as f32, initial_window_y as f32))
     } else {
