@@ -97,7 +97,7 @@ jobs:
 
       - name: Compress binaries
         run: |
-          tar -czvf jgb-linux.tar.gz LICENSE fonts/ -C target/release jgb-cli jgb-gui
+          tar -czvf jgb-linux.tar.gz LICENSE -C target/release jgb-cli jgb-gui
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
@@ -147,7 +147,7 @@ jobs:
       - name: Compress binaries
         run: |
           mv target/x86_64-pc-windows-gnu/release/*.exe ./ && \
-          zip -r jgb-windows.zip LICENSE fonts/ SDL2.dll SDL2_ttf.dll jgb-cli.exe jgb-gui.exe
+          zip -r jgb-windows.zip LICENSE README-SDL.txt SDL2.dll SDL2_ttf.dll jgb-cli.exe jgb-gui.exe
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3

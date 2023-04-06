@@ -5,12 +5,12 @@ use sdl2::event::Event;
 use sdl2::joystick::Joystick;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
+use sdl2::rwops::RWops;
 use sdl2::ttf;
 use sdl2::ttf::{Font, Sdl2TtfContext};
-use std::path::Path;
+use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use std::{env, thread};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InputType {
@@ -390,20 +390,12 @@ pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
     }
 }
 
-fn load_font<P>(
-    ttf_context: &Sdl2TtfContext,
-    working_dir: P,
-) -> Result<Font<'_, 'static>, anyhow::Error>
-where
-    P: AsRef<Path>,
-{
-    let font_path = working_dir
-        .as_ref()
-        .join("fonts")
-        .join("IBMPlexMono-Bold.ttf");
+const FONT_BYTES: &[u8] = include_bytes!("fonts/IBMPlexMono-Bold.ttf");
 
+fn load_font(ttf_context: &Sdl2TtfContext) -> anyhow::Result<Font<'_, 'static>> {
+    let font_bytes_rwops = RWops::from_bytes(FONT_BYTES).map_err(anyhow::Error::msg)?;
     ttf_context
-        .load_font(&font_path, 40)
+        .load_font_from_rwops(font_bytes_rwops, 40)
         .map_err(anyhow::Error::msg)
 }
 
@@ -423,7 +415,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
         let mut canvas = window.into_canvas().build()?;
 
         let ttf_context = ttf::init()?;
-        let font = load_font(&ttf_context, &env::current_dir()?)?;
+        let font = load_font(&ttf_context)?;
         let rendered_text = font.render(window_title).solid(Color::RGB(255, 255, 255))?;
 
         let texture_creator = canvas.texture_creator();
@@ -492,8 +484,6 @@ mod tests {
     #[test]
     fn can_load_font() {
         let ttf_context = ttf::init().unwrap();
-        // Cargo runs tests in the jgb-gui subdirectory so pass in the parent dir
-        let working_dir = env::current_dir().unwrap().parent().unwrap().to_owned();
-        load_font(&ttf_context, &working_dir).expect("loading font should not fail");
+        load_font(&ttf_context).expect("loading font should not fail");
     }
 }
