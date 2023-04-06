@@ -20,10 +20,15 @@ fn default_config_path() -> PathBuf {
     cwd.join("jgb-config.toml")
 }
 
-fn get_display_resolution() -> Result<Rect, String> {
+fn get_display_resolution() -> Result<Option<Rect>, String> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
-    video.display_bounds(0)
+
+    if video.num_video_displays()? > 1 {
+        Ok(None)
+    } else {
+        Ok(Some(video.display_bounds(0)?))
+    }
 }
 
 fn main() -> eframe::Result<()> {
@@ -51,25 +56,34 @@ fn main() -> eframe::Result<()> {
         process::exit(1);
     });
 
-    log::info!(
-        "Read primary display resolution as {}x{}",
-        display_resolution.width(),
-        display_resolution.height()
-    );
-
     // Manually center window because NativeOptions.centered doesn't appear to work on all platforms
     let initial_window_width = 600;
     let initial_window_height = 500;
 
-    let initial_window_x = (display_resolution.width() - initial_window_width) / 2;
-    let initial_window_y = (display_resolution.height() - initial_window_height) / 2;
+    let initial_window_pos = if let Some(display_resolution) = display_resolution {
+        log::info!(
+            "Read primary display resolution as {}x{}",
+            display_resolution.width(),
+            display_resolution.height(),
+        );
+
+        let initial_window_x =
+            display_resolution.x() + (display_resolution.width() - initial_window_width) as i32 / 2;
+        let initial_window_y = display_resolution.y()
+            + (display_resolution.height() - initial_window_height) as i32 / 2;
+
+        Some(Pos2::new(initial_window_x as f32, initial_window_y as f32))
+    } else {
+        log::info!("System has more than 1 display device, not attempting to center window");
+        None
+    };
 
     let options = NativeOptions {
         initial_window_size: Some(Vec2::new(
             initial_window_width as f32,
             initial_window_height as f32,
         )),
-        initial_window_pos: Some(Pos2::new(initial_window_x as f32, initial_window_y as f32)),
+        initial_window_pos,
         ..NativeOptions::default()
     };
 
