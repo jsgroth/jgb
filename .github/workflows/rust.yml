@@ -31,7 +31,7 @@ jobs:
 
     - name: Install libsdl2 and libgtk-3
       run: |
-        sudo apt-get update && sudo apt-get install -y libsdl2-dev libgtk-3-dev
+        sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev libgtk-3-dev
 
     - name: Build
       uses: actions-rs/cargo@v1
@@ -87,7 +87,7 @@ jobs:
 
       - name: Install libsdl2 and libgtk-3
         run: |
-          sudo apt-get update && sudo apt-get install -y libsdl2-dev libgtk-3-dev
+          sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev libgtk-3-dev
 
       - name: Build release
         uses: actions-rs/cargo@v1
@@ -97,7 +97,7 @@ jobs:
 
       - name: Compress binaries
         run: |
-          tar -czvf jgb-linux.tar.gz -C target/release jgb-cli jgb-gui
+          tar -czvf jgb-linux.tar.gz LICENSE fonts/ -C target/release jgb-cli jgb-gui
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
@@ -110,6 +110,7 @@ jobs:
 
     env:
       SDL_VERSION: 2.26.4
+      SDL_TTF_VERSION: 2.20.2
 
     steps:
       - uses: actions/checkout@v3
@@ -131,18 +132,22 @@ jobs:
         run: |
           wget https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VERSION/SDL2-devel-$SDL_VERSION-mingw.tar.gz && \
           wget https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VERSION/SDL2-$SDL_VERSION-win32-x64.zip && \
+          wget https://github.com/libsdl-org/SDL_ttf/releases/download/release-$SDL_TTF_VERSION/SDL2_ttf-devel-$SDL_TTF_VERSION-mingw.tar.gz && \
+          wget https://github.com/libsdl-org/SDL_ttf/releases/download/release-$SDL_TTF_VERSION/SDL2_ttf-$SDL_TTF_VERSION-win32-x64.zip && \
           tar -xzvf SDL2-devel-$SDL_VERSION-mingw.tar.gz && \
-          unzip SDL2-$SDL_VERSION-win32-x64.zip
+          tar -xzvf SDL2_ttf-devel-$SDL_TTF_VERSION-mingw.tar.gz && \
+          unzip SDL2-$SDL_VERSION-win32-x64.zip && \
+          unzip SDL2_ttf-$SDL_TTF_VERSION-win32-x64.zip
 
       - name: Build release
         run: |
-          RUSTFLAGS="-Clink-arg=-ISDL2-$SDL_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2-$SDL_VERSION/x86_64-w64-mingw32/lib" \
+          RUSTFLAGS="-Clink-arg=-ISDL2-$SDL_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2-$SDL_VERSION/x86_64-w64-mingw32/lib -Clink-arg=-ISDL2_ttf-$SDL_TTF_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2_ttf-$SDL_TTF_VERSION/x86_64-w64-mingw32/lib" \
           cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Compress binaries
         run: |
           mv target/x86_64-pc-windows-gnu/release/*.exe ./ && \
-          zip jgb-windows.zip SDL2.dll jgb-cli.exe jgb-gui.exe
+          zip -r jgb-windows.zip LICENSE fonts/ SDL2.dll SDL2_ttf.dll jgb-cli.exe jgb-gui.exe
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3

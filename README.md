@@ -11,16 +11,16 @@ See link for installation instructions.
 
 ### SDL2
 
-This project requires core [SDL2](https://www.libsdl.org/) headers to build.
+This project requires [SDL2](https://www.libsdl.org/) core headers and TTF headers to build.
 
 Linux (Debian-based):
 ```shell
-sudo apt install libsdl2-dev
+sudo apt install libsdl2-dev libsdl2-ttf-dev
 ```
 
 macOS:
 ```shell
-brew install sdl2
+brew install sdl2 sdl2-ttf
 ```
 
 ### GTK3 (Linux GUI only)

@@ -5,6 +5,7 @@ use sdl2::event::Event;
 use sdl2::joystick::Joystick;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
+use sdl2::ttf;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -399,10 +400,21 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
             InputType::Controller { .. } => "Press a button...",
         };
 
-        let window = video.window(window_title, 400, 200).build()?;
+        let window = video.window(window_title, 400, 100).build()?;
         let mut canvas = window.into_canvas().build()?;
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
+
+        let ttf_context = ttf::init()?;
+        let font = ttf_context
+            .load_font("fonts/IBM_Plex_Mono/IBMPlexMono-Bold.ttf", 40)
+            .map_err(anyhow::Error::msg)?;
+        let rendered_text = font.render(window_title).solid(Color::RGB(255, 255, 255))?;
+
+        let texture_creator = canvas.texture_creator();
+        let font_texture = rendered_text.as_texture(&texture_creator)?;
+        canvas
+            .copy(&font_texture, None, None)
+            .map_err(anyhow::Error::msg)?;
+
         canvas.present();
 
         let mut joysticks: Vec<Joystick> = Vec::new();
