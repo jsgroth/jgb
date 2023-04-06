@@ -1,10 +1,11 @@
 use clap::Parser;
 use eframe::NativeOptions;
-use egui::Vec2;
+use egui::{Pos2, Vec2};
 use env_logger::Env;
 use jgb_gui::{AppConfig, JgbApp};
-use std::env;
+use sdl2::rect::Rect;
 use std::path::PathBuf;
+use std::{env, process};
 
 #[derive(Parser)]
 struct GuiArgs {
@@ -17,6 +18,12 @@ struct GuiArgs {
 fn default_config_path() -> PathBuf {
     let cwd = env::current_dir().expect("cannot determine current working directory");
     cwd.join("jgb-config.toml")
+}
+
+fn get_display_resolution() -> Result<Rect, String> {
+    let sdl = sdl2::init()?;
+    let video = sdl.video()?;
+    video.display_bounds(0)
 }
 
 fn main() -> eframe::Result<()> {
@@ -39,8 +46,30 @@ fn main() -> eframe::Result<()> {
         AppConfig::default()
     });
 
+    let display_resolution = get_display_resolution().unwrap_or_else(|err| {
+        log::error!("error retrieving display resolution: {err}");
+        process::exit(1);
+    });
+
+    log::info!(
+        "Read primary display resolution as {}x{}",
+        display_resolution.width(),
+        display_resolution.height()
+    );
+
+    // Manually center window because NativeOptions.centered doesn't appear to work on all platforms
+    let initial_window_width = 600;
+    let initial_window_height = 500;
+
+    let initial_window_x = (display_resolution.width() - initial_window_width) / 2;
+    let initial_window_y = (display_resolution.height() - initial_window_height) / 2;
+
     let options = NativeOptions {
-        initial_window_size: Some(Vec2::new(600.0, 500.0)),
+        initial_window_size: Some(Vec2::new(
+            initial_window_width as f32,
+            initial_window_height as f32,
+        )),
+        initial_window_pos: Some(Pos2::new(initial_window_x as f32, initial_window_y as f32)),
         ..NativeOptions::default()
     };
 
