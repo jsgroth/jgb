@@ -405,7 +405,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
 
         let ttf_context = ttf::init()?;
         let font = ttf_context
-            .load_font("fonts/IBM_Plex_Mono/IBMPlexMono-Bold.ttf", 40)
+            .load_font("fonts/IBMPlexMono-Bold.ttf", 40)
             .map_err(anyhow::Error::msg)?;
         let rendered_text = font.render(window_title).solid(Color::RGB(255, 255, 255))?;
 
