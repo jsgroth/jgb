@@ -1,7 +1,9 @@
 use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
-use jgb_core::{ControllerConfig, ControllerInput, HotkeyConfig, InputConfig, RunConfig};
+use jgb_core::{
+    ColorScheme, ControllerConfig, ControllerInput, HotkeyConfig, InputConfig, RunConfig,
+};
 use std::sync::{Arc, Mutex};
 
 #[derive(Parser)]
@@ -11,7 +13,7 @@ struct CliArgs {
     gb_file_path: String,
 
     /// Enable audio
-    #[arg(short = 'a', long = "audio-enabled", default_value_t = false)]
+    #[arg(short = 'a', long = "audio-enabled", default_value_t)]
     audio_enabled: bool,
 
     /// Disable audio sync; can reduce video choppiness but may cause audio skips
@@ -44,13 +46,16 @@ struct CliArgs {
 
     /// Turn on audio debugging; samples will be written to raw PCM files in the current working
     /// directory (signed 16-bit stereo, 48000Hz)
-    #[arg(long = "audio-debugging-enabled", default_value_t = false)]
+    #[arg(long = "audio-debugging-enabled", default_value_t)]
     audio_debugging_enabled: bool,
 
     /// Disable hack that samples audio at a slightly higher rate than actual hardware; this is more
     /// accurate but can cause video choppiness when audio sync is enabled
     #[arg(long = "no-audio-60hz", default_value_t = true, action = clap::ArgAction::SetFalse)]
     audio_60hz: bool,
+
+    #[arg(long = "color-scheme", default_value_t)]
+    color_scheme: ColorScheme,
 
     /// Up input key (default Up)
     #[arg(long)]
@@ -218,6 +223,7 @@ fn main() -> anyhow::Result<()> {
         window_height: args.window_height,
         audio_debugging_enabled: args.audio_debugging_enabled,
         audio_60hz: args.audio_60hz,
+        color_scheme: args.color_scheme,
         input_config,
         hotkey_config,
         controller_config,

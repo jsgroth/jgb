@@ -1,3 +1,4 @@
+use crate::config::ColorScheme;
 use crate::ppu::PpuState;
 use crate::{ppu, RunConfig};
 use sdl2::pixels::Color;
@@ -20,6 +21,27 @@ pub enum GraphicsError {
     Texture { msg: String },
     #[error("error copying frame texture to renderer: {msg}")]
     CopyToCanvas { msg: String },
+}
+
+// GB colors range from 0-3 with 0 being "white" and 3 being "black"
+
+// 0/0/0 = black and 255/255/255 = white, so linearly map [0,3] to [255,0]
+const GB_COLOR_TO_RGB_BW: [[u8; 3]; 4] =
+    [[255, 255, 255], [170, 170, 170], [85, 85, 85], [0, 0, 0]];
+
+// Render with a lime-green tint that mimics the original Game Boy LCD screen
+const GB_COLOR_TO_RGB_GREEN: [[u8; 3]; 4] = [
+    [0x80, 0xA6, 0x08],
+    [0x5D, 0x7F, 0x07],
+    [0x25, 0x5C, 0x1A],
+    [0x00, 0x32, 0x00],
+];
+
+fn palette_for(color_scheme: ColorScheme) -> [[u8; 3]; 4] {
+    match color_scheme {
+        ColorScheme::BlackAndWhite => GB_COLOR_TO_RGB_BW,
+        ColorScheme::GreenTint => GB_COLOR_TO_RGB_GREEN,
+    }
 }
 
 /// Create an SDL2 renderer from the given SDL2 window, with VSync enabled and with the display area
@@ -45,16 +67,16 @@ pub fn create_renderer(
     }
 
     let mut canvas = canvas_builder.build()?;
-    canvas.set_draw_color(Color::RGB(255, 255, 255));
+
+    // Set initial color based on the color scheme's "white"
+    let [r, g, b] = palette_for(run_config.color_scheme)[0];
+
+    canvas.set_draw_color(Color::RGB(r, g, b));
     canvas.clear();
     canvas.present();
 
     Ok(canvas)
 }
-
-// GB colors range from 0-3 with 0 being white and 3 being black
-// In this pixel format, 0/0/0 = black and 255/255/255 = white, so map [0,3] to [255,0]
-const GB_COLOR_TO_RGB: [u8; 4] = [255, 170, 85, 0];
 
 /// Render the current frame to the SDL2 window, overwriting all previously displayed data.
 ///
@@ -67,15 +89,14 @@ pub fn render_frame(
 ) -> Result<(), GraphicsError> {
     let frame_buffer = ppu_state.frame_buffer();
 
+    let palette = palette_for(run_config.color_scheme);
+
     texture
         .with_lock(None, |pixels, pitch| {
             for (i, scanline) in frame_buffer.iter().enumerate() {
                 for (j, gb_color) in scanline.iter().copied().enumerate() {
-                    let color = GB_COLOR_TO_RGB[gb_color as usize];
-
-                    pixels[i * pitch + 3 * j] = color;
-                    pixels[i * pitch + 3 * j + 1] = color;
-                    pixels[i * pitch + 3 * j + 2] = color;
+                    let start = i * pitch + 3 * j;
+                    pixels[start..start + 3].copy_from_slice(&palette[usize::from(gb_color)]);
                 }
             }
         })

@@ -8,7 +8,7 @@ use egui::{
     Modifiers, TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
-use jgb_core::{EmulationError, RunConfig};
+use jgb_core::{ColorScheme, EmulationError, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -263,8 +263,18 @@ impl JgbApp {
 
                 ui.group(|ui| {
                     ui.label("Fullscreen mode");
-                    ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Exclusive, "Exclusive");
-                    ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Borderless, "Borderless");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Exclusive, "Exclusive");
+                        ui.radio_value(&mut self.config.fullscreen_mode, FullscreenMode::Borderless, "Borderless");
+                    });
+                });
+
+                ui.group(|ui| {
+                    ui.label("Color palette");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::BlackAndWhite, "Black & white");
+                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::GreenTint, "Lime-green tint");
+                    });
                 });
 
                 ui.checkbox(&mut self.config.force_integer_scaling, "Force integer scaling")
@@ -556,6 +566,7 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
         window_height: app_config.window_height,
         audio_debugging_enabled: false,
         audio_60hz: app_config.audio_60hz_hack_enabled,
+        color_scheme: app_config.color_scheme,
         input_config: app_config.input.clone(),
         hotkey_config: app_config.hotkeys.clone(),
         controller_config: app_config.controller.clone(),

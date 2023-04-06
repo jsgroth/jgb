@@ -210,6 +210,39 @@ impl std::fmt::Display for ControllerConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ColorScheme {
+    BlackAndWhite,
+    GreenTint,
+}
+
+impl Default for ColorScheme {
+    fn default() -> Self {
+        Self::BlackAndWhite
+    }
+}
+
+impl std::fmt::Display for ColorScheme {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BlackAndWhite => write!(f, "BlackAndWhite"),
+            Self::GreenTint => write!(f, "GreenTint"),
+        }
+    }
+}
+
+impl FromStr for ColorScheme {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "BlackAndWhite" => Ok(Self::BlackAndWhite),
+            "GreenTint" => Ok(Self::GreenTint),
+            _ => Err(format!("invalid ColorScheme string: '{s}'")),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub gb_file_path: String,
@@ -223,6 +256,7 @@ pub struct RunConfig {
     pub window_height: u32,
     pub audio_debugging_enabled: bool,
     pub audio_60hz: bool,
+    pub color_scheme: ColorScheme,
     pub input_config: InputConfig,
     pub hotkey_config: HotkeyConfig,
     pub controller_config: ControllerConfig,
@@ -245,6 +279,7 @@ impl std::fmt::Display for RunConfig {
             self.audio_debugging_enabled
         )?;
         writeln!(f, "audio_60hz: {}", self.audio_60hz)?;
+        writeln!(f, "color_scheme: {}", self.color_scheme)?;
         writeln!(f, "input_config: {}", self.input_config)?;
         writeln!(f, "hotkey_config: {}", self.hotkey_config)?;
         writeln!(f, "controller_config: {}", self.controller_config)?;
