@@ -38,10 +38,7 @@ fn main() -> eframe::Result<()> {
         AppConfig::default()
     });
 
-    let options = NativeOptions {
-        centered: true,
-        ..NativeOptions::default()
-    };
+    let options = NativeOptions::default();
 
     let app = JgbApp::new(app_config, config_path);
 
