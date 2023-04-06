@@ -399,7 +399,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
             InputType::Controller { .. } => "Press a button...",
         };
 
-        let window = video.window(window_title, 200, 100).build()?;
+        let window = video.window(window_title, 400, 200).build()?;
         let mut canvas = window.into_canvas().build()?;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();

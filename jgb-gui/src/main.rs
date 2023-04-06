@@ -1,5 +1,6 @@
 use clap::Parser;
 use eframe::NativeOptions;
+use egui::Vec2;
 use env_logger::Env;
 use jgb_gui::{AppConfig, JgbApp};
 use std::env;
@@ -38,7 +39,10 @@ fn main() -> eframe::Result<()> {
         AppConfig::default()
     });
 
-    let options = NativeOptions::default();
+    let options = NativeOptions {
+        initial_window_size: Some(Vec2::new(600.0, 500.0)),
+        ..NativeOptions::default()
+    };
 
     let app = JgbApp::new(app_config, config_path);
 
