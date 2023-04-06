@@ -5,10 +5,13 @@ use sdl2::event::Event;
 use sdl2::joystick::Joystick;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
+use sdl2::render::{Texture, TextureCreator};
 use sdl2::ttf;
-use std::thread;
+use sdl2::video::WindowContext;
+use std::path::Path;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use std::{env, thread};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InputType {
@@ -388,6 +391,29 @@ pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
     }
 }
 
+fn create_font_texture<'a, P>(
+    texture_creator: &'a TextureCreator<WindowContext>,
+    working_dir: P,
+    text: &str,
+) -> Result<Texture<'a>, anyhow::Error>
+where
+    P: AsRef<Path>,
+{
+    let ttf_context = ttf::init()?;
+
+    let font_path = working_dir
+        .as_ref()
+        .join("fonts")
+        .join("IBMPlexMono-Bold.ttf");
+    let font = ttf_context
+        .load_font(&font_path, 40)
+        .map_err(anyhow::Error::msg)?;
+    let rendered_text = font.render(text).solid(Color::RGB(255, 255, 255))?;
+
+    let texture = rendered_text.as_texture(texture_creator)?;
+    Ok(texture)
+}
+
 #[must_use]
 fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> InputThread {
     thread::spawn(move || {
@@ -403,14 +429,9 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
         let window = video.window(window_title, 400, 100).build()?;
         let mut canvas = window.into_canvas().build()?;
 
-        let ttf_context = ttf::init()?;
-        let font = ttf_context
-            .load_font("fonts/IBMPlexMono-Bold.ttf", 40)
-            .map_err(anyhow::Error::msg)?;
-        let rendered_text = font.render(window_title).solid(Color::RGB(255, 255, 255))?;
-
         let texture_creator = canvas.texture_creator();
-        let font_texture = rendered_text.as_texture(&texture_creator)?;
+        let font_texture =
+            create_font_texture(&texture_creator, env::current_dir()?, window_title)?;
         canvas
             .copy(&font_texture, None, None)
             .map_err(anyhow::Error::msg)?;
@@ -466,4 +487,22 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
             thread::sleep(Duration::from_millis(1));
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_load_font() {
+        let sdl_context = sdl2::init().unwrap();
+        let video = sdl_context.video().unwrap();
+        let window = video.window("", 10, 10).hidden().build().unwrap();
+        let canvas = window.into_canvas().build().unwrap();
+        let texture_creator = canvas.texture_creator();
+
+        // Cargo will always run the GUI tests in the jgb-gui subdirectory
+        let workspace_dir = env::current_dir().unwrap().parent().unwrap().to_owned();
+        create_font_texture(&texture_creator, &workspace_dir, "hello world").unwrap();
+    }
 }
