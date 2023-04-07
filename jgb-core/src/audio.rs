@@ -14,7 +14,7 @@ pub enum AudioError {
     Playback { msg: String },
 }
 
-pub fn initialize(audio_subsystem: &AudioSubsystem) -> Result<AudioQueue<i16>, String> {
+pub fn initialize(audio_subsystem: &AudioSubsystem) -> Result<AudioQueue<f32>, String> {
     let queue = audio_subsystem.open_queue(
         None,
         &AudioSpecDesired {
@@ -33,12 +33,12 @@ pub fn initialize(audio_subsystem: &AudioSubsystem) -> Result<AudioQueue<i16>, S
 /// If it is full and `sync_to_audio` is enabled, this function will block until it is not full and
 /// then push samples.
 pub fn push_samples(
-    device_queue: &AudioQueue<i16>,
+    device_queue: &AudioQueue<f32>,
     apu_state: &mut ApuState,
     run_config: &RunConfig,
 ) -> Result<(), AudioError> {
-    // AudioQueue::size returns size in bytes, so multiply by 4 (2 channels * 2 bytes per sample)
-    while device_queue.size() >= 4 * AUDIO_QUEUE_SIZE {
+    // AudioQueue::size returns size in bytes, so multiply by 8 (2 channels * 4 bytes per sample)
+    while device_queue.size() >= 8 * AUDIO_QUEUE_SIZE {
         if !run_config.sync_to_audio {
             return Ok(());
         }

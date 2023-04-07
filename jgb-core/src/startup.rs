@@ -66,7 +66,7 @@ pub struct SdlState {
     pub sdl: Sdl,
     pub video: VideoSubsystem,
     pub audio: AudioSubsystem,
-    pub audio_playback_queue: Option<AudioQueue<i16>>,
+    pub audio_playback_queue: Option<AudioQueue<f32>>,
     pub joystick_subsystem: JoystickSubsystem,
     pub canvas: WindowCanvas,
     pub event_pump: EventPump,

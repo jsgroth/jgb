@@ -20,7 +20,7 @@ impl SampleFileWriter {
         })
     }
 
-    fn write_i16(&self, samples: &[i16]) -> Result<(), io::Error> {
+    fn write_f32(&self, samples: &[f32]) -> Result<(), io::Error> {
         let mut writer = self.writer.borrow_mut();
         for &sample in samples {
             writer.write_all(&sample.to_le_bytes())?;
@@ -81,7 +81,7 @@ impl apu::DebugSink for FileApuDebugSink {
             .write_f64(&[samples.ch4_l, samples.ch4_r])
             .expect("audio debug write failed");
         self.master
-            .write_i16(&[samples.master_l, samples.master_r])
+            .write_f32(&[samples.master_l, samples.master_r])
             .expect("audio debug write failed");
     }
 }

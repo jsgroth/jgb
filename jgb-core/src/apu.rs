@@ -46,8 +46,8 @@ pub struct ApuDebugOutput {
     pub ch3_r: f64,
     pub ch4_l: f64,
     pub ch4_r: f64,
-    pub master_l: i16,
-    pub master_r: i16,
+    pub master_l: f32,
+    pub master_r: f32,
 }
 
 pub trait DebugSink {
@@ -67,7 +67,7 @@ pub struct ApuState {
     hpf_capacitor_l: f64,
     hpf_capacitor_r: f64,
     #[serde(skip)]
-    sample_queue: VecDeque<i16>,
+    sample_queue: VecDeque<f32>,
     #[serde(skip)]
     debug_sink: Option<Box<dyn DebugSink>>,
 }
@@ -97,7 +97,7 @@ impl ApuState {
         }
     }
 
-    pub fn get_sample_queue_mut(&mut self) -> &mut VecDeque<i16> {
+    pub fn get_sample_queue_mut(&mut self) -> &mut VecDeque<f32> {
         &mut self.sample_queue
     }
 
@@ -163,7 +163,7 @@ impl ApuState {
     //
     // Downsampling from the raw 1.048576MHz signal to the output frequency is done using dumb
     // nearest-neighbor sampling.
-    fn sample(&mut self, nr50_value: u8, nr51_value: u8, audio_60hz: bool) -> (i16, i16) {
+    fn sample(&mut self, nr50_value: u8, nr51_value: u8, audio_60hz: bool) -> (f32, f32) {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
@@ -221,9 +221,13 @@ impl ApuState {
             sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r, audio_60hz);
         }
 
-        // Map samples to [-10000, 10000] and convert to 16-bit signed integers for raw PCM output
-        let sample_l = (sample_l * 10000.0).round() as i16;
-        let sample_r = (sample_r * 10000.0).round() as i16;
+        // Map samples to [-0.5, 0.5] because [-1, 1] is too loud
+        let sample_l = sample_l * 0.5;
+        let sample_r = sample_r * 0.5;
+
+        // Convert to 32-bit floats for PCM output
+        let sample_l = sample_l as f32;
+        let sample_r = sample_r as f32;
 
         if let Some(debug_sink) = &self.debug_sink {
             debug_sink.collect_samples(&ApuDebugOutput {
@@ -266,8 +270,8 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
         if should_sample(apu_state, prev_clock, audio_60hz) {
             // Output constant 0s if the APU is disabled
             let sample_queue = &mut apu_state.sample_queue;
-            sample_queue.push_back(0);
-            sample_queue.push_back(0);
+            sample_queue.push_back(0.0);
+            sample_queue.push_back(0.0);
         }
 
         return;

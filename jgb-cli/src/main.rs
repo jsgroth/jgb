@@ -45,7 +45,7 @@ struct CliArgs {
     window_height: u32,
 
     /// Turn on audio debugging; samples will be written to raw PCM files in the current working
-    /// directory (signed 16-bit stereo, 48000Hz)
+    /// directory (32-bit floating point, stereo, 48000Hz)
     #[arg(long = "audio-debugging-enabled", default_value_t)]
     audio_debugging_enabled: bool,
 
