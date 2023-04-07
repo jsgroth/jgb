@@ -203,9 +203,13 @@ impl ApuState {
         let l_volume = ((nr50_value & 0x70) >> 4) + 1;
         let r_volume = (nr50_value & 0x07) + 1;
 
-        // Map [-4, 4] to [-1, 1] before applying high-pass filter
-        let mut sample_l = sample_l / 4.0;
-        let mut sample_r = sample_r / 4.0;
+        // Apply L/R volume multipliers; signals now range from [-32, 32]
+        let sample_l = sample_l * f64::from(l_volume);
+        let sample_r = sample_r * f64::from(r_volume);
+
+        // Map [-32, 32] to [-1, 1] before applying high-pass filter
+        let mut sample_l = sample_l / 32.0;
+        let mut sample_r = sample_r / 32.0;
 
         // Apply high-pass filter if any of the four DACs are on
         if self.channel_1.dac_enabled()
@@ -217,9 +221,9 @@ impl ApuState {
             sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r, audio_60hz);
         }
 
-        // Map [-1, 1] to [-10000, 10000] and apply L/R volume multipliers
-        let sample_l = (sample_l * 10000.0 * f64::from(l_volume) / 8.0).round() as i16;
-        let sample_r = (sample_r * 10000.0 * f64::from(r_volume) / 8.0).round() as i16;
+        // Map samples to [-10000, 10000] and convert to 16-bit signed integers for raw PCM output
+        let sample_l = (sample_l * 10000.0).round() as i16;
+        let sample_r = (sample_r * 10000.0).round() as i16;
 
         if let Some(debug_sink) = &self.debug_sink {
             debug_sink.collect_samples(&ApuDebugOutput {
