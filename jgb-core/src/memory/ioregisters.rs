@@ -368,10 +368,7 @@ impl IoRegisters {
 
         contents[IoRegister::LY.to_relative_address()] = 0x91;
 
-        contents[IoRegister::DMA.to_relative_address()] = match execution_mode {
-            ExecutionMode::GameBoy => 0xFF,
-            ExecutionMode::GameBoyColor => 0x00,
-        };
+        contents[IoRegister::DMA.to_relative_address()] = 0xFF;
 
         contents[IoRegister::BGP.to_relative_address()] = 0xFC;
 
