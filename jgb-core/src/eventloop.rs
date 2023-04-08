@@ -1,12 +1,13 @@
 use crate::audio::AudioError;
-use crate::cpu::instructions;
 use crate::cpu::instructions::{ExecutionError, ParseError};
+use crate::cpu::{instructions, CgbSpeedMode, CpuRegisters};
 use crate::graphics::GraphicsError;
 use crate::input::{
     ControllerMap, Hotkey, HotkeyMap, JoypadState, JoystickError, Joysticks, KeyMap, KeyMapError,
 };
 use crate::memory::ioregisters::IoRegister;
-use crate::ppu::Mode;
+use crate::memory::AddressSpace;
+use crate::ppu::{Mode, PpuState};
 use crate::serialize::SaveStateError;
 use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
@@ -125,48 +126,18 @@ pub fn run(
         // Read TMA register before executing anything in case the instruction updates the register
         let timer_modulo = timer::read_timer_modulo(address_space.get_io_registers());
 
-        let cycles_required = if cpu::interrupt_triggered(&cpu_registers, &address_space) {
-            cpu::execute_interrupt_service_routine(
-                &mut cpu_registers,
-                &mut address_space,
-                &ppu_state,
-            );
+        let mut cycles_required = 0;
+        while cycles_required == 0 || cycles_required % 4 != 0 {
+            let tick_cycles = tick_cpu(&mut address_space, &mut cpu_registers, &ppu_state)?;
 
-            cpu::ISR_CYCLES_REQUIRED
-        } else if !cpu_registers.halted || cpu::interrupt_triggered_no_ime_check(&address_space) {
-            cpu_registers.halted = false;
+            if matches!(cpu_registers.cgb_speed_mode, CgbSpeedMode::Double) {
+                cycles_required += tick_cycles / 2;
+            } else {
+                cycles_required += tick_cycles;
+            }
+        }
 
-            let (instruction, pc) =
-                instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)?;
-
-            log::trace!("Updating PC from 0x{:04X} to {:04X}", cpu_registers.pc, pc);
-            cpu_registers.pc = pc;
-
-            let cycles_required = instruction.cycles_required(&cpu_registers);
-
-            log::trace!(
-                "Executing instruction {instruction:04X?}, will take {cycles_required} cycles"
-            );
-            log::trace!("CPU registers before instruction execution: {cpu_registers:04X?}");
-            log::trace!(
-                "IE register before instruction execution: {:02X}",
-                address_space.get_ie_register()
-            );
-            log::trace!(
-                "IF register before instruction execution: {:02X}",
-                address_space
-                    .get_io_registers()
-                    .read_register(IoRegister::IF)
-            );
-            instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state)?;
-
-            cycles_required
-        } else {
-            // Do nothing, let PPU and timer execute for 1 M-cycle
-            4
-        };
-
-        assert!(cycles_required > 0 && cycles_required % 4 == 0);
+        let double_speed = matches!(cpu_registers.cgb_speed_mode, CgbSpeedMode::Double);
 
         // Process SDL events and write save file roughly once per frametime
         if total_cycles / CYCLES_PER_FRAME
@@ -277,16 +248,26 @@ pub fn run(
         }
         total_cycles += u64::from(cycles_required);
 
+        let timer_cycles = if double_speed {
+            2 * u64::from(cycles_required)
+        } else {
+            cycles_required.into()
+        };
         timer::update_timer_registers(
             address_space.get_io_registers_mut(),
             &mut timer_counter,
             timer_modulo,
-            cycles_required.into(),
+            timer_cycles,
         );
 
         let prev_mode = ppu_state.mode();
         for _ in (0..cycles_required).step_by(4) {
             ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+            if double_speed {
+                // OAM DMA transfers progress at double speed in double speed mode so call twice
+                ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+            }
+
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
             apu::tick_m_cycle(
@@ -304,4 +285,57 @@ pub fn run(
     }
 
     Ok(())
+}
+
+fn tick_cpu(
+    address_space: &mut AddressSpace,
+    cpu_registers: &mut CpuRegisters,
+    ppu_state: &PpuState,
+) -> Result<u32, RunError> {
+    let result = if let Some(wait_cycles_remaining) =
+        cpu_registers.speed_switch_wait_cycles_remaining
+    {
+        if wait_cycles_remaining == 1 {
+            cpu_registers.speed_switch_wait_cycles_remaining = None;
+        } else {
+            cpu_registers.speed_switch_wait_cycles_remaining = Some(wait_cycles_remaining - 1);
+        }
+
+        4
+    } else if cpu::interrupt_triggered(cpu_registers, address_space) {
+        cpu::execute_interrupt_service_routine(cpu_registers, address_space, ppu_state);
+
+        cpu::ISR_CYCLES_REQUIRED
+    } else if !cpu_registers.halted || cpu::interrupt_triggered_no_ime_check(address_space) {
+        cpu_registers.halted = false;
+
+        let (instruction, pc) =
+            instructions::parse_next_instruction(address_space, cpu_registers.pc, ppu_state)?;
+
+        log::trace!("Updating PC from 0x{:04X} to {:04X}", cpu_registers.pc, pc);
+        cpu_registers.pc = pc;
+
+        let cycles_required = instruction.cycles_required(cpu_registers);
+
+        log::trace!("Executing instruction {instruction:04X?}, will take {cycles_required} cycles");
+        log::trace!("CPU registers before instruction execution: {cpu_registers:04X?}");
+        log::trace!(
+            "IE register before instruction execution: {:02X}",
+            address_space.get_ie_register()
+        );
+        log::trace!(
+            "IF register before instruction execution: {:02X}",
+            address_space
+                .get_io_registers()
+                .read_register(IoRegister::IF)
+        );
+        instruction.execute(address_space, cpu_registers, ppu_state)?;
+
+        cycles_required
+    } else {
+        // Do nothing, let PPU and timer execute for 1 M-cycle
+        4
+    };
+
+    Ok(result)
 }

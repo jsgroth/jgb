@@ -122,8 +122,25 @@ pub enum CgbSpeedMode {
     Double,
 }
 
+impl CgbSpeedMode {
+    pub fn toggle(self) -> Self {
+        match self {
+            Self::Normal => Self::Double,
+            Self::Double => Self::Normal,
+        }
+    }
+
+    pub fn key1_bit(self) -> u8 {
+        match self {
+            Self::Normal => 0x00,
+            Self::Double => 0x80,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CpuRegisters {
+    pub execution_mode: ExecutionMode,
     pub accumulator: u8,
     pub flags: u8,
     pub b: u8,
@@ -139,6 +156,7 @@ pub struct CpuRegisters {
     pub interrupt_delay: bool,
     pub halted: bool,
     pub cgb_speed_mode: CgbSpeedMode,
+    pub speed_switch_wait_cycles_remaining: Option<u32>,
 }
 
 impl CpuRegisters {
@@ -148,6 +166,7 @@ impl CpuRegisters {
     /// and the stack pointer is initialized to 0xFFFE (last address in HRAM).
     pub fn new(execution_mode: ExecutionMode) -> Self {
         Self {
+            execution_mode,
             accumulator: match execution_mode {
                 ExecutionMode::GameBoy => 0x01,
                 ExecutionMode::GameBoyColor => 0x11,
@@ -177,6 +196,7 @@ impl CpuRegisters {
             interrupt_delay: false,
             halted: false,
             cgb_speed_mode: CgbSpeedMode::Normal,
+            speed_switch_wait_cycles_remaining: None,
         }
     }
 

@@ -7,6 +7,8 @@ use crate::memory::AddressSpace;
 use std::num::TryFromIntError;
 use thiserror::Error;
 
+use crate::cpu::ExecutionMode;
+use crate::memory::ioregisters::IoRegister;
 use crate::ppu::PpuState;
 pub use parse::{parse_next_instruction, ParseError};
 
@@ -854,7 +856,24 @@ impl Instruction {
                 cpu_registers.halted = true;
             }
             Self::Stop => {
-                todo!("STOP is not implemented")
+                if matches!(cpu_registers.execution_mode, ExecutionMode::GameBoyColor)
+                    && address_space
+                        .get_io_registers()
+                        .read_register(IoRegister::KEY1)
+                        & 0x01
+                        != 0
+                {
+                    // In CGB mode, STOP when KEY1 bit 0 is set means speed switch
+                    let new_speed_mode = cpu_registers.cgb_speed_mode.toggle();
+                    cpu_registers.cgb_speed_mode = new_speed_mode;
+                    cpu_registers.speed_switch_wait_cycles_remaining = Some(2050);
+
+                    address_space
+                        .get_io_registers_mut()
+                        .write_register(IoRegister::KEY1, new_speed_mode.key1_bit());
+                } else {
+                    todo!("STOP is not implemented")
+                }
             }
             Self::DisableInterrupts => {
                 cpu_registers.ime = false;
@@ -1007,7 +1026,7 @@ impl Instruction {
                     8
                 }
             }
-            Self::Stop => todo!("STOP is not implemented"),
+            Self::Stop => 4,
         }
     }
 }
