@@ -121,7 +121,7 @@ pub fn run(
 
     let mut total_cycles = 0;
 
-    // Track how many CPU cycles are "left over" when running in double speed mode
+    // Track how many 4MHz clock cycles are "left over" when running in double speed mode
     let mut leftover_cpu_cycles = 0;
     'running: loop {
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
@@ -129,6 +129,8 @@ pub fn run(
         // Read TMA register before executing anything in case the instruction updates the register
         let timer_modulo = timer::read_timer_modulo(address_space.get_io_registers());
 
+        // The number of 4MHz clock cycles
+        // (CPU M-cycles * 4 in normal speed, CPU M-cycles * 2 in double speed)
         let mut cycles_required = leftover_cpu_cycles;
         while cycles_required < 4 {
             let tick_cycles = tick_cpu(&mut address_space, &mut cpu_registers, &ppu_state)?;
