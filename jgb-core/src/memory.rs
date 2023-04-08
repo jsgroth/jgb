@@ -13,7 +13,7 @@ use thiserror::Error;
 pub enum CartridgeLoadError {
     #[error("header should be at least 336 bytes, was {header_len} bytes")]
     HeaderTooShort { header_len: usize },
-    #[error("invalid or unsupported mapper byte in cartridge header: {mapper_byte}")]
+    #[error("invalid or unsupported mapper byte in cartridge header: {mapper_byte:02X}")]
     InvalidMapper { mapper_byte: u8 },
     #[error("invalid RAM size code, expected 0 or 2-5: {ram_size_code}")]
     InvalidRamSize { ram_size_code: u8 },
@@ -500,6 +500,10 @@ impl Cartridge {
 
     pub fn supports_cgb_mode(&self) -> bool {
         self.rom[address::CGB_SUPPORT as usize] & 0x80 != 0
+    }
+
+    pub fn is_cgb_only(&self) -> bool {
+        self.rom[address::CGB_SUPPORT as usize] & 0xC0 == 0xC0
     }
 }
 

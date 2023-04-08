@@ -27,6 +27,8 @@ pub enum StartupError {
     },
     #[error("unable to get file name from path: {file_path}")]
     FileName { file_path: String },
+    #[error("specified GB hardware mode for a CGB-mode-only cartridge")]
+    InvalidHardwareMode,
     #[error("error initializing audio debugging sink: {source}")]
     AudioDebugInit {
         #[source]
@@ -85,11 +87,21 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
     };
 
     let execution_mode = match run_config.hardware_mode {
-        HardwareMode::GameBoy => ExecutionMode::GameBoy,
+        HardwareMode::GameBoy => {
+            if cartridge.is_cgb_only() {
+                return Err(StartupError::InvalidHardwareMode);
+            } else {
+                ExecutionMode::GameBoy
+            }
+        }
         HardwareMode::GameBoyColor => {
             if cartridge.supports_cgb_mode() {
                 ExecutionMode::GameBoyColor
             } else {
+                log::info!(concat!(
+                    "GBC hardware mode was specified but cartridge does not support ",
+                    "CGB mode enhancements, running in GB mode",
+                ));
                 ExecutionMode::GameBoy
             }
         }
