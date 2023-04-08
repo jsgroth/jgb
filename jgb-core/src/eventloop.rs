@@ -88,6 +88,7 @@ pub fn run(
         mut cpu_registers,
         mut ppu_state,
         mut apu_state,
+        mut execution_mode,
     } = emulation_state;
 
     // Don't need explicit handles to subsystems because they won't be dropped until the function
@@ -210,6 +211,7 @@ pub fn run(
                                     cpu_registers,
                                     ppu_state,
                                     apu_state,
+                                    execution_mode,
                                 };
 
                                 serialize::save_state(&state, &save_state_path)?;
@@ -218,6 +220,7 @@ pub fn run(
                                 cpu_registers = state.cpu_registers;
                                 ppu_state = state.ppu_state;
                                 apu_state = state.apu_state;
+                                execution_mode = state.execution_mode;
                             }
                             Some(Hotkey::LoadState) => {
                                 match serialize::load_state(

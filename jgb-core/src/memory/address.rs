@@ -3,6 +3,7 @@
 //
 
 pub const ENTRY_POINT: u16 = 0x0100;
+pub const CGB_SUPPORT: u16 = 0x0143;
 pub const MAPPER: u16 = 0x0147;
 pub const RAM_SIZE: u16 = 0x0149;
 

@@ -8,7 +8,7 @@ use egui::{
     Modifiers, TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
-use jgb_core::{ColorScheme, EmulationError, RunConfig};
+use jgb_core::{ColorScheme, EmulationError, HardwareMode, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -556,6 +556,7 @@ fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
 
     let run_config = RunConfig {
         gb_file_path: gb_file.into(),
+        hardware_mode: HardwareMode::default(),
         audio_enabled: app_config.audio_enabled,
         sync_to_audio: app_config.audio_sync_enabled,
         vsync_enabled: app_config.vsync_enabled,

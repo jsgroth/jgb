@@ -1,6 +1,7 @@
 pub mod address;
 pub mod ioregisters;
 
+use crate::cpu::ExecutionMode;
 use crate::memory::ioregisters::IoRegisters;
 use crate::ppu::{Mode, PpuState};
 use serde::{Deserialize, Serialize};
@@ -489,10 +490,15 @@ impl Cartridge {
             Ok(())
         }
     }
+
+    pub fn supports_cgb_mode(&self) -> bool {
+        self.rom[address::CGB_SUPPORT as usize] & 0x80 != 0
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct AddressSpace {
+    execution_mode: ExecutionMode,
     cartridge: Cartridge,
     #[serde(
         serialize_with = "crate::serialize::serialize_array",
@@ -519,13 +525,14 @@ pub struct AddressSpace {
 }
 
 impl AddressSpace {
-    pub fn new(cartridge: Cartridge) -> Self {
+    pub fn new(cartridge: Cartridge, execution_mode: ExecutionMode) -> Self {
         Self {
+            execution_mode,
             cartridge,
             vram: [0; 8192],
             working_ram: [0; 8192],
             oam: [0; 160],
-            io_registers: IoRegisters::new(),
+            io_registers: IoRegisters::new(execution_mode),
             hram: [0; 127],
             ie_register: 0,
         }

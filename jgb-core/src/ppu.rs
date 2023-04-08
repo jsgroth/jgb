@@ -924,12 +924,16 @@ fn get_pixel_color_id(tile_data: TileData, x: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::ExecutionMode;
 
     use crate::memory::Cartridge;
 
     #[test]
     fn oam_dma_transfer_basic_test() {
-        let mut address_space = AddressSpace::new(Cartridge::new(vec![0; 0x150], None).unwrap());
+        let mut address_space = AddressSpace::new(
+            Cartridge::new(vec![0; 0x150], None).unwrap(),
+            ExecutionMode::GameBoy,
+        );
         let mut ppu_state = PpuState::new();
 
         progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
@@ -962,7 +966,10 @@ mod tests {
 
     #[test]
     fn scan_oam_basic_test() {
-        let mut address_space = AddressSpace::new(Cartridge::new(vec![0; 0x150], None).unwrap());
+        let mut address_space = AddressSpace::new(
+            Cartridge::new(vec![0; 0x150], None).unwrap(),
+            ExecutionMode::GameBoy,
+        );
         let ppu_state = PpuState::new();
 
         address_space.write_address_u8(address::OAM_START + 40, 53, &ppu_state);

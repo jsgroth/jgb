@@ -1,11 +1,11 @@
 use crate::apu::ApuState;
 use crate::config::RunConfig;
-use crate::cpu::CpuRegisters;
+use crate::cpu::{CpuRegisters, ExecutionMode};
 use crate::debug::FileApuDebugSink;
 use crate::graphics::GraphicsError;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
-use crate::{audio, graphics};
+use crate::{audio, graphics, HardwareMode};
 use sdl2::audio::AudioQueue;
 use sdl2::event::EventType;
 use sdl2::render::WindowCanvas;
@@ -56,6 +56,7 @@ impl From<String> for StartupError {
 
 #[derive(Serialize, Deserialize)]
 pub struct EmulationState {
+    pub execution_mode: ExecutionMode,
     pub address_space: AddressSpace,
     pub cpu_registers: CpuRegisters,
     pub ppu_state: PpuState,
@@ -83,7 +84,18 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
         }
     };
 
-    let address_space = AddressSpace::new(cartridge);
+    let execution_mode = match run_config.hardware_mode {
+        HardwareMode::GameBoy => ExecutionMode::GameBoy,
+        HardwareMode::GameBoyColor => {
+            if cartridge.supports_cgb_mode() {
+                ExecutionMode::GameBoyColor
+            } else {
+                ExecutionMode::GameBoy
+            }
+        }
+    };
+
+    let address_space = AddressSpace::new(cartridge, execution_mode);
     let cpu_registers = CpuRegisters::new();
     let ppu_state = PpuState::new();
     let apu_state = if run_config.audio_enabled && run_config.audio_debugging_enabled {
@@ -95,6 +107,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
     };
 
     Ok(EmulationState {
+        execution_mode,
         address_space,
         cpu_registers,
         ppu_state,

@@ -2,7 +2,8 @@ use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
 use jgb_core::{
-    ColorScheme, ControllerConfig, ControllerInput, HotkeyConfig, InputConfig, RunConfig,
+    ColorScheme, ControllerConfig, ControllerInput, HardwareMode, HotkeyConfig, InputConfig,
+    RunConfig,
 };
 use std::sync::{Arc, Mutex};
 
@@ -213,6 +214,7 @@ fn main() -> anyhow::Result<()> {
 
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
+        hardware_mode: HardwareMode::default(),
         audio_enabled: args.audio_enabled,
         sync_to_audio: args.sync_to_audio,
         vsync_enabled: args.vsync_enabled,

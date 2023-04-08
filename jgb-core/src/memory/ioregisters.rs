@@ -1,6 +1,6 @@
 mod lcdc;
 
-use crate::cpu::InterruptType;
+use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::address;
 pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
 use serde::{Deserialize, Serialize};
@@ -49,6 +49,22 @@ pub enum IoRegister {
     OBP1,
     WY,
     WX,
+    KEY1,
+    VBK,
+    HDMA1,
+    HDMA2,
+    HDMA3,
+    HDMA4,
+    HDMA5,
+    RP,
+    BCPS,
+    BCPD,
+    OCPS,
+    OCPD,
+    OPRI,
+    SVBK,
+    PCM12,
+    PCM34,
 }
 
 impl IoRegister {
@@ -96,6 +112,22 @@ impl IoRegister {
             0xFF49 => Self::OBP1,
             0xFF4A => Self::WY,
             0xFF4B => Self::WX,
+            0xFF4D => Self::KEY1,
+            0xFF4F => Self::VBK,
+            0xFF51 => Self::HDMA1,
+            0xFF52 => Self::HDMA2,
+            0xFF53 => Self::HDMA3,
+            0xFF54 => Self::HDMA4,
+            0xFF55 => Self::HDMA5,
+            0xFF56 => Self::RP,
+            0xFF68 => Self::BCPS,
+            0xFF69 => Self::BCPD,
+            0xFF6A => Self::OCPS,
+            0xFF6B => Self::OCPD,
+            0xFF6C => Self::OPRI,
+            0xFF70 => Self::SVBK,
+            0xFF76 => Self::PCM12,
+            0xFF77 => Self::PCM34,
             _ => return None,
         };
 
@@ -145,6 +177,22 @@ impl IoRegister {
             Self::OBP1 => 0x49,
             Self::WY => 0x4A,
             Self::WX => 0x4B,
+            Self::KEY1 => 0x4D,
+            Self::VBK => 0x4F,
+            Self::HDMA1 => 0x51,
+            Self::HDMA2 => 0x52,
+            Self::HDMA3 => 0x53,
+            Self::HDMA4 => 0x54,
+            Self::HDMA5 => 0x55,
+            Self::RP => 0x56,
+            Self::BCPS => 0x68,
+            Self::BCPD => 0x69,
+            Self::OCPS => 0x6A,
+            Self::OCPD => 0x6B,
+            Self::OPRI => 0x6C,
+            Self::SVBK => 0x70,
+            Self::PCM12 => 0x76,
+            Self::PCM34 => 0x77,
         }
     }
 
@@ -152,13 +200,21 @@ impl IoRegister {
     pub fn is_cpu_readable(self) -> bool {
         !matches!(
             self,
-            Self::NR13 | Self::NR23 | Self::NR31 | Self::NR33 | Self::NR41
+            Self::NR13
+                | Self::NR23
+                | Self::NR31
+                | Self::NR33
+                | Self::NR41
+                | Self::HDMA1
+                | Self::HDMA2
+                | Self::HDMA3
+                | Self::HDMA4
         )
     }
 
     /// Return whether or not the CPU is allowed to write to this hardware register.
     pub fn is_cpu_writable(self) -> bool {
-        !matches!(self, Self::LY)
+        !matches!(self, Self::LY | Self::PCM12 | Self::PCM34)
     }
 
     /// Return whether or not this is an audio register.
@@ -186,6 +242,29 @@ impl IoRegister {
                 | Self::NR50
                 | Self::NR51
                 | Self::NR52
+        )
+    }
+
+    /// Return whether this register is only accessible in CGB mode.
+    pub fn is_cgb_only_register(self) -> bool {
+        matches!(
+            self,
+            Self::KEY1
+                | Self::VBK
+                | Self::HDMA1
+                | Self::HDMA2
+                | Self::HDMA3
+                | Self::HDMA4
+                | Self::HDMA5
+                | Self::RP
+                | Self::BCPS
+                | Self::BCPD
+                | Self::OCPS
+                | Self::OCPD
+                | Self::OPRI
+                | Self::SVBK
+                | Self::PCM12
+                | Self::PCM34
         )
     }
 }
@@ -246,6 +325,7 @@ fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
         IoRegister::NR41 => Some(0x1000),
         IoRegister::NR44 => Some(0x2000),
         IoRegister::DMA => Some(0x4000),
+        IoRegister::HDMA5 => Some(0x8000),
         _ => None,
     }
 }
@@ -258,6 +338,7 @@ pub struct IoRegisters {
     )]
     contents: [u8; 0x80],
     dirty_bits: u16,
+    execution_mode: ExecutionMode,
 }
 
 impl IoRegisters {
@@ -269,41 +350,52 @@ impl IoRegisters {
     const STAT_RELATIVE_ADDR: usize = IoRegister::STAT.to_relative_address();
     const LY_RELATIVE_ADDR: usize = IoRegister::LY.to_relative_address();
 
-    pub fn new() -> Self {
+    pub fn new(execution_mode: ExecutionMode) -> Self {
         let mut contents = [0; 0x80];
 
-        // JOYP
-        contents[0x00] = 0xCF;
+        contents[IoRegister::JOYP.to_relative_address()] = 0xCF;
 
-        // DIV
-        contents[0x04] = 0x18;
+        contents[IoRegister::DIV.to_relative_address()] = 0x18;
 
-        // TAC
-        contents[0x07] = 0xF8;
+        contents[IoRegister::TAC.to_relative_address()] = 0xF8;
 
-        // IF
-        contents[0x0F] = 0xE1;
+        contents[IoRegister::IF.to_relative_address()] = 0xE1;
 
-        // LCDC
-        contents[0x40] = 0x91;
+        contents[IoRegister::LCDC.to_relative_address()] = 0x91;
 
-        // STAT
-        contents[0x41] = 0x81;
+        contents[IoRegister::STAT.to_relative_address()] = 0x81;
 
-        // LY
-        contents[0x44] = 0x91;
+        contents[IoRegister::LY.to_relative_address()] = 0x91;
 
-        // DMA
-        contents[0x46] = 0xFF;
+        contents[IoRegister::DMA.to_relative_address()] = match execution_mode {
+            ExecutionMode::GameBoy => 0xFF,
+            ExecutionMode::GameBoyColor => 0x00,
+        };
 
-        // BGP
-        contents[0x47] = 0xFC;
+        contents[IoRegister::BGP.to_relative_address()] = 0xFC;
 
         init_audio_registers(&mut contents);
+
+        if matches!(execution_mode, ExecutionMode::GameBoyColor) {
+            for register in [
+                IoRegister::KEY1,
+                IoRegister::VBK,
+                IoRegister::HDMA1,
+                IoRegister::HDMA2,
+                IoRegister::HDMA3,
+                IoRegister::HDMA4,
+                IoRegister::HDMA5,
+                IoRegister::RP,
+                IoRegister::SVBK,
+            ] {
+                contents[register.to_relative_address()] = 0xFF;
+            }
+        }
 
         Self {
             contents,
             dirty_bits: 0xFFFF,
+            execution_mode,
         }
     }
 
@@ -339,6 +431,12 @@ impl IoRegisters {
             return 0xFF;
         }
 
+        if !matches!(self.execution_mode, ExecutionMode::GameBoyColor)
+            && register.is_cgb_only_register()
+        {
+            return 0xFF;
+        }
+
         let byte = self.contents[register.to_relative_address()];
         match register {
             IoRegister::JOYP => (byte & 0x0F) | 0xC0,
@@ -358,6 +456,12 @@ impl IoRegisters {
     /// writable by the CPU.
     pub fn write_register(&mut self, register: IoRegister, value: u8) {
         if !register.is_cpu_writable() {
+            return;
+        }
+
+        if !matches!(self.execution_mode, ExecutionMode::GameBoyColor)
+            && register.is_cgb_only_register()
+        {
             return;
         }
 
@@ -499,59 +603,41 @@ impl IoRegisters {
 }
 
 fn init_audio_registers(contents: &mut [u8; 0x80]) {
-    // NR10
-    contents[0x10] = 0x80;
+    contents[IoRegister::NR10.to_relative_address()] = 0x80;
 
-    // NR11
-    contents[0x11] = 0xBF;
+    contents[IoRegister::NR11.to_relative_address()] = 0xBF;
 
-    // NR12
-    contents[0x12] = 0xF3;
+    contents[IoRegister::NR12.to_relative_address()] = 0xF3;
 
-    // NR13
-    contents[0x13] = 0xFF;
+    contents[IoRegister::NR13.to_relative_address()] = 0xFF;
 
-    // NR14
-    contents[0x14] = 0xBF;
+    contents[IoRegister::NR14.to_relative_address()] = 0xBF;
 
-    // NR21
-    contents[0x16] = 0x3F;
+    contents[IoRegister::NR21.to_relative_address()] = 0x3F;
 
-    // NR23
-    contents[0x18] = 0xFF;
+    contents[IoRegister::NR23.to_relative_address()] = 0xFF;
 
-    // NR24
-    contents[0x19] = 0xBF;
+    contents[IoRegister::NR24.to_relative_address()] = 0xBF;
 
-    // NR30
-    contents[0x1A] = 0x7F;
+    contents[IoRegister::NR30.to_relative_address()] = 0x7F;
 
-    // NR31
-    contents[0x1B] = 0xFF;
+    contents[IoRegister::NR31.to_relative_address()] = 0xFF;
 
-    // NR32
-    contents[0x1C] = 0x9F;
+    contents[IoRegister::NR32.to_relative_address()] = 0x9F;
 
-    // NR33
-    contents[0x1D] = 0xFF;
+    contents[IoRegister::NR33.to_relative_address()] = 0xFF;
 
-    // NR34
-    contents[0x1E] = 0xBF;
+    contents[IoRegister::NR34.to_relative_address()] = 0xBF;
 
-    // NR41
-    contents[0x20] = 0xFF;
+    contents[IoRegister::NR41.to_relative_address()] = 0xFF;
 
-    // NR44
-    contents[0x23] = 0xBF;
+    contents[IoRegister::NR44.to_relative_address()] = 0xBF;
 
-    // NR50
-    contents[0x24] = 0x77;
+    contents[IoRegister::NR50.to_relative_address()] = 0x77;
 
-    // NR51
-    contents[0x25] = 0xF3;
+    contents[IoRegister::NR51.to_relative_address()] = 0xF3;
 
-    // NR52
-    contents[0x26] = 0xF1;
+    contents[IoRegister::NR52.to_relative_address()] = 0xF1;
 }
 
 fn is_waveform_address(address: u16) -> bool {
@@ -566,6 +652,7 @@ mod tests {
         IoRegisters {
             contents: [0; 0x80],
             dirty_bits: 0x00,
+            execution_mode: ExecutionMode::GameBoy,
         }
     }
 

@@ -20,7 +20,8 @@ use thiserror::Error;
 use crate::eventloop::RunError;
 use crate::startup::StartupError;
 pub use config::{
-    ColorScheme, ControllerConfig, ControllerInput, HotkeyConfig, InputConfig, RunConfig,
+    ColorScheme, ControllerConfig, ControllerInput, HardwareMode, HotkeyConfig, InputConfig,
+    RunConfig,
 };
 
 #[derive(Error, Debug)]

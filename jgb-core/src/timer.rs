@@ -79,10 +79,15 @@ pub fn update_timer_registers(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::ExecutionMode;
+
+    fn new_io_registers() -> IoRegisters {
+        IoRegisters::new(ExecutionMode::GameBoy)
+    }
 
     #[test]
     fn read_timer_modulo_fn() {
-        let mut io_registers = IoRegisters::new();
+        let mut io_registers = new_io_registers();
 
         io_registers.write_register(IoRegister::TMA, 0x3D);
         assert_eq!(0x3D, read_timer_modulo(&io_registers));
@@ -90,7 +95,7 @@ mod tests {
 
     #[test]
     fn divider_register() {
-        let mut io_registers = IoRegisters::new();
+        let mut io_registers = new_io_registers();
         let mut timer_counter = TimerCounter::new();
 
         // DIV should ignore the timer enabled bit
@@ -130,7 +135,7 @@ mod tests {
 
     #[test]
     fn tima_register() {
-        let mut io_registers = IoRegisters::new();
+        let mut io_registers = new_io_registers();
         let mut timer_counter = TimerCounter::new();
 
         let timer_modulo = 0x78;
@@ -186,7 +191,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "cycles must be <= 256")]
     fn cycle_limit() {
-        let mut io_registers = IoRegisters::new();
+        let mut io_registers = new_io_registers();
         let mut timer_counter = TimerCounter::new();
 
         update_timer_registers(&mut io_registers, &mut timer_counter, 0, 257);
