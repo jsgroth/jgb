@@ -182,6 +182,8 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
         ExecutionMode::GameBoy,
     );
     let mut cpu_registers = CpuRegisters::new(ExecutionMode::GameBoy);
+    cpu_registers.flags = 0x00;
+
     let ppu_state = PpuState::new();
 
     while cpu_registers.pc >= 0x0100 && cpu_registers.pc < rom_len {
