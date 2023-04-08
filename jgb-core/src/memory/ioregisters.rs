@@ -49,6 +49,7 @@ pub enum IoRegister {
     OBP1,
     WY,
     WX,
+    // CGB-only registers start here
     KEY1,
     VBK,
     HDMA1,
