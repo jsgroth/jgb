@@ -668,7 +668,7 @@ impl AddressSpace {
                 _ => {
                     let ram_bank_number = self.io_registers.get_cgb_working_ram_bank();
                     (ram_bank_number << 12)
-                        + (address - address::CGB_BANK_0_WORKING_RAM_END) as usize
+                        + (address - address::CGB_BANKED_WORKING_RAM_START) as usize
                 }
             },
         }
@@ -966,6 +966,7 @@ mod tests {
             .get_io_registers_mut()
             .write_register(IoRegister::SVBK, 0x01);
         assert_eq!(0xCF, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xCF, address_space.working_ram[0x1500]);
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
         address_space
@@ -976,6 +977,7 @@ mod tests {
 
         address_space.write_address_u8(0xD500, 0x57, &ppu_state);
         assert_eq!(0x57, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0x57, address_space.working_ram[0x4500]);
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
         // Check that only the lower 3 bits of SVBK are read
@@ -994,6 +996,7 @@ mod tests {
 
         address_space.write_address_u8(0xD500, 0x21, &ppu_state);
         assert_eq!(0x21, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0x21, address_space.working_ram[0x7500]);
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
     }
 }
