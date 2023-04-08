@@ -120,14 +120,17 @@ pub fn run(
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
 
     let mut total_cycles = 0;
+
+    // Track how many CPU cycles are "left over" when running in double speed mode
+    let mut leftover_cpu_cycles = 0;
     'running: loop {
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
 
         // Read TMA register before executing anything in case the instruction updates the register
         let timer_modulo = timer::read_timer_modulo(address_space.get_io_registers());
 
-        let mut cycles_required = 0;
-        while cycles_required == 0 || cycles_required % 4 != 0 {
+        let mut cycles_required = leftover_cpu_cycles;
+        while cycles_required < 4 {
             let tick_cycles = tick_cpu(&mut address_space, &mut cpu_registers, &ppu_state)?;
 
             if matches!(cpu_registers.cgb_speed_mode, CgbSpeedMode::Double) {
@@ -136,6 +139,8 @@ pub fn run(
                 cycles_required += tick_cycles;
             }
         }
+        leftover_cpu_cycles = cycles_required & 0x00000003;
+        cycles_required = cycles_required & 0xFFFFFFFC;
 
         let double_speed = matches!(cpu_registers.cgb_speed_mode, CgbSpeedMode::Double);
 
