@@ -46,6 +46,7 @@ pub struct FileApuDebugSink {
     channel_3: SampleFileWriter,
     channel_4: SampleFileWriter,
     master: SampleFileWriter,
+    filtered_master: SampleFileWriter,
 }
 
 impl FileApuDebugSink {
@@ -55,6 +56,7 @@ impl FileApuDebugSink {
         let channel_3 = SampleFileWriter::new("channel3.pcm")?;
         let channel_4 = SampleFileWriter::new("channel4.pcm")?;
         let master = SampleFileWriter::new("master.pcm")?;
+        let filtered_master = SampleFileWriter::new("filtered_master.pcm")?;
 
         Ok(Self {
             channel_1,
@@ -62,6 +64,7 @@ impl FileApuDebugSink {
             channel_3,
             channel_4,
             master,
+            filtered_master,
         })
     }
 }
@@ -81,7 +84,13 @@ impl apu::DebugSink for FileApuDebugSink {
             .write_f64(&[samples.ch4_l, samples.ch4_r])
             .expect("audio debug write failed");
         self.master
-            .write_f32(&[samples.master_l, samples.master_r])
+            .write_f64(&[samples.master_l, samples.master_r])
+            .expect("audio debug write failed");
+    }
+
+    fn collect_filtered_samples(&self, samples: (f32, f32)) {
+        self.filtered_master
+            .write_f32(&[samples.0, samples.1])
             .expect("audio debug write failed");
     }
 }

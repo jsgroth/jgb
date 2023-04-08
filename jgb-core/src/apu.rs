@@ -1,6 +1,8 @@
 mod channels;
+mod filter;
 
 use crate::apu::channels::{Channel, NoiseChannel, PulseChannel, WaveChannel};
+use crate::apu::filter::LowPassFilter;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -46,12 +48,14 @@ pub struct ApuDebugOutput {
     pub ch3_r: f64,
     pub ch4_l: f64,
     pub ch4_r: f64,
-    pub master_l: f32,
-    pub master_r: f32,
+    pub master_l: f64,
+    pub master_r: f64,
 }
 
 pub trait DebugSink {
     fn collect_samples(&self, samples: &ApuDebugOutput);
+
+    fn collect_filtered_samples(&self, samples: (f32, f32));
 }
 
 #[derive(Serialize, Deserialize)]
@@ -66,6 +70,10 @@ pub struct ApuState {
     channel_4: NoiseChannel,
     hpf_capacitor_l: f64,
     hpf_capacitor_r: f64,
+    #[serde(skip)]
+    low_pass_filter_l: LowPassFilter,
+    #[serde(skip)]
+    low_pass_filter_r: LowPassFilter,
     #[serde(skip)]
     sample_queue: VecDeque<f32>,
     #[serde(skip)]
@@ -85,6 +93,8 @@ impl ApuState {
             channel_4: NoiseChannel::new(),
             hpf_capacitor_l: 0.0,
             hpf_capacitor_r: 0.0,
+            low_pass_filter_l: LowPassFilter::new(),
+            low_pass_filter_r: LowPassFilter::new(),
             sample_queue: VecDeque::new(),
             debug_sink: None,
         }
@@ -156,14 +166,11 @@ impl ApuState {
         self.channel_4 = NoiseChannel::new();
     }
 
-    // Retrieve left and right audio samples based on the current channel states.
+    // Internally collect samples based on the current channel states.
     //
     // Note that calling this method modifies the high-pass filter capacitor values. It should be
-    // called at a rate of 4.194304MHz / output frequency.
-    //
-    // Downsampling from the raw 1.048576MHz signal to the output frequency is done using dumb
-    // nearest-neighbor sampling.
-    fn sample(&mut self, nr50_value: u8, nr51_value: u8, audio_60hz: bool) -> (f32, f32) {
+    // called at a rate of 1.048576MHz.
+    fn sample(&mut self, nr50_value: u8, nr51_value: u8) {
         let mut sample_l = 0.0;
         let mut sample_r = 0.0;
 
@@ -217,17 +224,13 @@ impl ApuState {
             || self.channel_3.dac_enabled()
             || self.channel_4.dac_enabled()
         {
-            sample_l = high_pass_filter(sample_l, &mut self.hpf_capacitor_l, audio_60hz);
-            sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r, audio_60hz);
+            sample_l = high_pass_filter(sample_l, &mut self.hpf_capacitor_l);
+            sample_r = high_pass_filter(sample_r, &mut self.hpf_capacitor_r);
         }
 
-        // Map samples to [-0.5, 0.5] because [-1, 1] is too loud
-        let sample_l = sample_l * 0.5;
-        let sample_r = sample_r * 0.5;
-
-        // Convert to 32-bit floats for PCM output
-        let sample_l = sample_l as f32;
-        let sample_r = sample_r as f32;
+        // Pass samples to the low-pass filters
+        self.low_pass_filter_l.collect_sample(sample_l);
+        self.low_pass_filter_r.collect_sample(sample_r);
 
         if let Some(debug_sink) = &self.debug_sink {
             debug_sink.collect_samples(&ApuDebugOutput {
@@ -243,6 +246,16 @@ impl ApuState {
                 master_r: sample_r,
             });
         }
+    }
+
+    // Retrieve filtered samples ready for output
+    fn output_samples(&self) -> (f32, f32) {
+        let sample_l = self.low_pass_filter_l.output_sample();
+        let sample_r = self.low_pass_filter_r.output_sample();
+
+        // Map from [-1, 1] to [-0.5, 0.5] because the full range is way too loud
+        let sample_l = (sample_l * 0.5) as f32;
+        let sample_r = (sample_r * 0.5) as f32;
 
         (sample_l, sample_r)
     }
@@ -267,7 +280,7 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
             apu_state.disable();
         }
 
-        if should_sample(apu_state, prev_clock, audio_60hz) {
+        if should_output_sample(apu_state, prev_clock, audio_60hz) {
             // Output constant 0s if the APU is disabled
             let sample_queue = &mut apu_state.sample_queue;
             sample_queue.push_back(0.0);
@@ -296,12 +309,13 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
         | u8::from(apu_state.channel_1.channel_enabled());
     io_registers.apu_write_register(IoRegister::NR52, new_nr52_value);
 
-    if should_sample(apu_state, prev_clock, audio_60hz) {
-        let (sample_l, sample_r) = apu_state.sample(
-            io_registers.apu_read_register(IoRegister::NR50),
-            io_registers.apu_read_register(IoRegister::NR51),
-            audio_60hz,
-        );
+    apu_state.sample(
+        io_registers.apu_read_register(IoRegister::NR50),
+        io_registers.apu_read_register(IoRegister::NR51),
+    );
+
+    if should_output_sample(apu_state, prev_clock, audio_60hz) {
+        let (sample_l, sample_r) = apu_state.output_samples();
 
         let sample_queue = &mut apu_state.sample_queue;
         sample_queue.push_back(sample_l);
@@ -315,24 +329,14 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
     }
 }
 
-// High-pass filter capacitor charge factor
-static HPF_CHARGE_FACTOR: Lazy<f64> =
-    Lazy::new(|| 0.999958_f64.powf((4 * 1024 * 1024) as f64 / OUTPUT_FREQUENCY as f64));
-static HPF_CHARGE_FACTOR_60HZ: Lazy<f64> = Lazy::new(|| {
-    0.999958_f64.powf((4 * 1024 * 1024) as f64 / OUTPUT_FREQUENCY as f64 * 60.0 / 59.7)
-});
+// High-pass filter capacitor charge factor; 0.999958.powi(4)
+const HPF_CHARGE_FACTOR: f64 = 0.999832;
 
 // Apply a simple high-pass filter to the given sample. This mimics what the actual hardware does.
-fn high_pass_filter(sample: f64, capacitor: &mut f64, audio_60hz: bool) -> f64 {
+fn high_pass_filter(sample: f64, capacitor: &mut f64) -> f64 {
     let filtered_sample = sample - *capacitor;
 
-    let charge_factor = if audio_60hz {
-        *HPF_CHARGE_FACTOR_60HZ
-    } else {
-        *HPF_CHARGE_FACTOR
-    };
-
-    *capacitor = sample - charge_factor * filtered_sample;
+    *capacitor = sample - HPF_CHARGE_FACTOR * filtered_sample;
 
     filtered_sample
 }
@@ -343,7 +347,7 @@ static SAMPLE_RATE_60HZ: Lazy<f64> =
 
 // Return whether the APU emulator should output audio samples during the current M-cycle tick.
 // This is currently just a naive "output every 4.194304 MHz / <output_frequency> clock cycles"
-fn should_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) -> bool {
+fn should_output_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) -> bool {
     let sample_rate = if audio_60hz {
         *SAMPLE_RATE_60HZ
     } else {

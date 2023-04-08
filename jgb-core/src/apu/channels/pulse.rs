@@ -3,8 +3,6 @@ use crate::apu::channels::{Channel, FrequencyTimer, LengthTimer, SlopeDirection,
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use serde::{Deserialize, Serialize};
 
-const OUTPUT_FREQUENCY: u64 = crate::apu::OUTPUT_FREQUENCY;
-
 // Waveform for square wave channels (12.5% / 25% / 50% / 75%). Each waveform has 8 samples which
 // are each 0 or 1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -403,13 +401,6 @@ impl Channel for PulseChannel {
 
         if !self.generation_on {
             // Return a constant 0 if the channel is disabled but the DAC is on
-            return Some(0);
-        }
-
-        // TODO this is a hack, remove once better audio downsampling is implemented
-        if 131072.0 / f64::from(2048 - self.frequency_timer.frequency)
-            > OUTPUT_FREQUENCY as f64 / 2.0
-        {
             return Some(0);
         }
 

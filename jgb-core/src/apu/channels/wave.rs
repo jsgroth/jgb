@@ -2,8 +2,6 @@ use crate::apu::channels::{Channel, FrequencyTimer, LengthTimer};
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use serde::{Deserialize, Serialize};
 
-const OUTPUT_FREQUENCY: u64 = crate::apu::OUTPUT_FREQUENCY;
-
 // A custom wave channel (channel 3).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct WaveChannel {
@@ -144,13 +142,6 @@ impl Channel for WaveChannel {
 
         if !self.generation_on || self.volume_shift == 8 {
             // Output a constant 0 if the channel is off or channel volume is set to 0% (shift 8)
-            return Some(0);
-        }
-
-        // TODO this is a hack, remove once better audio downsampling is implemented
-        if 65536.0 / f64::from(2048 - self.frequency_timer.frequency)
-            > OUTPUT_FREQUENCY as f64 / 2.0
-        {
             return Some(0);
         }
 
