@@ -424,6 +424,13 @@ impl Cartridge {
         })
     }
 
+    #[cfg(test)]
+    pub fn new_cgb_test() -> Self {
+        let mut rom = vec![0; 0x0150];
+        rom[address::CGB_SUPPORT as usize] = 0x80;
+        Self::new(rom, None).unwrap()
+    }
+
     pub fn from_file(file_path: &str) -> Result<Self, CartridgeLoadError> {
         log::info!("Loading cartridge from '{file_path}'");
 
@@ -504,12 +511,12 @@ pub struct AddressSpace {
         serialize_with = "crate::serialize::serialize_array",
         deserialize_with = "crate::serialize::deserialize_array"
     )]
-    vram: [u8; 8192],
+    vram: [u8; 16384],
     #[serde(
         serialize_with = "crate::serialize::serialize_array",
         deserialize_with = "crate::serialize::deserialize_array"
     )]
-    working_ram: [u8; 8192],
+    working_ram: [u8; 32768],
     #[serde(
         serialize_with = "crate::serialize::serialize_array",
         deserialize_with = "crate::serialize::deserialize_array"
@@ -529,8 +536,8 @@ impl AddressSpace {
         Self {
             execution_mode,
             cartridge,
-            vram: [0; 8192],
-            working_ram: [0; 8192],
+            vram: [0; 16384],
+            working_ram: [0; 32768],
             oam: [0; 160],
             io_registers: IoRegisters::new(execution_mode),
             hram: [0; 127],
@@ -573,22 +580,50 @@ impl AddressSpace {
         self.read_address_u8_no_access_check(address)
     }
 
+    fn map_vram_address(&self, address: u16) -> usize {
+        match self.execution_mode {
+            ExecutionMode::GameBoy => (address - address::VRAM_START) as usize,
+            ExecutionMode::GameBoyColor => {
+                (self.io_registers.get_cgb_vram_bank() << 13)
+                    + (address - address::VRAM_START) as usize
+            }
+        }
+    }
+
+    fn map_working_ram_address(&self, address: u16) -> usize {
+        match self.execution_mode {
+            ExecutionMode::GameBoy => (address - address::WORKING_RAM_START) as usize,
+            ExecutionMode::GameBoyColor => match address {
+                address @ address::WORKING_RAM_START..=address::CGB_BANK_0_WORKING_RAM_END => {
+                    (address - address::WORKING_RAM_START) as usize
+                }
+                _ => {
+                    let ram_bank_number = self.io_registers.get_cgb_working_ram_bank();
+                    (ram_bank_number << 12)
+                        + (address - address::CGB_BANK_0_WORKING_RAM_END) as usize
+                }
+            },
+        }
+    }
+
     fn read_address_u8_no_access_check(&self, address: u16) -> u8 {
         match address {
             address @ address::ROM_START..=address::ROM_END => {
                 self.cartridge.read_rom_address(address)
             }
             address @ address::VRAM_START..=address::VRAM_END => {
-                self.vram[(address - address::VRAM_START) as usize]
+                self.vram[self.map_vram_address(address)]
             }
             address @ address::EXTERNAL_RAM_START..=address::EXTERNAL_RAM_END => {
                 self.cartridge.read_ram_address(address)
             }
             address @ address::WORKING_RAM_START..=address::WORKING_RAM_END => {
-                self.working_ram[(address - address::WORKING_RAM_START) as usize]
+                self.working_ram[self.map_working_ram_address(address)]
             }
             address @ address::ECHO_RAM_START..=address::ECHO_RAM_END => {
-                self.working_ram[(address - address::ECHO_RAM_START) as usize]
+                self.working_ram[self.map_working_ram_address(
+                    address - address::ECHO_RAM_START + address::WORKING_RAM_START,
+                )]
             }
             address @ address::OAM_START..=address::OAM_END => {
                 self.oam[(address - address::OAM_START) as usize]
@@ -646,16 +681,18 @@ impl AddressSpace {
                 self.cartridge.write_rom_address(address, value);
             }
             address @ address::VRAM_START..=address::VRAM_END => {
-                self.vram[(address - address::VRAM_START) as usize] = value;
+                self.vram[self.map_vram_address(address)] = value;
             }
             address @ address::EXTERNAL_RAM_START..=address::EXTERNAL_RAM_END => {
                 self.cartridge.write_ram_address(address, value);
             }
             address @ address::WORKING_RAM_START..=address::WORKING_RAM_END => {
-                self.working_ram[(address - address::WORKING_RAM_START) as usize] = value;
+                self.working_ram[self.map_working_ram_address(address)] = value;
             }
             address @ address::ECHO_RAM_START..=address::ECHO_RAM_END => {
-                self.working_ram[(address - address::ECHO_RAM_START) as usize] = value;
+                self.working_ram[self.map_working_ram_address(
+                    address - address::ECHO_RAM_START + address::WORKING_RAM_START,
+                )] = value;
             }
             address @ address::OAM_START..=address::OAM_END => {
                 self.oam[(address - address::OAM_START) as usize] = value;
@@ -713,6 +750,7 @@ impl AddressSpace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::ioregisters::IoRegister;
 
     #[test]
     fn mbc1_mapper_rom_small() {
@@ -795,5 +833,99 @@ mod tests {
         assert_eq!(Some(0x0000), mapper.map_ram_address(0xA000));
         assert_eq!(Some(0x1000), mapper.map_ram_address(0xB000));
         assert_eq!(Some(0x1234), mapper.map_ram_address(0xB234));
+    }
+
+    #[test]
+    fn cgb_vram_banks() {
+        let mut address_space =
+            AddressSpace::new(Cartridge::new_cgb_test(), ExecutionMode::GameBoyColor);
+        let ppu_state = PpuState::new();
+
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::VBK, 0x00);
+
+        assert_eq!(0x00, address_space.read_address_u8(0x8500, &ppu_state));
+        address_space.write_address_u8(0x8500, 0xCD, &ppu_state);
+        assert_eq!(0xCD, address_space.read_address_u8(0x8500, &ppu_state));
+
+        assert_eq!(0x00, address_space.read_address_u8(0x9CDE, &ppu_state));
+        address_space.write_address_u8(0x9CDE, 0x35, &ppu_state);
+        assert_eq!(0x35, address_space.read_address_u8(0x9CDE, &ppu_state));
+
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::VBK, 0x01);
+
+        assert_eq!(0x00, address_space.read_address_u8(0x8500, &ppu_state));
+        assert_eq!(0x00, address_space.read_address_u8(0x9CDE, &ppu_state));
+
+        address_space.write_address_u8(0x8500, 0xEF, &ppu_state);
+        assert_eq!(0xEF, address_space.read_address_u8(0x8500, &ppu_state));
+
+        address_space.write_address_u8(0x9CDE, 0x46, &ppu_state);
+        assert_eq!(0x46, address_space.read_address_u8(0x9CDE, &ppu_state));
+
+        // Check that bits other than 0 are ignored
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::VBK, 0xFE);
+        assert_eq!(0xCD, address_space.read_address_u8(0x8500, &ppu_state));
+        assert_eq!(0x35, address_space.read_address_u8(0x9CDE, &ppu_state));
+    }
+
+    #[test]
+    fn cgb_working_ram_banks() {
+        let mut address_space =
+            AddressSpace::new(Cartridge::new_cgb_test(), ExecutionMode::GameBoyColor);
+        let ppu_state = PpuState::new();
+
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::SVBK, 0x00);
+
+        assert_eq!(0x00, address_space.read_address_u8(0xC500, &ppu_state));
+        address_space.write_address_u8(0xC500, 0xDE, &ppu_state);
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        assert_eq!(0x00, address_space.read_address_u8(0xD500, &ppu_state));
+        address_space.write_address_u8(0xD500, 0xCF, &ppu_state);
+        assert_eq!(0xCF, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        // Bank 1 should behave the same as 0
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::SVBK, 0x01);
+        assert_eq!(0xCF, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::SVBK, 0x04);
+        assert_eq!(0x00, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        address_space.write_address_u8(0xD500, 0x57, &ppu_state);
+        assert_eq!(0x57, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        // Check that only the lower 3 bits of SVBK are read
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::SVBK, 0xF8);
+        assert_eq!(0xCF, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        // Test the highest bank number
+        address_space
+            .get_io_registers_mut()
+            .write_register(IoRegister::SVBK, 0x07);
+        assert_eq!(0x00, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
+
+        address_space.write_address_u8(0xD500, 0x21, &ppu_state);
+        assert_eq!(0x21, address_space.read_address_u8(0xD500, &ppu_state));
+        assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
     }
 }

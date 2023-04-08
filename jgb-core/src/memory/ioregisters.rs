@@ -448,6 +448,8 @@ impl IoRegisters {
                 byte | 0xBF
             }
             IoRegister::NR52 => byte | 0x70,
+            IoRegister::VBK => byte | 0xFE,
+            IoRegister::SVBK => byte | 0xF8,
             _ => byte,
         }
     }
@@ -599,6 +601,20 @@ impl IoRegisters {
         };
 
         self.dirty_bits &= !bit;
+    }
+
+    pub fn get_cgb_vram_bank(&self) -> usize {
+        (self.contents[IoRegister::VBK.to_relative_address()] & 0x01) as usize
+    }
+
+    pub fn get_cgb_working_ram_bank(&self) -> usize {
+        let svbk_value = self.contents[IoRegister::SVBK.to_relative_address()] & 0x07;
+        // SVBK value of 0 is treated as RAM bank 1
+        if svbk_value == 0 {
+            1
+        } else {
+            svbk_value as usize
+        }
     }
 }
 

@@ -23,6 +23,8 @@ pub const EXTERNAL_RAM_END: u16 = 0xBFFF;
 pub const WORKING_RAM_START: u16 = 0xC000;
 pub const WORKING_RAM_END: u16 = 0xDFFF;
 
+pub const CGB_BANK_0_WORKING_RAM_END: u16 = 0xCFFF;
+
 pub const ECHO_RAM_START: u16 = 0xE000;
 pub const ECHO_RAM_END: u16 = 0xFDFF;
 

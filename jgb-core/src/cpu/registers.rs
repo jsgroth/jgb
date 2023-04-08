@@ -115,6 +115,12 @@ impl CFlag {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CgbSpeedMode {
+    Normal,
+    Double,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CpuRegisters {
     pub accumulator: u8,
@@ -131,6 +137,7 @@ pub struct CpuRegisters {
     // Tracks whether the previous instruction was EI
     pub interrupt_delay: bool,
     pub halted: bool,
+    pub cgb_speed_mode: CgbSpeedMode,
 }
 
 impl CpuRegisters {
@@ -153,6 +160,7 @@ impl CpuRegisters {
             ime: false,
             interrupt_delay: false,
             halted: false,
+            cgb_speed_mode: CgbSpeedMode::Normal,
         }
     }
 
