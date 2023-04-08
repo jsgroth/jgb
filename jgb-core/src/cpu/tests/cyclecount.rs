@@ -1,12 +1,12 @@
 use crate::cpu::instructions::JumpCondition;
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair};
-use crate::cpu::CpuRegisters;
+use crate::cpu::{CpuRegisters, ExecutionMode};
 
 #[test]
 fn validate_cycles_required() {
     use crate::cpu::instructions::Instruction as I;
 
-    let cr = CpuRegisters::new();
+    let cr = CpuRegisters::new(ExecutionMode::GameBoy);
 
     // 8-bit load instructions
     assert_eq!(
@@ -156,7 +156,7 @@ fn validate_cycles_required() {
     // Conditional control flow instructions
     let all_flags_false = CpuRegisters {
         flags: 0x00,
-        ..CpuRegisters::new()
+        ..CpuRegisters::new(ExecutionMode::GameBoy)
     };
 
     assert_eq!(

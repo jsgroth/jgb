@@ -1,16 +1,19 @@
 mod config;
 mod input;
 
+use anyhow::Context;
 use eframe::epaint::Color32;
 use eframe::Frame;
 use egui::{
-    menu, Align, Button, CentralPanel, Context, Direction, Key, KeyboardShortcut, Layout,
-    Modifiers, TextEdit, TopBottomPanel, Widget, Window,
+    menu, Align, Button, CentralPanel, Direction, Key, KeyboardShortcut, Layout, Modifiers,
+    TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use jgb_core::{ColorScheme, EmulationError, HardwareMode, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -30,11 +33,37 @@ enum OpenSettingsWindow {
     Hotkey,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CgbSupportType {
+    DmgOnly,
+    CgbEnhanced,
+    CgbOnly,
+}
+
+impl CgbSupportType {
+    fn from_byte(byte: u8) -> Self {
+        match byte & 0xC0 {
+            0xC0 => Self::CgbOnly,
+            0x80 => Self::CgbEnhanced,
+            0x40 | 0x00 => Self::DmgOnly,
+            _ => panic!("{byte} & 0xC0 was not 0xC0/0x80/0x40/0x00"),
+        }
+    }
+
+    fn default_hardware_mode(self) -> HardwareMode {
+        match self {
+            Self::DmgOnly => HardwareMode::GameBoy,
+            Self::CgbEnhanced | Self::CgbOnly => HardwareMode::GameBoyColor,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct RomSearchResult {
     full_path: String,
     file_name_no_ext: String,
     file_size_kb: u64,
+    cgb_support_type: CgbSupportType,
 }
 
 #[derive(Debug, Default)]
@@ -83,13 +112,22 @@ impl AppState {
             read_dir
                 .filter_map(Result::ok)
                 .filter_map(|dir_entry| {
-                    let is_gb_file = dir_entry.path().extension() == Some(OsStr::new("gb"));
+                    let path = dir_entry.path();
+                    let extension = path.extension();
+                    let is_gb_file = extension == Some(OsStr::new("gb")) || extension == Some(OsStr::new("gbc"));
                     let Ok(metadata) = dir_entry.metadata() else { return None };
 
                     if is_gb_file && metadata.is_file() {
-                        let full_path = dir_entry.path().to_str()?.into();
-                        let file_name_no_ext = dir_entry
-                            .path()
+                        let cgb_support_type = match determine_cgb_support_type(&path) {
+                            Ok(cgb_support_type) => cgb_support_type,
+                            Err(err) => {
+                                log::error!("Error determining CGB support type: {err}");
+                                return None;
+                            }
+                        };
+
+                        let full_path = path.to_str()?.into();
+                        let file_name_no_ext = path
                             .with_extension("")
                             .file_name()?
                             .to_str()?
@@ -100,6 +138,7 @@ impl AppState {
                             full_path,
                             file_name_no_ext,
                             file_size_kb,
+                            cgb_support_type,
                         })
                     } else {
                         None
@@ -115,6 +154,31 @@ impl AppState {
 
         self.rom_search_results = rom_search_results;
     }
+}
+
+fn determine_cgb_support_type<P>(path: P) -> Result<CgbSupportType, anyhow::Error>
+where
+    P: AsRef<Path>,
+{
+    let mut file = File::open(path.as_ref())
+        .with_context(|| format!("error opening GB file: {}", path.as_ref().display()))?;
+
+    file.seek(SeekFrom::Start(0x0143)).with_context(|| {
+        format!(
+            "error seeking to address 0x0143 in GB file: {}",
+            path.as_ref().display()
+        )
+    })?;
+
+    let mut buffer = [0; 1];
+    file.read_exact(&mut buffer).with_context(|| {
+        format!(
+            "error reading byte at address 0x0143 in GB file: {}",
+            path.as_ref().display()
+        )
+    })?;
+
+    Ok(CgbSupportType::from_byte(buffer[0]))
 }
 
 #[derive(Debug, Default)]
@@ -135,8 +199,12 @@ impl JgbApp {
         }
     }
 
-    fn handle_open(&mut self) {
-        let mut file_dialog = FileDialog::new().add_filter("gb", &["gb"]);
+    fn handle_open(&mut self, hardware_mode: HardwareMode) {
+        let mut file_dialog = FileDialog::new();
+        file_dialog = match hardware_mode {
+            HardwareMode::GameBoy => file_dialog.add_filter("gb", &["gb"]),
+            HardwareMode::GameBoyColor => file_dialog.add_filter("gbc", &["gbc"]),
+        };
         if let Some(rom_search_dir) = &self.config.rom_search_dir {
             file_dialog = file_dialog.set_directory(Path::new(rom_search_dir));
         }
@@ -145,7 +213,7 @@ impl JgbApp {
         if let Some(file) = file.and_then(|file| file.to_str().map(String::from)) {
             self.stop_emulator_if_running();
 
-            self.state.running_emulator = Some(launch_emulator(&file, &self.config));
+            self.state.running_emulator = Some(launch_emulator(&file, &self.config, hardware_mode));
         }
     }
 
@@ -165,7 +233,7 @@ impl JgbApp {
         self.config.save_to_file(&self.config_path).unwrap();
     }
 
-    fn render_error_window(&mut self, ctx: &Context) {
+    fn render_error_window(&mut self, ctx: &egui::Context) {
         if let Some(emulation_error) = self
             .state
             .emulation_error
@@ -189,10 +257,10 @@ impl JgbApp {
         }
     }
 
-    fn render_menu(&mut self, ctx: &Context, frame: &mut Frame) {
-        let open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
-        if ctx.input_mut(|input| input.consume_shortcut(&open_shortcut)) {
-            self.handle_open();
+    fn render_menu(&mut self, ctx: &egui::Context, frame: &mut Frame) {
+        let gb_open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
+        if ctx.input_mut(|input| input.consume_shortcut(&gb_open_shortcut)) {
+            self.handle_open(HardwareMode::GameBoy);
         }
 
         let quit_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Q);
@@ -208,11 +276,16 @@ impl JgbApp {
             );
             menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    let open_button = Button::new("Open GB ROM")
-                        .shortcut_text(ctx.format_shortcut(&open_shortcut))
+                    let gb_open_button = Button::new("Open GB ROM")
+                        .shortcut_text(ctx.format_shortcut(&gb_open_shortcut))
                         .ui(ui);
-                    if open_button.clicked() {
-                        self.handle_open();
+                    if gb_open_button.clicked() {
+                        self.handle_open(HardwareMode::GameBoy);
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Open GBC ROM").clicked() {
+                        self.handle_open(HardwareMode::GameBoyColor);
                         ui.close_menu();
                     }
 
@@ -250,7 +323,7 @@ impl JgbApp {
         });
     }
 
-    fn render_general_settings_window(&mut self, ctx: &Context) {
+    fn render_general_settings_window(&mut self, ctx: &egui::Context) {
         let mut settings_open = true;
         Window::new("General Settings")
             .id("general_settings".into())
@@ -364,7 +437,7 @@ impl JgbApp {
         };
     }
 
-    fn render_keyboard_settings_window(&mut self, ctx: &Context) {
+    fn render_keyboard_settings_window(&mut self, ctx: &egui::Context) {
         let mut settings_open = true;
         Window::new("Keyboard Settings")
             .id("keyboard_settings".into())
@@ -382,7 +455,7 @@ impl JgbApp {
         }
     }
 
-    fn render_controller_settings_window(&mut self, ctx: &Context) {
+    fn render_controller_settings_window(&mut self, ctx: &egui::Context) {
         let mut settings_open = true;
         Window::new("Controller Settings")
             .id("controller_settings".into())
@@ -405,7 +478,7 @@ impl JgbApp {
         }
     }
 
-    fn render_hotkey_settings_window(&mut self, ctx: &Context) {
+    fn render_hotkey_settings_window(&mut self, ctx: &egui::Context) {
         let mut settings_open = true;
         Window::new("Hotkey Settings")
             .id("hotkey_settings".into())
@@ -423,7 +496,7 @@ impl JgbApp {
         }
     }
 
-    fn render_rom_list(&mut self, ctx: &Context) {
+    fn render_rom_list(&mut self, ctx: &egui::Context) {
         CentralPanel::default().show(ctx, |ui| {
             ui.set_enabled(
                 self.state.open_settings_window.is_none() && self.state.input_thread.is_none(),
@@ -443,11 +516,14 @@ impl JgbApp {
                         .auto_shrink([false; 2])
                         .striped(true)
                         .cell_layout(Layout::left_to_right(Align::Center))
-                        .column(Column::auto())
+                        .columns(Column::auto(), 2)
                         .column(Column::remainder())
                         .header(30.0, |mut row| {
                             row.col(|ui| {
                                 ui.heading("Name");
+                            });
+                            row.col(|ui| {
+                                ui.heading("Type");
                             });
                             row.col(|ui| {
                                 ui.heading("Size");
@@ -462,8 +538,19 @@ impl JgbApp {
                                             self.state.running_emulator = Some(launch_emulator(
                                                 &search_result.full_path,
                                                 &self.config,
+                                                search_result
+                                                    .cgb_support_type
+                                                    .default_hardware_mode(),
                                             ));
                                         }
+                                    });
+                                    row.col(|ui| {
+                                        let type_text = match search_result.cgb_support_type {
+                                            CgbSupportType::DmgOnly => "GB",
+                                            CgbSupportType::CgbEnhanced => "GB/GBC",
+                                            CgbSupportType::CgbOnly => "GBC",
+                                        };
+                                        ui.label(type_text);
                                     });
                                     row.col(|ui| {
                                         ui.label(format!("{}KB", search_result.file_size_kb));
@@ -478,7 +565,7 @@ impl JgbApp {
 }
 
 impl eframe::App for JgbApp {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
         let prev_config = self.config.clone();
 
         if self
@@ -551,12 +638,16 @@ struct EmulatorInstance {
 }
 
 #[must_use]
-fn launch_emulator(gb_file: &str, app_config: &AppConfig) -> EmulatorInstance {
+fn launch_emulator(
+    gb_file: &str,
+    app_config: &AppConfig,
+    hardware_mode: HardwareMode,
+) -> EmulatorInstance {
     log::info!("Launching emulator instance for file path '{gb_file}'");
 
     let run_config = RunConfig {
         gb_file_path: gb_file.into(),
-        hardware_mode: HardwareMode::default(),
+        hardware_mode,
         audio_enabled: app_config.audio_enabled,
         sync_to_audio: app_config.audio_sync_enabled,
         vsync_enabled: app_config.vsync_enabled,

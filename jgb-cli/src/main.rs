@@ -13,6 +13,10 @@ struct CliArgs {
     #[arg(short = 'f', long = "gb-file-path")]
     gb_file_path: String,
 
+    /// Hardware mode (GameBoy/GameBoyColor)
+    #[arg(long = "hardware-mode", default_value_t)]
+    hardware_mode: HardwareMode,
+
     /// Enable audio
     #[arg(short = 'a', long = "audio-enabled", default_value_t)]
     audio_enabled: bool,
@@ -214,7 +218,7 @@ fn main() -> anyhow::Result<()> {
 
     let run_config = RunConfig {
         gb_file_path: args.gb_file_path,
-        hardware_mode: HardwareMode::default(),
+        hardware_mode: args.hardware_mode,
         audio_enabled: args.audio_enabled,
         sync_to_audio: args.sync_to_audio,
         vsync_enabled: args.vsync_enabled,

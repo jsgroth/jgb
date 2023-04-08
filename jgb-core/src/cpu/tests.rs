@@ -181,7 +181,7 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
         Cartridge::new(rom, None).expect("synthesized test ROM should be valid"),
         ExecutionMode::GameBoy,
     );
-    let mut cpu_registers = CpuRegisters::new();
+    let mut cpu_registers = CpuRegisters::new(ExecutionMode::GameBoy);
     let ppu_state = PpuState::new();
 
     while cpu_registers.pc >= 0x0100 && cpu_registers.pc < rom_len {
