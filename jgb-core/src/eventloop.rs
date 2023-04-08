@@ -140,7 +140,7 @@ pub fn run(
             }
         }
         leftover_cpu_cycles = cycles_required & 0x00000003;
-        cycles_required = cycles_required & 0xFFFFFFFC;
+        cycles_required &= 0xFFFFFFFC;
 
         let double_speed = matches!(cpu_registers.cgb_speed_mode, CgbSpeedMode::Double);
 

@@ -389,9 +389,12 @@ impl IoRegisters {
             }
         }
 
+        // Don't boot with DMA transfer registers flagged as dirty
+        let dirty_bits = !dirty_bit_for_register(IoRegister::DMA).unwrap()
+            & !dirty_bit_for_register(IoRegister::HDMA5).unwrap();
         Self {
             contents,
-            dirty_bits: 0xFFFF,
+            dirty_bits,
             execution_mode,
         }
     }
