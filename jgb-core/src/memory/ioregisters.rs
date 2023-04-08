@@ -376,7 +376,6 @@ impl IoRegisters {
 
         if matches!(execution_mode, ExecutionMode::GameBoyColor) {
             for register in [
-                IoRegister::KEY1,
                 IoRegister::VBK,
                 IoRegister::HDMA1,
                 IoRegister::HDMA2,
