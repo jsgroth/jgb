@@ -33,6 +33,7 @@ enum MapperType {
     MBC1,
     MBC2,
     MBC3,
+    MBC5,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,12 +59,19 @@ enum Mapper {
         rom_bank_number: u8,
         ram_bank_number: u8,
     },
+    MBC5 {
+        rom_bank_bit_mask: u16,
+        ram_bank_bit_mask: u8,
+        ram_enable: u8,
+        rom_bank_number: u16,
+        ram_bank_number: u8,
+    },
 }
 
 impl Mapper {
     fn new(mapper_type: MapperType, rom_size: u32, ram_size: u32) -> Self {
         let rom_bank_bit_mask = if rom_size >= 1 << 14 {
-            ((rom_size >> 14) - 1) as u8
+            ((rom_size >> 14) - 1) as u16
         } else {
             0
         };
@@ -79,7 +87,7 @@ impl Mapper {
         match mapper_type {
             MapperType::None => Self::None,
             MapperType::MBC1 => Self::MBC1 {
-                rom_bank_bit_mask,
+                rom_bank_bit_mask: rom_bank_bit_mask as u8,
                 ram_bank_bit_mask,
                 ram_enable: 0x00,
                 rom_bank_number: 0x00,
@@ -87,11 +95,18 @@ impl Mapper {
                 banking_mode_select: 0x00,
             },
             MapperType::MBC2 => Self::MBC2 {
-                rom_bank_bit_mask,
+                rom_bank_bit_mask: rom_bank_bit_mask as u8,
                 ram_enable: 0x00,
                 rom_bank_number: 0x00,
             },
             MapperType::MBC3 => Self::MBC3 {
+                rom_bank_bit_mask: rom_bank_bit_mask as u8,
+                ram_bank_bit_mask,
+                ram_enable: 0x00,
+                rom_bank_number: 0x00,
+                ram_bank_number: 0x00,
+            },
+            MapperType::MBC5 => Self::MBC5 {
                 rom_bank_bit_mask,
                 ram_bank_bit_mask,
                 ram_enable: 0x00,
@@ -153,6 +168,22 @@ impl Mapper {
                 } else {
                     rom_bank_number
                 };
+
+                match address {
+                    address @ 0x0000..=0x3FFF => u32::from(address),
+                    address @ 0x4000..=0x7FFF => {
+                        let bank_number = rom_bank_number & rom_bank_bit_mask;
+                        u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
+                    }
+                    _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
+                }
+            }
+            &Self::MBC5 {
+                rom_bank_bit_mask,
+                rom_bank_number,
+                ..
+            } => {
+                // ROM bank 0 is actually bank 0 in MBC5
 
                 match address {
                     address @ 0x0000..=0x3FFF => u32::from(address),
@@ -231,6 +262,26 @@ impl Mapper {
                 }
                 _ => panic!("invalid ROM write address in MBC3 mapper: {address:04X}"),
             },
+            Self::MBC5 {
+                ram_enable,
+                rom_bank_number,
+                ram_bank_number,
+                ..
+            } => match address {
+                _address @ 0x0000..=0x1FFF => {
+                    *ram_enable = value;
+                }
+                _address @ 0x2000..=0x3FFF => {
+                    *rom_bank_number = (*rom_bank_number & 0xFF00) | u16::from(value);
+                }
+                _address @ 0x4000..=0x5FFF => {
+                    *rom_bank_number = (u16::from(value) << 8) | (*rom_bank_number & 0x00FF);
+                }
+                _address @ 0x6000..=0x7FFF => {
+                    *ram_bank_number = value;
+                }
+                _ => panic!("invalid ROM write address in MBC5 mapper: {address:04X}"),
+            },
         }
     }
 
@@ -265,6 +316,12 @@ impl Mapper {
                 }
             }
             &Self::MBC3 {
+                ram_bank_bit_mask,
+                ram_enable,
+                ram_bank_number,
+                ..
+            }
+            | &Self::MBC5 {
                 ram_bank_bit_mask,
                 ram_enable,
                 ram_bank_number,
@@ -371,6 +428,13 @@ impl Cartridge {
             0x11 => (MapperType::MBC3, false, false),
             0x12 => (MapperType::MBC3, true, false),
             0x13 => (MapperType::MBC3, true, true),
+            0x19 => (MapperType::MBC5, false, false),
+            0x1A => (MapperType::MBC5, true, false),
+            0x1B => (MapperType::MBC5, true, true),
+            // MBC5 w/ rumble, rumble not supported
+            0x1C => (MapperType::MBC5, false, false),
+            0x1D => (MapperType::MBC5, true, false),
+            0x1E => (MapperType::MBC5, true, true),
             _ => return Err(CartridgeLoadError::InvalidMapper { mapper_byte }),
         };
 
