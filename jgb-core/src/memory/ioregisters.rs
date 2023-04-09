@@ -341,7 +341,7 @@ impl IoRegisters {
 
         let byte = self.contents[register.to_relative_address()];
         match register {
-            IoRegister::JOYP => (byte & 0x0F) | 0xC0,
+            IoRegister::JOYP => byte | 0xC0,
             IoRegister::STAT | IoRegister::NR10 => byte | 0x80,
             IoRegister::NR11 | IoRegister::NR21 => byte | 0x3F,
             IoRegister::NR30 => byte | 0x7F,
