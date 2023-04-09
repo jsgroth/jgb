@@ -4,7 +4,7 @@ use crate::memory::{address, AddressSpace};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-type FrameBuffer = [[u8; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+type FrameBuffer = [[u16; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
 pub const SCREEN_WIDTH: u8 = 160;
 pub const SCREEN_HEIGHT: u8 = 144;
@@ -789,7 +789,7 @@ fn render_to_frame_buffer(
 
         log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
 
-        frame_buffer[scanline as usize][pixel as usize] = pixel_color;
+        frame_buffer[scanline as usize][pixel as usize] = pixel_color as u16;
         pixel += 1;
     }
 
