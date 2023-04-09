@@ -355,7 +355,7 @@ impl PpuState {
                 VramDmaMode::AllAtOnce => true,
                 VramDmaMode::HBlank {
                     period_bytes_remaining,
-                } => !matches!(self.state, State::HBlank { .. }) || period_bytes_remaining > 0,
+                } => matches!(self.state, State::HBlank { .. }) && period_bytes_remaining > 0,
             },
             None => false,
         }
@@ -440,6 +440,10 @@ pub fn progress_vram_dma_transfer(
                 // VRAM DMA transfer has been started
                 ppu_state.vram_dma_status =
                     VramDmaStatus::from_hdma_registers(address_space.get_io_registers());
+                log::trace!(
+                    "initialized new VRAM DMA transfer: {:04X?}",
+                    ppu_state.vram_dma_status
+                );
             }
         }
     }
