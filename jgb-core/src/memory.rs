@@ -110,7 +110,7 @@ impl Mapper {
                 rom_bank_bit_mask,
                 ram_bank_bit_mask,
                 ram_enable: 0x00,
-                rom_bank_number: 0x00,
+                rom_bank_number: 0x01,
                 ram_bank_number: 0x00,
             },
         }
@@ -438,7 +438,7 @@ impl Cartridge {
             _ => return Err(CartridgeLoadError::InvalidMapper { mapper_byte }),
         };
 
-        log::info!("Detected mapper type {mapper_type:?}");
+        log::info!("Detected mapper type {mapper_type:?} (byte: {mapper_byte:02X})");
 
         let ram = if let Some(sav_path) = &sav_path {
             load_sav_file(sav_path)?
