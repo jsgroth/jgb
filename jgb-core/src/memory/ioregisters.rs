@@ -382,14 +382,12 @@ impl IoRegisters {
             contents[IoRegister::KEY1.to_relative_address()] = 0x7F;
 
             for register in [
-                IoRegister::VBK,
                 IoRegister::HDMA1,
                 IoRegister::HDMA2,
                 IoRegister::HDMA3,
                 IoRegister::HDMA4,
                 IoRegister::HDMA5,
                 IoRegister::RP,
-                IoRegister::SVBK,
             ] {
                 contents[register.to_relative_address()] = 0xFF;
             }
