@@ -271,15 +271,16 @@ impl Mapper {
                 _address @ 0x0000..=0x1FFF => {
                     *ram_enable = value;
                 }
-                _address @ 0x2000..=0x3FFF => {
+                _address @ 0x2000..=0x2FFF => {
                     *rom_bank_number = (*rom_bank_number & 0xFF00) | u16::from(value);
                 }
-                _address @ 0x4000..=0x5FFF => {
+                _address @ 0x3000..=0x3FFF => {
                     *rom_bank_number = (u16::from(value) << 8) | (*rom_bank_number & 0x00FF);
                 }
-                _address @ 0x6000..=0x7FFF => {
+                _address @ 0x4000..=0x5FFF => {
                     *ram_bank_number = value;
                 }
+                _address @ 0x6000..=0x7FFF => {}
                 _ => panic!("invalid ROM write address in MBC5 mapper: {address:04X}"),
             },
         }
