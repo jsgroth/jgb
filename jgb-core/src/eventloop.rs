@@ -255,17 +255,20 @@ pub fn run(
         }
         total_cycles += u64::from(cycles_required);
 
-        let timer_cycles = if double_speed {
-            2 * u64::from(cycles_required)
-        } else {
-            cycles_required.into()
-        };
-        timer::update_timer_registers(
-            address_space.get_io_registers_mut(),
-            &mut timer_counter,
-            timer_modulo,
-            timer_cycles,
-        );
+        // Timer updates pause while a VRAM DMA transfer is in progress
+        if !ppu_state.is_vram_dma_in_progress() {
+            let timer_cycles = if double_speed {
+                2 * u64::from(cycles_required)
+            } else {
+                cycles_required.into()
+            };
+            timer::update_timer_registers(
+                address_space.get_io_registers_mut(),
+                &mut timer_counter,
+                timer_modulo,
+                timer_cycles,
+            );
+        }
 
         let prev_mode = ppu_state.mode();
         for _ in (0..cycles_required).step_by(4) {
