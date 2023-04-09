@@ -2,6 +2,7 @@ mod lcdc;
 
 use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::address;
+use crate::ppu::Mode;
 pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
 use serde::{Deserialize, Serialize};
 
@@ -338,8 +339,19 @@ pub struct IoRegisters {
         deserialize_with = "crate::serialize::deserialize_array"
     )]
     contents: [u8; 0x80],
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
+    cgb_bg_palette_ram: [u8; 64],
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
+    cgb_obj_palette_ram: [u8; 64],
     dirty_bits: u16,
     execution_mode: ExecutionMode,
+    current_ppu_mode: Mode,
 }
 
 impl IoRegisters {
@@ -394,8 +406,11 @@ impl IoRegisters {
             & !dirty_bit_for_register(IoRegister::HDMA5).unwrap();
         Self {
             contents,
+            cgb_bg_palette_ram: [0; 64],
+            cgb_obj_palette_ram: [0; 64],
             dirty_bits,
             execution_mode,
+            current_ppu_mode: Mode::VBlank,
         }
     }
 
@@ -424,6 +439,14 @@ impl IoRegisters {
         self.write_register(register, value);
     }
 
+    fn current_bg_palette_address(&self) -> usize {
+        (self.contents[IoRegister::BCPS.to_relative_address()] & 0x3F) as usize
+    }
+
+    fn current_obj_palette_address(&self) -> usize {
+        (self.contents[IoRegister::OCPS.to_relative_address()] & 0x3F) as usize
+    }
+
     /// Read the value from the given hardware register. Returns 0xFF if the register is not
     /// readable by the CPU.
     pub fn read_register(&self, register: IoRegister) -> u8 {
@@ -450,6 +473,14 @@ impl IoRegisters {
             IoRegister::NR52 => byte | 0x70,
             IoRegister::VBK => byte | 0xFE,
             IoRegister::SVBK => byte | 0xF8,
+            IoRegister::BCPD => match self.current_ppu_mode {
+                Mode::RenderingScanline => 0xFF,
+                _ => self.cgb_bg_palette_ram[self.current_bg_palette_address()],
+            },
+            IoRegister::OCPD => match self.current_ppu_mode {
+                Mode::RenderingScanline => 0xFF,
+                _ => self.cgb_obj_palette_ram[self.current_obj_palette_address()],
+            },
             _ => byte,
         }
     }
@@ -499,6 +530,30 @@ impl IoRegisters {
                 let existing_value = self.contents[relative_addr];
                 // Only bit 7 is CPU-writable and bits 4-6 are unused
                 self.contents[relative_addr] = (existing_value & 0x0F) | (value & 0x80);
+            }
+            IoRegister::BCPD => {
+                let bg_palette_address = self.current_bg_palette_address();
+                if !matches!(self.current_ppu_mode, Mode::RenderingScanline) {
+                    self.cgb_bg_palette_ram[bg_palette_address] = value;
+                }
+                if self.contents[IoRegister::BCPS.to_relative_address()] & 0x80 != 0 {
+                    // Auto-increment BG palette index
+                    let new_palette_address = ((bg_palette_address + 1) & 0x3F) as u8;
+                    self.contents[IoRegister::BCPS.to_relative_address()] =
+                        0x80 | new_palette_address;
+                }
+            }
+            IoRegister::OCPD => {
+                let obj_palette_address = self.current_obj_palette_address();
+                if !matches!(self.current_ppu_mode, Mode::RenderingScanline) {
+                    self.cgb_obj_palette_ram[obj_palette_address] = value;
+                }
+                if self.contents[IoRegister::OCPS.to_relative_address()] & 0x80 != 0 {
+                    // Auto-increment OBJ palette index
+                    let new_palette_address = ((obj_palette_address + 1) & 0x3F) as u8;
+                    self.contents[IoRegister::OCPS.to_relative_address()] =
+                        0x80 | new_palette_address;
+                }
             }
             _ => {
                 self.contents[relative_addr] = value;
@@ -626,6 +681,22 @@ impl IoRegisters {
             svbk_value as usize
         }
     }
+
+    /// Update the current PPU mode. This is necessary because the CPU cannot access CGB palette RAM
+    /// while the PPU is rendering a scanline.
+    pub fn update_ppu_mode(&mut self, mode: Mode) {
+        self.current_ppu_mode = mode;
+    }
+
+    /// Retrieve a reference to BG palette RAM (CGB-only). This should only be called by the PPU.
+    pub fn get_bg_palette_ram(&self) -> &[u8; 64] {
+        &self.cgb_bg_palette_ram
+    }
+
+    /// Retrieve a reference to OBJ palette RAM (CGB-only). This should only be called by the PPU.
+    pub fn get_obj_palette_ram(&self) -> &[u8; 64] {
+        &self.cgb_obj_palette_ram
+    }
 }
 
 fn init_audio_registers(contents: &mut [u8; 0x80]) {
@@ -677,8 +748,11 @@ mod tests {
     fn empty_io_registers() -> IoRegisters {
         IoRegisters {
             contents: [0; 0x80],
+            cgb_bg_palette_ram: [0; 64],
+            cgb_obj_palette_ram: [0; 64],
             dirty_bits: 0x00,
             execution_mode: ExecutionMode::GameBoy,
+            current_ppu_mode: Mode::VBlank,
         }
     }
 

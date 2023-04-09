@@ -18,7 +18,7 @@ const LAST_VBLANK_SCANLINE: u8 = 153;
 
 const MAX_SPRITES_PER_SCANLINE: usize = 10;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     HBlank,
     VBlank,
@@ -338,6 +338,10 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             .interrupt_flags()
             .set(InterruptType::LcdStatus);
     }
+
+    address_space
+        .get_io_registers_mut()
+        .update_ppu_mode(new_state.mode());
 
     ppu_state.state = new_state;
     ppu_state.last_stat_interrupt_line = stat_interrupt_line;
