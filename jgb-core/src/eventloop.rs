@@ -282,6 +282,7 @@ pub fn run(
         );
 
         let prev_mode = ppu_state.mode();
+        let prev_enabled = ppu_state.enabled();
         for _ in (0..cycles_required).step_by(4) {
             ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
@@ -294,8 +295,10 @@ pub fn run(
         }
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
-        // to render
-        if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
+        // to render. Also render a (blank) frame if the PPU was just disabled.
+        if (prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank)
+            || (prev_enabled && !ppu_state.enabled())
+        {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture, run_config)?;
         }
     }

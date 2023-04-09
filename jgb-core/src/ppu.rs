@@ -279,6 +279,18 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     let enabled = address_space.get_io_registers().lcdc().lcd_enabled();
     ppu_state.enabled = enabled;
 
+    if prev_enabled && !enabled {
+        ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+
+        let stat = address_space
+            .get_io_registers()
+            .read_register(IoRegister::STAT);
+        address_space
+            .get_io_registers_mut()
+            .privileged_set_stat(stat & 0xF8);
+        address_space.get_io_registers_mut().privileged_set_ly(0x00);
+    }
+
     if !enabled {
         return;
     }
@@ -294,7 +306,6 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             sprites: Vec::new(),
         });
         ppu_state.last_stat_interrupt_line = false;
-        ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
     }
 
     // Fire off VBlank interrupt when the *last* state was VBlank start so that VBlank interrupt
