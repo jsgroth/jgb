@@ -379,6 +379,8 @@ impl IoRegisters {
         init_audio_registers(&mut contents);
 
         if matches!(execution_mode, ExecutionMode::GameBoyColor) {
+            contents[IoRegister::KEY1.to_relative_address()] = 0x7F;
+
             for register in [
                 IoRegister::VBK,
                 IoRegister::HDMA1,
@@ -463,6 +465,7 @@ impl IoRegisters {
                 byte | 0xBF
             }
             IoRegister::NR52 => byte | 0x70,
+            IoRegister::KEY1 => byte | 0x7E,
             IoRegister::VBK => byte | 0xFE,
             IoRegister::SVBK => byte | 0xF8,
             IoRegister::BCPD => match self.current_ppu_mode {
