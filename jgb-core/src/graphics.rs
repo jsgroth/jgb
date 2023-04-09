@@ -96,9 +96,15 @@ fn gb_texture_updater(
     }
 }
 
+// Pre-computed so as to avoid needing to do floating point arithmetic while rendering
+// GBC_COLOR_TO_8_BIT[i] = (f64::from(i) * 255.0 / 31.0).round() as u8
+const GBC_COLOR_TO_8_BIT: [u8; 32] = [
+    0, 8, 16, 25, 33, 41, 49, 58, 66, 74, 82, 90, 99, 107, 115, 123, 132, 140, 148, 156, 165, 173,
+    181, 189, 197, 206, 214, 222, 230, 239, 247, 255,
+];
+
 fn normalize_gbc_color(value: u16) -> u8 {
-    // Individual GBC color values are 5-bit; map from [0, 31] to [0, 255]
-    (f64::from(value) / f64::from(0x1F) * 255.0).round() as u8
+    GBC_COLOR_TO_8_BIT[value as usize]
 }
 
 fn gbc_texture_updater(frame_buffer: &FrameBuffer) -> impl FnOnce(&mut [u8], usize) + '_ {
