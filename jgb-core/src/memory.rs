@@ -565,10 +565,6 @@ impl Cartridge {
     pub fn supports_cgb_mode(&self) -> bool {
         self.rom[address::CGB_SUPPORT as usize] & 0x80 != 0
     }
-
-    pub fn is_cgb_only(&self) -> bool {
-        self.rom[address::CGB_SUPPORT as usize] & 0xC0 == 0xC0
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
