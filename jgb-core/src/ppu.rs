@@ -292,6 +292,15 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
     }
 
+    // Fire off VBlank interrupt when the *last* state was VBlank start so that VBlank interrupt
+    // is delayed by 1 M-cycle
+    if ppu_state.state == VBLANK_START {
+        address_space
+            .get_io_registers_mut()
+            .interrupt_flags()
+            .set(InterruptType::VBlank);
+    }
+
     let old_state = std::mem::replace(&mut ppu_state.state, DUMMY_STATE);
     let new_state = process_state(
         old_state,
@@ -322,13 +331,6 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             .read_register(IoRegister::LYC);
 
     update_stat_register(address_space.get_io_registers_mut(), lyc_match, new_mode);
-
-    if new_state == VBLANK_START {
-        address_space
-            .get_io_registers_mut()
-            .interrupt_flags()
-            .set(InterruptType::VBlank);
-    }
 
     let stat_interrupt_line =
         compute_stat_interrupt_line(address_space.get_io_registers(), lyc_match, new_mode);
