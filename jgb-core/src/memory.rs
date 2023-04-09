@@ -426,6 +426,9 @@ impl Cartridge {
             0x03 => (MapperType::MBC1, true, true),
             0x05 => (MapperType::MBC2, true, false),
             0x06 => (MapperType::MBC2, true, true),
+            // 0x0F-0x10 are MBC3 w/ RTC, RTC not supported yet
+            0x0F => (MapperType::MBC3, false, true),
+            0x10 => (MapperType::MBC3, true, true),
             0x11 => (MapperType::MBC3, false, false),
             0x12 => (MapperType::MBC3, true, false),
             0x13 => (MapperType::MBC3, true, true),
