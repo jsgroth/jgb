@@ -272,6 +272,7 @@ pub fn run(
         }
 
         let prev_mode = ppu_state.mode();
+        let prev_enabled = ppu_state.enabled();
         for _ in (0..cycles_required).step_by(4) {
             ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
             if double_speed {
@@ -295,7 +296,7 @@ pub fn run(
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
         // to render
-        if prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank {
+        if (prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank) || (prev_enabled && !ppu_state.enabled()) {
             graphics::render_frame(
                 execution_mode,
                 &ppu_state,

@@ -217,11 +217,6 @@ const VBLANK_START: State = State::VBlank {
     dot: 0,
 };
 
-const POWER_ON_STATE: State = State::VBlank {
-    scanline: SCREEN_HEIGHT + 1,
-    dot: 0,
-};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OamDmaStatus {
     pub source_high_bits: u16,
@@ -329,7 +324,12 @@ impl PpuState {
         Self {
             execution_mode,
             enabled: true,
-            state: POWER_ON_STATE,
+            state: State::ScanningOAM(ScanningOAMStateData {
+                scanline: 0,
+                dot: 0,
+                window_internal_y: 0,
+                sprites: Vec::new(),
+            }),
             oam_dma_status: None,
             vram_dma_status: None,
             frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
@@ -510,6 +510,18 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     let enabled = address_space.get_io_registers().lcdc().lcd_enabled();
     ppu_state.enabled = enabled;
 
+    if prev_enabled && !enabled {
+        ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+
+        let stat = address_space
+            .get_io_registers()
+            .read_register(IoRegister::STAT);
+        address_space
+            .get_io_registers_mut()
+            .privileged_set_stat(stat & 0xF8);
+        address_space.get_io_registers_mut().privileged_set_ly(0x00);
+    }
+
     if !enabled {
         return;
     }
@@ -518,9 +530,22 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         // When PPU is powered on, reset state to the beginning of LY=0 VBlank and clear frame
         // buffer. Set the STAT interrupt line high so that interrupts won't trigger immediately
         // after powering on.
-        ppu_state.state = POWER_ON_STATE;
-        ppu_state.last_stat_interrupt_line = true;
-        ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+        ppu_state.state = State::ScanningOAM(ScanningOAMStateData {
+            scanline: 0,
+            dot: 0,
+            window_internal_y: 0,
+            sprites: Vec::new(),
+        });
+        ppu_state.last_stat_interrupt_line = false;
+    }
+
+    // Fire off VBlank interrupt when the *last* state was VBlank start so that VBlank interrupt
+    // is delayed by 1 M-cycle
+    if ppu_state.state == VBLANK_START {
+        address_space
+            .get_io_registers_mut()
+            .interrupt_flags()
+            .set(InterruptType::VBlank);
     }
 
     let old_state = std::mem::replace(&mut ppu_state.state, DUMMY_STATE);
@@ -554,13 +579,6 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             .read_register(IoRegister::LYC);
 
     update_stat_register(address_space.get_io_registers_mut(), lyc_match, new_mode);
-
-    if new_state == VBLANK_START {
-        address_space
-            .get_io_registers_mut()
-            .interrupt_flags()
-            .set(InterruptType::VBlank);
-    }
 
     let stat_interrupt_line =
         compute_stat_interrupt_line(address_space.get_io_registers(), lyc_match, new_mode);
