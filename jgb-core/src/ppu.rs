@@ -1,10 +1,11 @@
-use crate::cpu::InterruptType;
+use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::ioregisters::{IoRegister, IoRegisters, SpriteMode, TileDataRange};
-use crate::memory::{address, AddressSpace};
+use crate::memory::{address, AddressSpace, VramBank};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use tinyvec::ArrayVec;
 
-type FrameBuffer = [[u16; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+pub type FrameBuffer = [[u16; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
 pub const SCREEN_WIDTH: u8 = 160;
 pub const SCREEN_HEIGHT: u8 = 144;
@@ -45,14 +46,59 @@ struct OamSpriteData {
     flags: u8,
 }
 
+impl OamSpriteData {
+    fn cgb_vram_bank(self) -> VramBank {
+        if self.flags & 0x08 != 0 {
+            VramBank::Bank1
+        } else {
+            VramBank::Bank0
+        }
+    }
+
+    fn cgb_palette_index(self) -> u8 {
+        self.flags & 0x07
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SortedOamData(Vec<OamSpriteData>);
 
 impl SortedOamData {
-    fn from_vec(mut v: Vec<OamSpriteData>) -> Self {
-        v.sort_by_key(|data| data.x_pos);
+    fn from_vec(mut v: Vec<OamSpriteData>, execution_mode: ExecutionMode, opri_value: u8) -> Self {
+        if execution_mode == ExecutionMode::GameBoy || (opri_value & 0x01 != 0) {
+            v.sort_by_key(|&sprite_data| sprite_data.x_pos);
+        }
 
         Self(v)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BgTileAttributes(u8);
+
+impl BgTileAttributes {
+    fn bg_priority(self) -> bool {
+        self.0 & 0x80 != 0
+    }
+
+    fn y_flip(self) -> bool {
+        self.0 & 0x40 != 0
+    }
+
+    fn x_flip(self) -> bool {
+        self.0 & 0x20 != 0
+    }
+
+    fn vram_bank(self) -> VramBank {
+        if self.0 & 0x08 != 0 {
+            VramBank::Bank1
+        } else {
+            VramBank::Bank0
+        }
+    }
+
+    fn palette_index(self) -> u8 {
+        self.0 & 0x07
     }
 }
 
@@ -63,9 +109,17 @@ enum SpritePalette {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct QueuedBgPixel {
+    color_id: u8,
+    bg_priority: bool,
+    cgb_palette_index: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct QueuedObjPixel {
     color_id: u8,
     obj_palette: SpritePalette,
+    cgb_palette_index: u8,
     bg_over_obj: bool,
 }
 
@@ -73,6 +127,7 @@ impl QueuedObjPixel {
     const TRANSPARENT: Self = Self {
         color_id: 0x00,
         obj_palette: SpritePalette::ObjPalette0,
+        cgb_palette_index: 0x00,
         bg_over_obj: true,
     };
 }
@@ -98,7 +153,7 @@ struct RenderingScanlineStateData {
     window_internal_y: u8,
     window_ends_line: bool,
     sprites: Vec<(OamSpriteData, TileData)>,
-    bg_pixel_queue: VecDeque<u8>,
+    bg_pixel_queue: VecDeque<QueuedBgPixel>,
     sprite_pixel_queue: VecDeque<QueuedObjPixel>,
 }
 
@@ -211,11 +266,11 @@ pub struct VramDmaStatus {
 
 impl VramDmaStatus {
     fn from_hdma_registers(io_registers: &IoRegisters) -> Option<Self> {
-        let hdma1 = io_registers.read_register(IoRegister::HDMA1);
-        let hdma2 = io_registers.read_register(IoRegister::HDMA2);
-        let hdma3 = io_registers.read_register(IoRegister::HDMA3);
-        let hdma4 = io_registers.read_register(IoRegister::HDMA4);
-        let hdma5 = io_registers.read_register(IoRegister::HDMA5);
+        let hdma1 = io_registers.privileged_read_hdma_register(IoRegister::HDMA1);
+        let hdma2 = io_registers.privileged_read_hdma_register(IoRegister::HDMA2);
+        let hdma3 = io_registers.privileged_read_hdma_register(IoRegister::HDMA3);
+        let hdma4 = io_registers.privileged_read_hdma_register(IoRegister::HDMA4);
+        let hdma5 = io_registers.privileged_read_hdma_register(IoRegister::HDMA5);
 
         let source_address = ((u16::from(hdma1) << 8) | u16::from(hdma2)) & 0xFFF0;
         if !(address::ROM_START..=address::ROM_END).contains(&source_address)
@@ -250,6 +305,7 @@ impl VramDmaStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PpuState {
+    execution_mode: ExecutionMode,
     enabled: bool,
     state: State,
     oam_dma_status: Option<OamDmaStatus>,
@@ -263,8 +319,9 @@ pub struct PpuState {
 }
 
 impl PpuState {
-    pub fn new() -> Self {
+    pub fn new(execution_mode: ExecutionMode) -> Self {
         Self {
+            execution_mode,
             enabled: true,
             state: POWER_ON_STATE,
             oam_dma_status: None,
@@ -358,7 +415,7 @@ pub fn progress_vram_dma_transfer(
 
         let hdma5 = address_space
             .get_io_registers()
-            .read_register(IoRegister::HDMA5);
+            .privileged_read_hdma_register(IoRegister::HDMA5);
 
         match ppu_state.vram_dma_status {
             Some(vram_dma_status) => {
@@ -458,6 +515,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
 
     let old_state = std::mem::replace(&mut ppu_state.state, DUMMY_STATE);
     let new_state = process_state(
+        ppu_state.execution_mode,
         old_state,
         address_space,
         ppu_state.oam_dma_status,
@@ -535,6 +593,7 @@ fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode
 }
 
 fn process_state(
+    execution_mode: ExecutionMode,
     state: State,
     address_space: &AddressSpace,
     oam_dma_status: Option<OamDmaStatus>,
@@ -547,8 +606,12 @@ fn process_state(
             dot,
             window_internal_y,
         } => hblank_next_state(scanline, dot, window_internal_y),
-        State::ScanningOAM(data) => process_scanning_oam_state(data, address_space, oam_dma_status),
-        State::RenderingScanline(data) => process_render_state(data, address_space, pixel_buffer),
+        State::ScanningOAM(data) => {
+            process_scanning_oam_state(execution_mode, data, address_space, oam_dma_status)
+        }
+        State::RenderingScanline(data) => {
+            process_render_state(execution_mode, data, address_space, pixel_buffer)
+        }
     }
 }
 
@@ -602,6 +665,7 @@ fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: u8) -> State {
 }
 
 fn process_scanning_oam_state(
+    execution_mode: ExecutionMode,
     state_data: ScanningOAMStateData,
     address_space: &AddressSpace,
     oam_dma_status: Option<OamDmaStatus>,
@@ -622,8 +686,13 @@ fn process_scanning_oam_state(
 
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == OAM_SCAN_DOTS {
-        let sorted_sprites = SortedOamData::from_vec(sprites);
-        let sprites_with_tiles = lookup_sprite_tiles(&sorted_sprites, address_space, scanline);
+        let opri_value = address_space
+            .get_io_registers()
+            .read_register(IoRegister::OPRI);
+
+        let sorted_sprites = SortedOamData::from_vec(sprites, execution_mode, opri_value);
+        let sprites_with_tiles =
+            lookup_sprite_tiles(execution_mode, &sorted_sprites, address_space, scanline);
         State::RenderingScanline(RenderingScanlineStateData {
             scanline,
             pixel: 0,
@@ -688,6 +757,7 @@ fn scan_oam(
 // This function is not even remotely cycle-accurate but it attempts to approximate the pixel queue
 // behavior of actual hardware
 fn process_render_state(
+    execution_mode: ExecutionMode,
     mut state_data: RenderingScanlineStateData,
     address_space: &AddressSpace,
     frame_buffer: &mut FrameBuffer,
@@ -730,10 +800,10 @@ fn process_render_state(
     // If both pixel queues are full enough, render pixels to the frame buffer until one of the
     // queues is empty or we've finished this scanline
     if state_data.bg_pixel_queue.len() >= 8 && state_data.sprite_pixel_queue.len() >= 8 {
-        return render_to_frame_buffer(state_data, address_space, frame_buffer);
+        return render_to_frame_buffer(execution_mode, state_data, address_space, frame_buffer);
     }
 
-    state_data = populate_bg_pixel_queue(state_data, address_space);
+    state_data = populate_bg_pixel_queue(execution_mode, state_data, address_space);
     state_data = populate_sprite_pixel_queue(state_data, address_space);
 
     State::RenderingScanline(RenderingScanlineStateData {
@@ -743,6 +813,7 @@ fn process_render_state(
 }
 
 fn render_to_frame_buffer(
+    execution_mode: ExecutionMode,
     state_data: RenderingScanlineStateData,
     address_space: &AddressSpace,
     frame_buffer: &mut FrameBuffer,
@@ -765,31 +836,70 @@ fn render_to_frame_buffer(
     let obj_palette_0 = io_registers.read_register(IoRegister::OBP0);
     let obj_palette_1 = io_registers.read_register(IoRegister::OBP1);
 
+    let cgb_bg_palettes = io_registers.get_bg_palette_ram();
+    let cgb_obj_palettes = io_registers.get_obj_palette_ram();
+
     let bg_enabled = address_space.get_io_registers().lcdc().bg_enabled();
 
     while !bg_pixel_queue.is_empty() && !sprite_pixel_queue.is_empty() && pixel < SCREEN_WIDTH {
         let bg_pixel = bg_pixel_queue.pop_front().unwrap();
         let sprite_pixel = sprite_pixel_queue.pop_front().unwrap();
 
-        // Discard BG pixel if BG is disabled
-        let bg_pixel = if bg_enabled { bg_pixel } else { 0x00 };
+        // Discard BG pixel if BG is disabled in GB mode
+        let bg_pixel = if bg_enabled || execution_mode == ExecutionMode::GameBoyColor {
+            bg_pixel
+        } else {
+            QueuedBgPixel {
+                color_id: 0x00,
+                ..bg_pixel
+            }
+        };
 
-        // BG pixel takes priority if the sprite pixel is transparent, or if the sprite's
-        // BG-over-OBJ flag is set and the BG color id is not 0
-        let pixel_color =
-            if sprite_pixel.color_id == 0x00 || (sprite_pixel.bg_over_obj && bg_pixel != 0x00) {
-                get_bg_pixel_color(bg_pixel, bg_palette)
-            } else {
-                let sprite_palette = match sprite_pixel.obj_palette {
-                    SpritePalette::ObjPalette0 => obj_palette_0,
-                    SpritePalette::ObjPalette1 => obj_palette_1,
-                };
-                get_obj_pixel_color(sprite_pixel.color_id, sprite_palette)
-            };
+        // BG enabled bit functions as a BG priority bit in GBC mode
+        // When 0, sprites always display over BG/window
+        let bg_low_priority = execution_mode == ExecutionMode::GameBoyColor && !bg_enabled;
 
-        log::trace!("bg_pixel={bg_pixel}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
+        // BG pixel always takes priority if the sprite pixel is transparent.
+        //
+        // If the sprite pixel is not transparent, the BG pixel takes priority if the color id
+        // is not 0 and either the sprite's BG-over-OBJ flag is set or the BG tile's priority flag
+        // is set (the latter being CGB-only).
+        //
+        // In CGB mode, if LCDC.0 is set to 0, non-transparent sprite pixels always take priority
+        // over BG pixels regardless of other flags.
+        let pixel_color = if sprite_pixel.color_id == 0x00
+            || (!bg_low_priority
+                && bg_pixel.color_id != 0x00
+                && (sprite_pixel.bg_over_obj || bg_pixel.bg_priority))
+        {
+            match execution_mode {
+                ExecutionMode::GameBoy => get_bg_pixel_color_gb(bg_pixel.color_id, bg_palette),
+                ExecutionMode::GameBoyColor => get_pixel_color_gbc(
+                    bg_pixel.color_id,
+                    bg_pixel.cgb_palette_index,
+                    cgb_bg_palettes,
+                ),
+            }
+        } else {
+            match execution_mode {
+                ExecutionMode::GameBoy => {
+                    let obj_palette = match sprite_pixel.obj_palette {
+                        SpritePalette::ObjPalette0 => obj_palette_0,
+                        SpritePalette::ObjPalette1 => obj_palette_1,
+                    };
+                    get_obj_pixel_color_gb(sprite_pixel.color_id, obj_palette)
+                }
+                ExecutionMode::GameBoyColor => get_pixel_color_gbc(
+                    sprite_pixel.color_id,
+                    sprite_pixel.cgb_palette_index,
+                    cgb_obj_palettes,
+                ),
+            }
+        };
 
-        frame_buffer[scanline as usize][pixel as usize] = pixel_color as u16;
+        log::trace!("bg_pixel={bg_pixel:?}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
+
+        frame_buffer[scanline as usize][pixel as usize] = pixel_color;
         pixel += 1;
     }
 
@@ -808,6 +918,7 @@ fn render_to_frame_buffer(
 }
 
 fn populate_bg_pixel_queue(
+    execution_mode: ExecutionMode,
     state_data: RenderingScanlineStateData,
     address_space: &AddressSpace,
 ) -> RenderingScanlineStateData {
@@ -853,21 +964,36 @@ fn populate_bg_pixel_queue(
             let window_tile_x: u16 = ((bg_fetcher_x + 7 - window_x_plus_7) / 8).into();
             let window_tile_y: u16 = (window_internal_y / 8).into();
             let tile_map_offset = 32 * window_tile_y + window_tile_x;
-            let tile_index =
-                address_space.ppu_read_address_u8(window_tile_map_area.start + tile_map_offset);
+            let tile_map_address = window_tile_map_area.start + tile_map_offset;
+            let tile_index = address_space.read_vram_direct(tile_map_address, VramBank::Bank0);
+
+            let tile_attributes = match execution_mode {
+                ExecutionMode::GameBoy => BgTileAttributes(0x00),
+                ExecutionMode::GameBoyColor => BgTileAttributes(
+                    address_space.read_vram_direct(tile_map_address, VramBank::Bank1),
+                ),
+            };
 
             let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
 
-            let y: u16 = (window_internal_y % 8).into();
-            let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
-            let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+            let y = if tile_attributes.y_flip() {
+                7 - u16::from(window_internal_y % 8)
+            } else {
+                u16::from(window_internal_y % 8)
+            };
+            let tile_data_0 =
+                address_space.read_vram_direct(tile_address + 2 * y, tile_attributes.vram_bank());
+            let tile_data_1 = address_space
+                .read_vram_direct(tile_address + 2 * y + 1, tile_attributes.vram_bank());
 
-            let mut x = (bg_fetcher_x + 7 - window_x_plus_7) % 8;
-            while x < 8 {
+            for x in bg_x_iter((bg_fetcher_x + 7 - window_x_plus_7) % 8, tile_attributes) {
                 let pixel_color_id = get_pixel_color_id(TileData(tile_data_0, tile_data_1), x);
-                bg_pixel_queue.push_back(pixel_color_id);
+                bg_pixel_queue.push_back(QueuedBgPixel {
+                    color_id: pixel_color_id,
+                    bg_priority: tile_attributes.bg_priority(),
+                    cgb_palette_index: tile_attributes.palette_index(),
+                });
 
-                x += 1;
                 bg_fetcher_x += 1;
             }
         } else {
@@ -881,30 +1007,48 @@ fn populate_bg_pixel_queue(
             let bg_tile_y: u16 = (bg_y / 8).into();
             let bg_tile_x: u16 = (bg_x / 8).into();
             let tile_map_offset = 32 * bg_tile_y + bg_tile_x;
-            let tile_index =
-                address_space.ppu_read_address_u8(bg_tile_map_area.start + tile_map_offset);
+            let tile_map_address = bg_tile_map_area.start + tile_map_offset;
+            let tile_index = address_space.read_vram_direct(tile_map_address, VramBank::Bank0);
 
             log::trace!(
                 "Reading tile index at x={bg_tile_x}, y={bg_tile_y} using tile map address {:04X}",
                 bg_tile_map_area.start + tile_map_offset
             );
 
+            let tile_attributes = match execution_mode {
+                ExecutionMode::GameBoy => BgTileAttributes(0x00),
+                ExecutionMode::GameBoyColor => BgTileAttributes(
+                    address_space.read_vram_direct(tile_map_address, VramBank::Bank1),
+                ),
+            };
+
             let tile_address = get_bg_tile_address(bg_tile_data_area, tile_index);
 
             log::trace!("Reading tile data from address {tile_address:04X}");
 
-            let y: u16 = (bg_y % 8).into();
-            let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
-            let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+            let y = if tile_attributes.y_flip() {
+                7 - u16::from(bg_y % 8)
+            } else {
+                (bg_y % 8).into()
+            };
+            let tile_data_0 =
+                address_space.read_vram_direct(tile_address + 2 * y, tile_attributes.vram_bank());
+            let tile_data_1 = address_space
+                .read_vram_direct(tile_address + 2 * y + 1, tile_attributes.vram_bank());
 
-            let mut x = bg_x % 8;
-            while x < 8
-                && (!window_enabled || scanline < window_y || (bg_fetcher_x + 7) < window_x_plus_7)
-            {
+            for x in bg_x_iter(bg_x % 8, tile_attributes) {
+                if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
+                    break;
+                }
+
                 let pixel_color_id = get_pixel_color_id(TileData(tile_data_0, tile_data_1), x);
-                bg_pixel_queue.push_back(pixel_color_id);
 
-                x += 1;
+                bg_pixel_queue.push_back(QueuedBgPixel {
+                    color_id: pixel_color_id,
+                    bg_priority: tile_attributes.bg_priority(),
+                    cgb_palette_index: tile_attributes.palette_index(),
+                });
+
                 bg_fetcher_x += 1;
             }
         }
@@ -921,6 +1065,14 @@ fn populate_bg_pixel_queue(
         sprites,
         bg_pixel_queue,
         sprite_pixel_queue,
+    }
+}
+
+fn bg_x_iter(x: u8, tile_attributes: BgTileAttributes) -> ArrayVec<[u8; 8]> {
+    if tile_attributes.x_flip() {
+        (0..=(7 - x)).rev().collect()
+    } else {
+        (x..8).collect()
     }
 }
 
@@ -952,7 +1104,7 @@ fn populate_sprite_pixel_queue(
         }
 
         // Queue the first non-transparent pixel from the sprites in this coordinate,
-        // assuming that the sprites are already sorted by X position.
+        // assuming that the sprites are already sorted as appropriate.
         //
         // If all sprites have a transparent pixel in this coordinate then queue a transparent
         // pixel.
@@ -977,6 +1129,7 @@ fn populate_sprite_pixel_queue(
                     Some(QueuedObjPixel {
                         color_id: pixel_color_id,
                         obj_palette,
+                        cgb_palette_index: sprite_data.cgb_palette_index(),
                         bg_over_obj,
                     })
                 } else {
@@ -1004,6 +1157,7 @@ fn populate_sprite_pixel_queue(
 }
 
 fn lookup_sprite_tiles(
+    execution_mode: ExecutionMode,
     sprites: &SortedOamData,
     address_space: &AddressSpace,
     scanline: u8,
@@ -1039,8 +1193,13 @@ fn lookup_sprite_tiles(
 
             let tile_address = 0x8000 + 16 * u16::from(tile_index);
 
-            let tile_data_0 = address_space.ppu_read_address_u8(tile_address + 2 * y);
-            let tile_data_1 = address_space.ppu_read_address_u8(tile_address + 2 * y + 1);
+            let vram_bank = match execution_mode {
+                ExecutionMode::GameBoy => VramBank::Bank0,
+                ExecutionMode::GameBoyColor => sprite.cgb_vram_bank(),
+            };
+
+            let tile_data_0 = address_space.read_vram_direct(tile_address + 2 * y, vram_bank);
+            let tile_data_1 = address_space.read_vram_direct(tile_address + 2 * y + 1, vram_bank);
 
             let tile_data = TileData(tile_data_0, tile_data_1);
             (sprite, tile_data)
@@ -1071,17 +1230,22 @@ fn get_bg_tile_address(bg_tile_data_area: TileDataRange, tile_index: u8) -> u16 
     }
 }
 
-fn get_bg_pixel_color(pixel: u8, palette: u8) -> u8 {
-    (palette >> (pixel * 2)) & 0x03
+fn get_bg_pixel_color_gb(pixel: u8, palette: u8) -> u16 {
+    u16::from(palette >> (pixel * 2)) & 0x03
 }
 
-fn get_obj_pixel_color(pixel: u8, palette: u8) -> u8 {
+fn get_obj_pixel_color_gb(pixel: u8, palette: u8) -> u16 {
     // 0x00 in OBJ pixels means transparent, ignore palette
     if pixel == 0x00 {
         0x00
     } else {
-        (palette >> (pixel * 2)) & 0x03
+        u16::from(palette >> (pixel * 2)) & 0x03
     }
+}
+
+fn get_pixel_color_gbc(color_id: u8, palette_index: u8, palette_ram: &[u8; 64]) -> u16 {
+    let color_index = (8 * palette_index + 2 * color_id) as usize;
+    u16::from_le_bytes([palette_ram[color_index], palette_ram[color_index + 1]])
 }
 
 fn get_pixel_color_id(tile_data: TileData, x: u8) -> u8 {
@@ -1102,7 +1266,7 @@ mod tests {
             Cartridge::new(vec![0; 0x150], None).unwrap(),
             ExecutionMode::GameBoy,
         );
-        let mut ppu_state = PpuState::new();
+        let mut ppu_state = PpuState::new(ExecutionMode::GameBoy);
 
         progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
         assert_eq!(None, ppu_state.oam_dma_status);
@@ -1138,7 +1302,7 @@ mod tests {
             Cartridge::new(vec![0; 0x150], None).unwrap(),
             ExecutionMode::GameBoy,
         );
-        let ppu_state = PpuState::new();
+        let ppu_state = PpuState::new(ExecutionMode::GameBoy);
 
         address_space.write_address_u8(address::OAM_START + 40, 53, &ppu_state);
         address_space.write_address_u8(address::OAM_START + 41, 20, &ppu_state);

@@ -1,6 +1,7 @@
 use crate::config::ColorScheme;
-use crate::ppu::PpuState;
-use crate::{ppu, RunConfig};
+use crate::cpu::ExecutionMode;
+use crate::ppu::{FrameBuffer, PpuState};
+use crate::{ppu, HardwareMode, RunConfig};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
@@ -69,7 +70,10 @@ pub fn create_renderer(
     let mut canvas = canvas_builder.build()?;
 
     // Set initial color based on the color scheme's "white"
-    let [r, g, b] = palette_for(run_config.color_scheme)[0];
+    let [r, g, b] = match run_config.hardware_mode {
+        HardwareMode::GameBoy => palette_for(run_config.color_scheme)[0],
+        HardwareMode::GameBoyColor => [255, 255, 255],
+    };
 
     canvas.set_draw_color(Color::RGB(r, g, b));
     canvas.clear();
@@ -78,10 +82,45 @@ pub fn create_renderer(
     Ok(canvas)
 }
 
+fn gb_texture_updater(
+    frame_buffer: &FrameBuffer,
+    palette: [[u8; 3]; 4],
+) -> impl FnOnce(&mut [u8], usize) + '_ {
+    move |pixels, pitch| {
+        for (i, scanline) in frame_buffer.iter().enumerate() {
+            for (j, gb_color) in scanline.iter().copied().enumerate() {
+                let start = i * pitch + 3 * j;
+                pixels[start..start + 3].copy_from_slice(&palette[usize::from(gb_color)]);
+            }
+        }
+    }
+}
+
+fn normalize_gbc_color(value: u16) -> u8 {
+    (f64::from(value) / f64::from(0x1F) * 255.0).round() as u8
+}
+
+fn gbc_texture_updater(frame_buffer: &FrameBuffer) -> impl FnOnce(&mut [u8], usize) + '_ {
+    move |pixels, pitch| {
+        for (i, scanline) in frame_buffer.iter().enumerate() {
+            for (j, gbc_color) in scanline.iter().copied().enumerate() {
+                let r = normalize_gbc_color(gbc_color & 0x001F);
+                let g = normalize_gbc_color((gbc_color & 0x03E0) >> 5);
+                let b = normalize_gbc_color((gbc_color & 0x7C00) >> 10);
+
+                pixels[i * pitch + 3 * j] = r;
+                pixels[i * pitch + 3 * j + 1] = g;
+                pixels[i * pitch + 3 * j + 2] = b;
+            }
+        }
+    }
+}
+
 /// Render the current frame to the SDL2 window, overwriting all previously displayed data.
 ///
 /// With VSync enabled this function will block until the next screen refresh.
 pub fn render_frame(
+    execution_mode: ExecutionMode,
     ppu_state: &PpuState,
     canvas: &mut WindowCanvas,
     texture: &mut Texture,
@@ -89,18 +128,17 @@ pub fn render_frame(
 ) -> Result<(), GraphicsError> {
     let frame_buffer = ppu_state.frame_buffer();
 
-    let palette = palette_for(run_config.color_scheme);
-
-    texture
-        .with_lock(None, |pixels, pitch| {
-            for (i, scanline) in frame_buffer.iter().enumerate() {
-                for (j, gb_color) in scanline.iter().copied().enumerate() {
-                    let start = i * pitch + 3 * j;
-                    pixels[start..start + 3].copy_from_slice(&palette[usize::from(gb_color)]);
-                }
-            }
-        })
-        .map_err(|msg| GraphicsError::Texture { msg })?;
+    match execution_mode {
+        ExecutionMode::GameBoy => texture
+            .with_lock(
+                None,
+                gb_texture_updater(frame_buffer, palette_for(run_config.color_scheme)),
+            )
+            .map_err(|msg| GraphicsError::Texture { msg })?,
+        ExecutionMode::GameBoyColor => texture
+            .with_lock(None, gbc_texture_updater(frame_buffer))
+            .map_err(|msg| GraphicsError::Texture { msg })?,
+    }
 
     let dst_rect = if run_config.force_integer_scaling {
         let (w, h) = canvas.window().size();

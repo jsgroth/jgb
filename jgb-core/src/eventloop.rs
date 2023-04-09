@@ -276,8 +276,9 @@ pub fn run(
             }
 
             // Progress VRAM DMA transfer by 2 bytes per PPU M-cycle
+            let current_mode = ppu_state.mode();
             ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
-            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, ppu_state.mode());
+            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, current_mode);
 
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
@@ -291,7 +292,13 @@ pub fn run(
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
         // to render
         if prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank {
-            graphics::render_frame(&ppu_state, &mut canvas, &mut texture, run_config)?;
+            graphics::render_frame(
+                execution_mode,
+                &ppu_state,
+                &mut canvas,
+                &mut texture,
+                run_config,
+            )?;
         }
     }
 

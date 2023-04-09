@@ -1319,6 +1319,7 @@ dependencies = [
  "sdl2",
  "serde",
  "thiserror",
+ "tinyvec",
 ]
 
 [[package]]

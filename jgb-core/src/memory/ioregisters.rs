@@ -576,6 +576,19 @@ impl IoRegisters {
         self.contents[IoRegister::LY.to_relative_address()] = value;
     }
 
+    pub fn privileged_read_hdma_register(&self, register: IoRegister) -> u8 {
+        match register {
+            IoRegister::HDMA1
+            | IoRegister::HDMA2
+            | IoRegister::HDMA3
+            | IoRegister::HDMA4
+            | IoRegister::HDMA5 => self.contents[register.to_relative_address()],
+            _ => panic!(
+                "privileged_read_hdma_register called with a non-HDMA register: {register:?}"
+            ),
+        }
+    }
+
     /// Assign a value to the HDMA5 register, which the CPU cannot normally write to. Should only be
     /// used by the VRAM DMA transfer code.
     pub fn privileged_set_hdma5(&mut self, value: u8) {

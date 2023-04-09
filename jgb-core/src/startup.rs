@@ -109,7 +109,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
 
     let address_space = AddressSpace::new(cartridge, execution_mode);
     let cpu_registers = CpuRegisters::new(execution_mode);
-    let ppu_state = PpuState::new();
+    let ppu_state = PpuState::new(execution_mode);
     let apu_state = if run_config.audio_enabled && run_config.audio_debugging_enabled {
         let debug_sink =
             FileApuDebugSink::new().map_err(|err| StartupError::AudioDebugInit { source: err })?;

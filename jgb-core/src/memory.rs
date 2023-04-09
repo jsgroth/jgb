@@ -571,6 +571,12 @@ impl Cartridge {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VramBank {
+    Bank0,
+    Bank1,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct AddressSpace {
     execution_mode: ExecutionMode,
@@ -794,6 +800,19 @@ impl AddressSpace {
         &mut self.io_registers
     }
 
+    /// Read a byte directly from VRAM using the given address+bank. This should only be called
+    /// by the PPU.
+    pub fn read_vram_direct(&self, address: u16, vram_bank: VramBank) -> u8 {
+        if !(address::VRAM_START..=address::VRAM_END).contains(&address) {
+            panic!("read_vram_direct called with a non-VRAM address: {address}");
+        }
+
+        match vram_bank {
+            VramBank::Bank0 => self.vram[(address - address::VRAM_START) as usize],
+            VramBank::Bank1 => self.vram[8192 + (address - address::VRAM_START) as usize],
+        }
+    }
+
     /// Retrieve the current value of the IE register (interrupts enabled).
     pub fn get_ie_register(&self) -> u8 {
         self.ie_register
@@ -907,7 +926,7 @@ mod tests {
     fn cgb_vram_banks() {
         let mut address_space =
             AddressSpace::new(Cartridge::new_cgb_test(), ExecutionMode::GameBoyColor);
-        let ppu_state = PpuState::new();
+        let ppu_state = PpuState::new(ExecutionMode::GameBoyColor);
 
         address_space
             .get_io_registers_mut()
@@ -946,7 +965,7 @@ mod tests {
     fn cgb_working_ram_banks() {
         let mut address_space =
             AddressSpace::new(Cartridge::new_cgb_test(), ExecutionMode::GameBoyColor);
-        let ppu_state = PpuState::new();
+        let ppu_state = PpuState::new(ExecutionMode::GameBoyColor);
 
         address_space
             .get_io_registers_mut()
