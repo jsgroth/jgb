@@ -276,9 +276,8 @@ pub fn run(
             }
 
             // Progress VRAM DMA transfer by 2 bytes per PPU M-cycle
-            for _ in 0..2 {
-                ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
-            }
+            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
+            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, ppu_state.mode());
 
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
