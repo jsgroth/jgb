@@ -122,11 +122,7 @@ impl Cartridge {
             None
         };
 
-        let ram = match (
-            mapper_features.has_ram(),
-            mapper_features.has_battery(),
-            ram,
-        ) {
+        let ram = match (mapper_features.has_ram, mapper_features.has_battery, ram) {
             (true, true, Some(ram)) => ram,
             (true, _, _) => {
                 let ram_size_code = rom[address::RAM_SIZE as usize];
@@ -143,7 +139,7 @@ impl Cartridge {
             _ => Vec::new(),
         };
 
-        let ram_battery = match (mapper_features.has_battery(), sav_path) {
+        let ram_battery = match (mapper_features.has_battery, sav_path) {
             (true, Some(sav_path)) => Some(FsRamBattery {
                 dirty: false,
                 sav_path,
@@ -158,7 +154,7 @@ impl Cartridge {
         let mapper = Mapper::new(mapper_type, rom.len() as u32, ram.len() as u32);
 
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
-        log::info!("Cartridge has battery: {}", mapper_features.has_battery());
+        log::info!("Cartridge has battery: {}", mapper_features.has_battery);
 
         Ok(Self {
             rom,

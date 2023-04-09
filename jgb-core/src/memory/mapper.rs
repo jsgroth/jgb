@@ -315,18 +315,8 @@ impl Mapper {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct MapperFeatures {
-    has_ram: bool,
-    has_battery: bool,
-}
-
-impl MapperFeatures {
-    pub(crate) fn has_ram(self) -> bool {
-        self.has_ram
-    }
-
-    pub(crate) fn has_battery(self) -> bool {
-        self.has_battery
-    }
+    pub(crate) has_ram: bool,
+    pub(crate) has_battery: bool,
 }
 
 pub(crate) fn parse_byte(mapper_byte: u8) -> Option<(MapperType, MapperFeatures)> {
