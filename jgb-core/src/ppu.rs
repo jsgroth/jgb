@@ -952,14 +952,9 @@ fn populate_bg_pixel_queue(
     while bg_pixel_queue.len() < 8 {
         // If the window is enabled and we're inside it, populate the BG pixel queue with window pixels
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
-            log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}");
-
             window_ends_line = true;
 
-            // Clear any existing BG pixels if we just entered the window
-            if bg_fetcher_x + 7 == window_x_plus_7 {
-                bg_pixel_queue.clear();
-            }
+            log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}, WY={window_y}, WX={window_x_plus_7}");
 
             let window_tile_x: u16 = ((bg_fetcher_x + 7 - window_x_plus_7) / 8).into();
             let window_tile_y: u16 = (window_internal_y / 8).into();
