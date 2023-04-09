@@ -97,6 +97,7 @@ fn gb_texture_updater(
 }
 
 fn normalize_gbc_color(value: u16) -> u8 {
+    // Individual GBC color values are 5-bit; map from [0, 31] to [0, 255]
     (f64::from(value) / f64::from(0x1F) * 255.0).round() as u8
 }
 
@@ -104,6 +105,7 @@ fn gbc_texture_updater(frame_buffer: &FrameBuffer) -> impl FnOnce(&mut [u8], usi
     move |pixels, pitch| {
         for (i, scanline) in frame_buffer.iter().enumerate() {
             for (j, gbc_color) in scanline.iter().copied().enumerate() {
+                // R = lowest 5 bits, G = next 5 bits, B = next 5 bits; highest bit unused
                 let r = normalize_gbc_color(gbc_color & 0x001F);
                 let g = normalize_gbc_color((gbc_color & 0x03E0) >> 5);
                 let b = normalize_gbc_color((gbc_color & 0x7C00) >> 10);

@@ -65,7 +65,12 @@ struct SortedOamData(Vec<OamSpriteData>);
 
 impl SortedOamData {
     fn from_vec(mut v: Vec<OamSpriteData>, execution_mode: ExecutionMode, opri_value: u8) -> Self {
+        // In GBC mode when OPRI == 0, overlapping sprites should be resolved solely through OAM
+        // position, which is how the list is already sorted
         if execution_mode == ExecutionMode::GameBoy || (opri_value & 0x01 != 0) {
+            // In GB mode or when OPRI == 1, when sprites overlap, the sprite with the lower X
+            // position wins. OAM address (initial list position) is used to break ties, which is
+            // preserved as this is a stable sort.
             v.sort_by_key(|&sprite_data| sprite_data.x_pos);
         }
 
@@ -73,6 +78,7 @@ impl SortedOamData {
     }
 }
 
+// CGB-only BG/window tile attributes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BgTileAttributes(u8);
 
@@ -291,8 +297,8 @@ impl VramDmaStatus {
             VramDmaMode::AllAtOnce
         };
 
-        // Written value should be interpreted as ((bytes / 0x10) - 1), so reverse that
-        let bytes_to_transfer = (u32::from(hdma5 & 0x7F) + 1) * 0x10;
+        // Written value should be interpreted as ((bytes / 16) - 1), so reverse that
+        let bytes_to_transfer = (u32::from(hdma5 & 0x7F) + 1) * 16;
 
         Some(Self {
             source_address,
@@ -422,7 +428,7 @@ pub fn progress_vram_dma_transfer(
                 if hdma5 & 0x80 == 0 {
                     // VRAM DMA transfer has been canceled
                     let remaining_length =
-                        ((vram_dma_status.bytes_remaining / 0x10) as u8).wrapping_sub(1);
+                        ((vram_dma_status.bytes_remaining / 16) as u8).wrapping_sub(1);
                     address_space
                         .get_io_registers_mut()
                         .privileged_set_hdma5(0x80 | remaining_length);
@@ -447,9 +453,9 @@ pub fn progress_vram_dma_transfer(
     {
         if prev_ppu_mode != PpuMode::HBlank && ppu_mode == PpuMode::HBlank {
             // Reset period counter when PPU changes to HBlank
-            *period_bytes_remaining = 0x10;
+            *period_bytes_remaining = 16;
         } else if *period_bytes_remaining == 0 || ppu_mode != PpuMode::HBlank {
-            // HBlank DMA only copies during HBlank mode and only 0x10 bytes per scanline
+            // HBlank DMA only copies during HBlank mode and only 16 bytes per scanline
             return;
         }
     }
@@ -482,7 +488,7 @@ pub fn progress_vram_dma_transfer(
             .privileged_set_hdma5(0xFF);
         ppu_state.vram_dma_status = None;
     } else {
-        let remaining_length = ((vram_dma_status.bytes_remaining / 0x10) as u8).wrapping_sub(1);
+        let remaining_length = ((vram_dma_status.bytes_remaining / 16) as u8).wrapping_sub(1);
         address_space
             .get_io_registers_mut()
             .privileged_set_hdma5(remaining_length & 0x7F);
@@ -960,6 +966,9 @@ fn populate_bg_pixel_queue(
             let window_tile_y: u16 = (window_internal_y / 8).into();
             let tile_map_offset = 32 * window_tile_y + window_tile_x;
             let tile_map_address = window_tile_map_area.start + tile_map_offset;
+
+            // BG/window tile map data is always stored in VRAM bank 0; the corresponding address in
+            // bank 1 stores BG/window tile attributes (CGB-only)
             let tile_index = address_space.read_vram_direct(tile_map_address, VramBank::Bank0);
 
             let tile_attributes = match execution_mode {
@@ -1003,6 +1012,9 @@ fn populate_bg_pixel_queue(
             let bg_tile_x: u16 = (bg_x / 8).into();
             let tile_map_offset = 32 * bg_tile_y + bg_tile_x;
             let tile_map_address = bg_tile_map_area.start + tile_map_offset;
+
+            // BG/window tile map data is always stored in VRAM bank 0; the corresponding address in
+            // bank 1 stores BG/window tile attributes (CGB-only)
             let tile_index = address_space.read_vram_direct(tile_map_address, VramBank::Bank0);
 
             log::trace!(

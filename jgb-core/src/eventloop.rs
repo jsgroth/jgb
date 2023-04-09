@@ -258,6 +258,7 @@ pub fn run(
         // Timer updates pause while a VRAM DMA transfer is in progress
         if !ppu_state.is_vram_dma_in_progress() {
             let timer_cycles = if double_speed {
+                // Timer and divider registers update twice as fast in double speed mode
                 2 * u64::from(cycles_required)
             } else {
                 cycles_required.into()
@@ -359,7 +360,7 @@ fn tick_cpu(
 
         cycles_required
     } else {
-        // Do nothing, let PPU and timer execute for 1 M-cycle
+        // Do nothing, let other processors execute for 1 M-cycle
         4
     };
 
