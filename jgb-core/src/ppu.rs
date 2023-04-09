@@ -156,11 +156,6 @@ const VBLANK_START: State = State::VBlank {
     dot: 0,
 };
 
-const POWER_ON_STATE: State = State::VBlank {
-    scanline: SCREEN_HEIGHT + 1,
-    dot: 0,
-};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OamDmaStatus {
     pub source_high_bits: u16,
@@ -212,7 +207,12 @@ impl PpuState {
     pub fn new() -> Self {
         Self {
             enabled: true,
-            state: POWER_ON_STATE,
+            state: State::ScanningOAM(ScanningOAMStateData {
+                scanline: 0,
+                dot: 0,
+                window_internal_y: 0,
+                sprites: Vec::new(),
+            }),
             oam_dma_status: None,
             frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
             last_stat_interrupt_line: false,
@@ -287,8 +287,13 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         // When PPU is powered on, reset state to the beginning of LY=0 VBlank and clear frame
         // buffer. Set the STAT interrupt line high so that interrupts won't trigger immediately
         // after powering on.
-        ppu_state.state = POWER_ON_STATE;
-        ppu_state.last_stat_interrupt_line = true;
+        ppu_state.state = State::ScanningOAM(ScanningOAMStateData {
+            scanline: 0,
+            dot: 0,
+            window_internal_y: 0,
+            sprites: Vec::new(),
+        });
+        ppu_state.last_stat_interrupt_line = false;
         ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
     }
 
