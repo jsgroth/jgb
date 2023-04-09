@@ -19,14 +19,14 @@ const LAST_VBLANK_SCANLINE: u8 = 153;
 const MAX_SPRITES_PER_SCANLINE: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Mode {
+pub enum PpuMode {
     HBlank,
     VBlank,
     ScanningOAM,
     RenderingScanline,
 }
 
-impl Mode {
+impl PpuMode {
     fn flag_bits(self) -> u8 {
         match self {
             Self::HBlank => 0x00,
@@ -136,12 +136,12 @@ impl State {
         }
     }
 
-    pub fn mode(&self) -> Mode {
+    pub fn mode(&self) -> PpuMode {
         match self {
-            State::HBlank { .. } => Mode::HBlank,
-            State::VBlank { .. } => Mode::VBlank,
-            State::ScanningOAM { .. } => Mode::ScanningOAM,
-            State::RenderingScanline { .. } => Mode::RenderingScanline,
+            State::HBlank { .. } => PpuMode::HBlank,
+            State::VBlank { .. } => PpuMode::VBlank,
+            State::ScanningOAM { .. } => PpuMode::ScanningOAM,
+            State::RenderingScanline { .. } => PpuMode::RenderingScanline,
         }
     }
 }
@@ -195,11 +195,65 @@ impl OamDmaStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VramDmaMode {
+    AllAtOnce,
+    HBlank { period_bytes_remaining: u8 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VramDmaStatus {
+    source_address: u16,
+    dest_address: u16,
+    mode: VramDmaMode,
+    bytes_remaining: u32,
+}
+
+impl VramDmaStatus {
+    fn from_hdma_registers(io_registers: &IoRegisters) -> Option<Self> {
+        let hdma1 = io_registers.read_register(IoRegister::HDMA1);
+        let hdma2 = io_registers.read_register(IoRegister::HDMA2);
+        let hdma3 = io_registers.read_register(IoRegister::HDMA3);
+        let hdma4 = io_registers.read_register(IoRegister::HDMA4);
+        let hdma5 = io_registers.read_register(IoRegister::HDMA5);
+
+        let source_address = ((u16::from(hdma1) << 8) | u16::from(hdma2)) & 0xFFF0;
+        if !(address::ROM_START..=address::ROM_END).contains(&source_address)
+            && !(address::EXTERNAL_RAM_START..=address::WORKING_RAM_END).contains(&source_address)
+        {
+            // Invalid source address
+            return None;
+        }
+
+        let dest_address =
+            address::VRAM_START + (((u16::from(hdma3) << 8) | u16::from(hdma4)) & 0x1FF0);
+
+        let mode = if hdma5 & 0x80 != 0 {
+            VramDmaMode::HBlank {
+                period_bytes_remaining: 0x10,
+            }
+        } else {
+            VramDmaMode::AllAtOnce
+        };
+
+        // Written value should be interpreted as ((bytes / 0x10) - 1), so reverse that
+        let bytes_to_transfer = (u32::from(hdma5 & 0x7F) + 1) * 0x10;
+
+        Some(Self {
+            source_address,
+            dest_address,
+            mode,
+            bytes_remaining: bytes_to_transfer,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PpuState {
     enabled: bool,
     state: State,
     oam_dma_status: Option<OamDmaStatus>,
+    vram_dma_status: Option<VramDmaStatus>,
     #[serde(
         serialize_with = "crate::serialize::serialize_2d_array",
         deserialize_with = "crate::serialize::deserialize_2d_array"
@@ -214,6 +268,7 @@ impl PpuState {
             enabled: true,
             state: POWER_ON_STATE,
             oam_dma_status: None,
+            vram_dma_status: None,
             frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
             last_stat_interrupt_line: false,
         }
@@ -223,12 +278,24 @@ impl PpuState {
         self.enabled
     }
 
-    pub fn mode(&self) -> Mode {
+    pub fn mode(&self) -> PpuMode {
         self.state.mode()
     }
 
     pub fn oam_dma_status(&self) -> Option<OamDmaStatus> {
         self.oam_dma_status
+    }
+
+    pub fn is_vram_dma_in_progress(&self) -> bool {
+        match self.vram_dma_status {
+            Some(vram_dma_status) => match vram_dma_status.mode {
+                VramDmaMode::AllAtOnce => true,
+                VramDmaMode::HBlank {
+                    period_bytes_remaining,
+                } => !matches!(self.state, State::HBlank { .. }) || period_bytes_remaining > 0,
+            },
+            None => false,
+        }
     }
 
     pub fn frame_buffer(&self) -> &FrameBuffer {
@@ -267,6 +334,103 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
         oam_dma_status.current_dest_address(),
     );
     ppu_state.oam_dma_status = oam_dma_status.increment();
+}
+
+/// Progress VRAM DMA transfer by one byte. This should be called twice per PPU M-cycle.
+///
+/// If a VRAM DMA transfer is not in progress but HDMA5 has been written to, this function will
+/// start a VRAM DMA transfer and copy the first byte.
+///
+/// VRAM DMA transfer functionality is CGB-only. In DMG mode this function will do nothing because
+/// the CPU is not allowed to write to HDMA5 and initiate a transfer.
+pub fn progress_vram_dma_transfer(
+    ppu_state: &mut PpuState,
+    address_space: &mut AddressSpace,
+    prev_ppu_mode: PpuMode,
+) {
+    if address_space
+        .get_io_registers()
+        .get_dirty_bit(IoRegister::HDMA5)
+    {
+        address_space
+            .get_io_registers_mut()
+            .clear_dirty_bit(IoRegister::HDMA5);
+
+        let hdma5 = address_space
+            .get_io_registers()
+            .read_register(IoRegister::HDMA5);
+
+        match ppu_state.vram_dma_status {
+            Some(vram_dma_status) => {
+                if hdma5 & 0x80 == 0 {
+                    // VRAM DMA transfer has been canceled
+                    let remaining_length =
+                        ((vram_dma_status.bytes_remaining / 0x10) as u8).wrapping_sub(1);
+                    address_space
+                        .get_io_registers_mut()
+                        .privileged_set_hdma5(0x80 | remaining_length);
+
+                    ppu_state.vram_dma_status = None;
+                }
+            }
+            None => {
+                // VRAM DMA transfer has been started
+                ppu_state.vram_dma_status =
+                    VramDmaStatus::from_hdma_registers(address_space.get_io_registers());
+            }
+        }
+    }
+
+    let Some(mut vram_dma_status) = ppu_state.vram_dma_status else { return };
+
+    let ppu_mode = ppu_state.state.mode();
+    if let VramDmaMode::HBlank {
+        period_bytes_remaining,
+    } = &mut vram_dma_status.mode
+    {
+        if prev_ppu_mode != PpuMode::HBlank && ppu_mode == PpuMode::HBlank {
+            // Reset period counter when PPU changes to HBlank
+            *period_bytes_remaining = 0x10;
+        } else if *period_bytes_remaining == 0 || ppu_mode != PpuMode::HBlank {
+            // HBlank DMA only copies during HBlank mode and only 0x10 bytes per scanline
+            return;
+        }
+    }
+
+    address_space.copy_byte(vram_dma_status.source_address, vram_dma_status.dest_address);
+
+    if vram_dma_status.dest_address == address::VRAM_END {
+        // Dest address overflowed, cancel transfer
+        address_space
+            .get_io_registers_mut()
+            .privileged_set_hdma5(0xFF);
+        ppu_state.vram_dma_status = None;
+        return;
+    }
+
+    vram_dma_status.source_address += 1;
+    vram_dma_status.dest_address += 1;
+    vram_dma_status.bytes_remaining -= 1;
+    if let VramDmaMode::HBlank {
+        period_bytes_remaining,
+    } = &mut vram_dma_status.mode
+    {
+        *period_bytes_remaining -= 1;
+    }
+
+    if vram_dma_status.bytes_remaining == 0 {
+        // Transfer has completed
+        address_space
+            .get_io_registers_mut()
+            .privileged_set_hdma5(0xFF);
+        ppu_state.vram_dma_status = None;
+    } else {
+        let remaining_length = ((vram_dma_status.bytes_remaining / 0x10) as u8).wrapping_sub(1);
+        address_space
+            .get_io_registers_mut()
+            .privileged_set_hdma5(remaining_length & 0x7F);
+        ppu_state.vram_dma_status = Some(vram_dma_status);
+    }
 }
 
 /// Advance the PPU by 1 M-cycle (4 clock cycles / dots). Nothing is directly rendered to the screen
@@ -347,7 +511,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     ppu_state.last_stat_interrupt_line = stat_interrupt_line;
 }
 
-fn update_stat_register(io_registers: &mut IoRegisters, lyc_match: bool, mode: Mode) {
+fn update_stat_register(io_registers: &mut IoRegisters, lyc_match: bool, mode: PpuMode) {
     let mode_bits = mode.flag_bits();
 
     let existing_stat = io_registers.read_register(IoRegister::STAT) & 0xF8;
@@ -356,7 +520,7 @@ fn update_stat_register(io_registers: &mut IoRegisters, lyc_match: bool, mode: M
     io_registers.privileged_set_stat(new_stat);
 }
 
-fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode: Mode) -> bool {
+fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode: PpuMode) -> bool {
     let stat = io_registers.read_register(IoRegister::STAT);
 
     let lyc_source = stat & 0x40 != 0;
@@ -365,9 +529,9 @@ fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode
     let hblank_source = stat & 0x08 != 0;
 
     (lyc_source && lyc_match)
-        || (scanning_oam_source && mode == Mode::ScanningOAM)
-        || (vblank_source && mode == Mode::VBlank)
-        || (hblank_source && mode == Mode::HBlank)
+        || (scanning_oam_source && mode == PpuMode::ScanningOAM)
+        || (vblank_source && mode == PpuMode::VBlank)
+        || (hblank_source && mode == PpuMode::HBlank)
 }
 
 fn process_state(

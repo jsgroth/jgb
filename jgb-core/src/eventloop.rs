@@ -7,7 +7,7 @@ use crate::input::{
 };
 use crate::memory::ioregisters::IoRegister;
 use crate::memory::AddressSpace;
-use crate::ppu::{Mode, PpuState};
+use crate::ppu::{PpuMode, PpuState};
 use crate::serialize::SaveStateError;
 use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
@@ -275,6 +275,11 @@ pub fn run(
                 ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
             }
 
+            // Progress VRAM DMA transfer by 2 bytes per PPU M-cycle
+            for _ in 0..2 {
+                ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
+            }
+
             ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
             apu::tick_m_cycle(
@@ -286,7 +291,7 @@ pub fn run(
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
         // to render
-        if prev_mode != Mode::VBlank && ppu_state.mode() == Mode::VBlank {
+        if prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank {
             graphics::render_frame(&ppu_state, &mut canvas, &mut texture, run_config)?;
         }
     }
@@ -299,6 +304,11 @@ fn tick_cpu(
     cpu_registers: &mut CpuRegisters,
     ppu_state: &PpuState,
 ) -> Result<u32, RunError> {
+    if ppu_state.is_vram_dma_in_progress() {
+        // CPU is halted while a VRAM DMA transfer is actively copying bytes
+        return Ok(4);
+    }
+
     let result = if let Some(wait_cycles_remaining) =
         cpu_registers.speed_switch_wait_cycles_remaining
     {

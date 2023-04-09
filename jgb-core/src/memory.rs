@@ -3,7 +3,7 @@ pub mod ioregisters;
 
 use crate::cpu::ExecutionMode;
 use crate::memory::ioregisters::IoRegisters;
-use crate::ppu::{Mode, PpuState};
+use crate::ppu::{PpuMode, PpuState};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -625,7 +625,7 @@ impl AddressSpace {
         if ppu_state.enabled()
             && matches!(
                 ppu_state.mode(),
-                Mode::ScanningOAM | Mode::RenderingScanline
+                PpuMode::ScanningOAM | PpuMode::RenderingScanline
             )
             && (address::OAM_START..=address::OAM_END).contains(&address)
         {
@@ -634,7 +634,7 @@ impl AddressSpace {
 
         // VRAM access not allowed while PPU is rendering a scanline
         !(ppu_state.enabled()
-            && matches!(ppu_state.mode(), Mode::RenderingScanline)
+            && matches!(ppu_state.mode(), PpuMode::RenderingScanline)
             && (address::VRAM_START..=address::VRAM_END).contains(&address))
     }
 

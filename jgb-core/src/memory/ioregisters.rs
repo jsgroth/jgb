@@ -2,7 +2,7 @@ mod lcdc;
 
 use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::address;
-use crate::ppu::Mode;
+use crate::ppu::PpuMode;
 pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
 use serde::{Deserialize, Serialize};
 
@@ -351,18 +351,10 @@ pub struct IoRegisters {
     cgb_obj_palette_ram: [u8; 64],
     dirty_bits: u16,
     execution_mode: ExecutionMode,
-    current_ppu_mode: Mode,
+    current_ppu_mode: PpuMode,
 }
 
 impl IoRegisters {
-    const JOYP_RELATIVE_ADDR: usize = IoRegister::JOYP.to_relative_address();
-    const DIV_RELATIVE_ADDR: usize = IoRegister::DIV.to_relative_address();
-    const IF_RELATIVE_ADDR: usize = IoRegister::IF.to_relative_address();
-    const NR52_RELATIVE_ADDR: usize = IoRegister::NR52.to_relative_address();
-    const LCDC_RELATIVE_ADDR: usize = IoRegister::LCDC.to_relative_address();
-    const STAT_RELATIVE_ADDR: usize = IoRegister::STAT.to_relative_address();
-    const LY_RELATIVE_ADDR: usize = IoRegister::LY.to_relative_address();
-
     pub fn new(execution_mode: ExecutionMode) -> Self {
         let mut contents = [0; 0x80];
 
@@ -410,7 +402,7 @@ impl IoRegisters {
             cgb_obj_palette_ram: [0; 64],
             dirty_bits,
             execution_mode,
-            current_ppu_mode: Mode::VBlank,
+            current_ppu_mode: PpuMode::VBlank,
         }
     }
 
@@ -474,11 +466,11 @@ impl IoRegisters {
             IoRegister::VBK => byte | 0xFE,
             IoRegister::SVBK => byte | 0xF8,
             IoRegister::BCPD => match self.current_ppu_mode {
-                Mode::RenderingScanline => 0xFF,
+                PpuMode::RenderingScanline => 0xFF,
                 _ => self.cgb_bg_palette_ram[self.current_bg_palette_address()],
             },
             IoRegister::OCPD => match self.current_ppu_mode {
-                Mode::RenderingScanline => 0xFF,
+                PpuMode::RenderingScanline => 0xFF,
                 _ => self.cgb_obj_palette_ram[self.current_obj_palette_address()],
             },
             _ => byte,
@@ -499,7 +491,7 @@ impl IoRegisters {
         }
 
         // Audio registers other than NR52 are not writable while the APU is disabled
-        let apu_enabled = self.contents[Self::NR52_RELATIVE_ADDR] & 0x80 != 0;
+        let apu_enabled = self.contents[IoRegister::NR52.to_relative_address()] & 0x80 != 0;
         if !apu_enabled && register.is_audio_register() && register != IoRegister::NR52 {
             return;
         }
@@ -533,7 +525,7 @@ impl IoRegisters {
             }
             IoRegister::BCPD => {
                 let bg_palette_address = self.current_bg_palette_address();
-                if !matches!(self.current_ppu_mode, Mode::RenderingScanline) {
+                if !matches!(self.current_ppu_mode, PpuMode::RenderingScanline) {
                     self.cgb_bg_palette_ram[bg_palette_address] = value;
                 }
                 if self.contents[IoRegister::BCPS.to_relative_address()] & 0x80 != 0 {
@@ -545,7 +537,7 @@ impl IoRegisters {
             }
             IoRegister::OCPD => {
                 let obj_palette_address = self.current_obj_palette_address();
-                if !matches!(self.current_ppu_mode, Mode::RenderingScanline) {
+                if !matches!(self.current_ppu_mode, PpuMode::RenderingScanline) {
                     self.cgb_obj_palette_ram[obj_palette_address] = value;
                 }
                 if self.contents[IoRegister::OCPS.to_relative_address()] & 0x80 != 0 {
@@ -564,30 +556,36 @@ impl IoRegisters {
     /// Read the value of the JOYP register, including bits that the CPU cannot read. Intended to
     /// be used in the code that updates the JOYP register based on current inputs.
     pub fn privileged_read_joyp(&self) -> u8 {
-        self.contents[Self::JOYP_RELATIVE_ADDR] | 0xC0
+        self.contents[IoRegister::JOYP.to_relative_address()] | 0xC0
     }
 
     /// Assign a value to the JOYP register, including bits that the CPU cannot write.
     pub fn privileged_set_joyp(&mut self, value: u8) {
-        self.contents[Self::JOYP_RELATIVE_ADDR] = value & 0x3F;
+        self.contents[IoRegister::JOYP.to_relative_address()] = value & 0x3F;
     }
 
     /// Assign a value to the STAT register (LCD status), including bits that the CPU cannot write.
     /// Should only be used by the PPU.
     pub fn privileged_set_stat(&mut self, value: u8) {
-        self.contents[Self::STAT_RELATIVE_ADDR] = value & 0x7F;
+        self.contents[IoRegister::STAT.to_relative_address()] = value & 0x7F;
     }
 
     /// Assign a value to the LY register (current scanline), which the CPU cannot normally write
     /// to. Should only be used by the PPU.
     pub fn privileged_set_ly(&mut self, value: u8) {
-        self.contents[Self::LY_RELATIVE_ADDR] = value;
+        self.contents[IoRegister::LY.to_relative_address()] = value;
+    }
+
+    /// Assign a value to the HDMA5 register, which the CPU cannot normally write to. Should only be
+    /// used by the VRAM DMA transfer code.
+    pub fn privileged_set_hdma5(&mut self, value: u8) {
+        self.contents[IoRegister::HDMA5.to_relative_address()] = value;
     }
 
     /// Assign a value to the DIV register (timer divider), which is normally always reset to 0x00
     /// when the CPU writes to it. Should only be used by the timer code.
     pub fn privileged_set_div(&mut self, value: u8) {
-        self.contents[Self::DIV_RELATIVE_ADDR] = value;
+        self.contents[IoRegister::DIV.to_relative_address()] = value;
     }
 
     /// Read an audio register from the perspective of the APU, bypassing CPU access checks (both
@@ -622,12 +620,12 @@ impl IoRegisters {
 
     /// Obtain a read-only view around the LCDC register (LCD control).
     pub fn lcdc(&self) -> Lcdc {
-        Lcdc(&self.contents[Self::LCDC_RELATIVE_ADDR])
+        Lcdc(&self.contents[IoRegister::LCDC.to_relative_address()])
     }
 
     /// Obtain a read/write view around the IF register (interrupt request flags).
     pub fn interrupt_flags(&mut self) -> InterruptFlags {
-        InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
+        InterruptFlags(&mut self.contents[IoRegister::IF.to_relative_address()])
     }
 
     /// Returns whether or not the given register has been written to.
@@ -684,7 +682,7 @@ impl IoRegisters {
 
     /// Update the current PPU mode. This is necessary because the CPU cannot access CGB palette RAM
     /// while the PPU is rendering a scanline.
-    pub fn update_ppu_mode(&mut self, mode: Mode) {
+    pub fn update_ppu_mode(&mut self, mode: PpuMode) {
         self.current_ppu_mode = mode;
     }
 
@@ -752,7 +750,7 @@ mod tests {
             cgb_obj_palette_ram: [0; 64],
             dirty_bits: 0x00,
             execution_mode: ExecutionMode::GameBoy,
-            current_ppu_mode: Mode::VBlank,
+            current_ppu_mode: PpuMode::VBlank,
         }
     }
 
