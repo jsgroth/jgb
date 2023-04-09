@@ -380,17 +380,6 @@ impl IoRegisters {
 
         if matches!(execution_mode, ExecutionMode::GameBoyColor) {
             contents[IoRegister::KEY1.to_relative_address()] = 0x7F;
-
-            for register in [
-                IoRegister::HDMA1,
-                IoRegister::HDMA2,
-                IoRegister::HDMA3,
-                IoRegister::HDMA4,
-                IoRegister::HDMA5,
-                IoRegister::RP,
-            ] {
-                contents[register.to_relative_address()] = 0xFF;
-            }
         }
 
         // Don't boot with DMA transfer registers flagged as dirty
