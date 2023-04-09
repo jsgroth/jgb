@@ -603,10 +603,20 @@ impl IoRegisters {
         self.dirty_bits &= !bit;
     }
 
+    /// Get the current CGB VRAM bank number according to the VBK register. Only bit 0 is read,
+    /// other bits are ignored.
+    ///
+    /// This method will always return 0 or 1. The GBC has 2 8KB VRAM banks.
     pub fn get_cgb_vram_bank(&self) -> usize {
         (self.contents[IoRegister::VBK.to_relative_address()] & 0x01) as usize
     }
 
+    /// Get the current CGB working RAM bank number according to the SVBK register. Only bits 0-2
+    /// are read, other bits are ignored. Additionally, a value of 0 is treated as a bank number of
+    /// 1.
+    ///
+    /// This method will always return a number between 1 and 7 (inclusive). The GBC has 8 4KB
+    /// working RAM banks, and bank 0 is always mapped to the same address range.
     pub fn get_cgb_working_ram_bank(&self) -> usize {
         let svbk_value = self.contents[IoRegister::SVBK.to_relative_address()] & 0x07;
         // SVBK value of 0 is treated as RAM bank 1
