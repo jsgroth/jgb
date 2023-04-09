@@ -1,6 +1,6 @@
 use crate::config::{ControllerConfig, ControllerInput, InputConfig};
 use crate::cpu::InterruptType;
-use crate::memory::ioregisters::IoRegisters;
+use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use crate::HotkeyConfig;
 use sdl2::joystick::Joystick;
 use sdl2::keyboard::Keycode;
@@ -342,7 +342,7 @@ fn should_flag_interrupt(old_joyp: u8, new_joyp: u8) -> bool {
 /// register to specify whether it wants to read directions or button presses, and the same register
 /// bits are used for both.
 pub fn update_joyp_register(joypad_state: &JoypadState, io_registers: &mut IoRegisters) {
-    let joyp = io_registers.privileged_read_joyp();
+    let joyp = io_registers.read_register(IoRegister::JOYP);
     let actions_select = joyp & 0x20 == 0;
     let directions_select = joyp & 0x10 == 0;
 

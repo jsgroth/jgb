@@ -543,12 +543,6 @@ impl IoRegisters {
         }
     }
 
-    /// Read the value of the JOYP register, including bits that the CPU cannot read. Intended to
-    /// be used in the code that updates the JOYP register based on current inputs.
-    pub fn privileged_read_joyp(&self) -> u8 {
-        self.contents[IoRegister::JOYP.to_relative_address()] | 0xC0
-    }
-
     /// Assign a value to the JOYP register, including bits that the CPU cannot write.
     pub fn privileged_set_joyp(&mut self, value: u8) {
         self.contents[IoRegister::JOYP.to_relative_address()] = value & 0x3F;
@@ -774,14 +768,12 @@ mod tests {
 
         registers.write_register(IoRegister::JOYP, 0x0F);
         assert_eq!(0xC0, registers.read_register(IoRegister::JOYP));
-        assert_eq!(0x00, registers.privileged_read_joyp() & 0x0F);
 
         registers.write_register(IoRegister::JOYP, 0x20);
-        assert_eq!(0xC0, registers.read_register(IoRegister::JOYP));
-        assert_eq!(0x20, registers.privileged_read_joyp() & 0x30);
+        assert_eq!(0xE0, registers.read_register(IoRegister::JOYP));
 
         registers.privileged_set_joyp(0x19);
-        assert_eq!(0xC9, registers.read_register(IoRegister::JOYP));
+        assert_eq!(0xD9, registers.read_register(IoRegister::JOYP));
     }
 
     #[test]

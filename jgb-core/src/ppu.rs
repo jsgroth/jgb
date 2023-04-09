@@ -511,6 +511,8 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     ppu_state.enabled = enabled;
 
     if prev_enabled && !enabled {
+        // If the PPU was just disabled then clear the frame buffer, clear the LY=LYC and mode bits
+        // in STAT, and set LY to 0
         ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
 
         let stat = address_space
@@ -527,9 +529,8 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     }
 
     if enabled && !prev_enabled {
-        // When PPU is powered on, reset state to the beginning of LY=0 VBlank and clear frame
-        // buffer. Set the STAT interrupt line high so that interrupts won't trigger immediately
-        // after powering on.
+        // When PPU is powered on, reset state to the beginning of the first scanline and clear the
+        // STAT interrupt line.
         ppu_state.state = State::ScanningOAM(ScanningOAMStateData {
             scanline: 0,
             dot: 0,
@@ -1295,7 +1296,10 @@ mod tests {
             Cartridge::new(vec![0; 0x150], None).unwrap(),
             ExecutionMode::GameBoy,
         );
-        let mut ppu_state = PpuState::new(ExecutionMode::GameBoy);
+        let mut ppu_state = PpuState {
+            state: VBLANK_START,
+            ..PpuState::new(ExecutionMode::GameBoy)
+        };
 
         progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
         assert_eq!(None, ppu_state.oam_dma_status);
@@ -1331,7 +1335,10 @@ mod tests {
             Cartridge::new(vec![0; 0x150], None).unwrap(),
             ExecutionMode::GameBoy,
         );
-        let ppu_state = PpuState::new(ExecutionMode::GameBoy);
+        let ppu_state = PpuState {
+            state: VBLANK_START,
+            ..PpuState::new(ExecutionMode::GameBoy)
+        };
 
         address_space.write_address_u8(address::OAM_START + 40, 53, &ppu_state);
         address_space.write_address_u8(address::OAM_START + 41, 20, &ppu_state);
