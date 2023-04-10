@@ -56,6 +56,11 @@ pub enum RunError {
         #[source]
         source: io::Error,
     },
+    #[error("error writing real-time clock to rtc file: {source}")]
+    RtcPersist {
+        #[source]
+        source: io::Error,
+    },
     #[error("error processing input config: {source}")]
     InputConfig {
         #[from]
@@ -252,6 +257,11 @@ pub fn run(
             address_space
                 .persist_cartridge_ram()
                 .map_err(|err| RunError::RamPersist { source: err })?;
+
+            address_space.update_rtc();
+            address_space
+                .persist_rtc()
+                .map_err(|err| RunError::RtcPersist { source: err })?;
         }
         total_cycles += u64::from(cycles_required);
 

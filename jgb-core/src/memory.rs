@@ -4,7 +4,7 @@ mod mapper;
 
 use crate::cpu::ExecutionMode;
 use crate::memory::ioregisters::IoRegisters;
-use crate::memory::mapper::Mapper;
+use crate::memory::mapper::{Mapper, RamMapResult, RealTimeClock};
 use crate::ppu::{PpuMode, PpuState};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -59,14 +59,17 @@ impl FsRamBattery {
     }
 }
 
-fn load_sav_file(sav_file: &PathBuf) -> Result<Option<Vec<u8>>, CartridgeLoadError> {
-    let ram = if fs::metadata(sav_file)
+fn load_sav_file<P>(sav_file: P) -> Result<Option<Vec<u8>>, CartridgeLoadError>
+where
+    P: AsRef<Path>,
+{
+    let ram = if fs::metadata(sav_file.as_ref())
         .map(|metadata| metadata.is_file())
         .unwrap_or(false)
     {
         Some(
-            fs::read(sav_file).map_err(|err| CartridgeLoadError::FileReadError {
-                file_path: sav_file.to_str().unwrap_or("").into(),
+            fs::read(sav_file.as_ref()).map_err(|err| CartridgeLoadError::FileReadError {
+                file_path: sav_file.as_ref().to_str().unwrap_or("").into(),
                 source: err,
             })?,
         )
@@ -75,10 +78,42 @@ fn load_sav_file(sav_file: &PathBuf) -> Result<Option<Vec<u8>>, CartridgeLoadErr
     };
 
     if ram.is_some() {
-        log::info!("Loaded external RAM from {}", sav_file.display());
+        log::info!("Loaded external RAM from {}", sav_file.as_ref().display());
     }
 
     Ok(ram)
+}
+
+fn load_rtc<P>(rtc_file: P) -> Result<RealTimeClock, String>
+where
+    P: AsRef<Path>,
+{
+    let rtc_bytes = match fs::read(rtc_file.as_ref()) {
+        Ok(rtc_bytes) => rtc_bytes,
+        Err(err) => {
+            return Err(format!(
+                "error reading RTC file {}: {err}",
+                rtc_file.as_ref().display()
+            ));
+        }
+    };
+
+    let rtc = match bincode::deserialize(&rtc_bytes) {
+        Ok(rtc) => rtc,
+        Err(err) => {
+            return Err(format!(
+                "error deserializing RTC bytes from {}: {err}",
+                rtc_file.as_ref().display()
+            ));
+        }
+    };
+
+    log::info!(
+        "Successfully loaded real-time clock state from {}",
+        rtc_file.as_ref().display()
+    );
+
+    Ok(rtc)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -115,11 +150,26 @@ impl Cartridge {
         };
 
         log::info!("Detected mapper type {mapper_type:?} (byte: {mapper_byte:02X})");
+        log::info!("Mapper features: {mapper_features}");
 
         let ram = if let Some(sav_path) = &sav_path {
             load_sav_file(sav_path)?
         } else {
             None
+        };
+
+        let rtc = match (mapper_features.has_rtc, &sav_path) {
+            (true, Some(sav_path)) => {
+                let rtc_path = sav_path.with_extension("rtc");
+                match load_rtc(rtc_path) {
+                    Ok(rtc) => Some(rtc),
+                    Err(err) => {
+                        log::warn!("error attempting to load previous RTC, resetting: {err}");
+                        None
+                    }
+                }
+            }
+            _ => None,
         };
 
         let ram = match (mapper_features.has_ram, mapper_features.has_battery, ram) {
@@ -151,7 +201,13 @@ impl Cartridge {
             log::info!("Persisting external RAM to {}", ram_battery.sav_path());
         }
 
-        let mapper = Mapper::new(mapper_type, rom.len() as u32, ram.len() as u32);
+        let mapper = Mapper::new(
+            mapper_type,
+            mapper_features,
+            rtc,
+            rom.len() as u32,
+            ram.len() as u32,
+        );
 
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
         log::info!("Cartridge has battery: {}", mapper_features.has_battery);
@@ -209,27 +265,38 @@ impl Cartridge {
     /// Read a value from the given cartridge RAM address. Returns 0xFF if the address is not valid.
     pub fn read_ram_address(&self, address: u16) -> u8 {
         match self.mapper.map_ram_address(address) {
-            Some(mapped_address) => self
+            RamMapResult::RamAddress(mapped_address) => self
                 .ram
                 .get(mapped_address as usize)
                 .copied()
                 .unwrap_or(0xFF),
-            None => 0xFF,
+            RamMapResult::MapperRegister => {
+                self.mapper.read_ram_addressed_register().unwrap_or(0xFF)
+            }
+            RamMapResult::None => 0xFF,
         }
     }
 
     /// Write a value to the given cartridge RAM address. Does nothing if the address is not valid.
     pub fn write_ram_address(&mut self, address: u16, value: u8) {
-        if let Some(mapped_address) = self.mapper.map_ram_address(address) {
-            if let Some(ram_value) = self.ram.get_mut(mapped_address as usize) {
-                *ram_value = value;
-                if let Some(ram_battery) = &mut self.ram_battery {
-                    ram_battery.mark_dirty();
+        match self.mapper.map_ram_address(address) {
+            RamMapResult::RamAddress(mapped_address) => {
+                if let Some(ram_value) = self.ram.get_mut(mapped_address as usize) {
+                    *ram_value = value;
+                    if let Some(ram_battery) = &mut self.ram_battery {
+                        ram_battery.mark_dirty();
+                    }
                 }
             }
+            RamMapResult::MapperRegister => {
+                self.mapper.write_ram_addressed_register(value);
+            }
+            RamMapResult::None => {}
         }
     }
 
+    /// If this cartridge has external RAM, save it to disk if it has been modified since the last
+    /// time this method was called.
     pub fn persist_external_ram(&mut self) -> Result<(), io::Error> {
         if let Some(ram_battery) = &mut self.ram_battery {
             ram_battery.persist_ram(&self.ram)
@@ -238,6 +305,26 @@ impl Cartridge {
         }
     }
 
+    /// Save the current state of the real-time clock, if this cartridge has one.
+    pub fn persist_rtc(&self) -> Result<(), io::Error> {
+        if let (Some(rtc), Some(battery)) = (self.mapper.get_clock(), self.ram_battery.as_ref()) {
+            let rtc_bytes = bincode::serialize(rtc)
+                .expect("RTC value-to-bytes serialization should never fail");
+
+            let rtc_path = battery.sav_path.with_extension("rtc");
+            fs::write(rtc_path, rtc_bytes)?;
+        }
+
+        Ok(())
+    }
+
+    /// Update the current state of the real-time clock based on the current time, if this
+    /// cartridge has one.
+    pub fn update_rtc(&mut self) {
+        self.mapper.update_rtc();
+    }
+
+    /// Whether or not this cartridge supports CGB enhancements (or requires CGB)
     pub fn supports_cgb_mode(&self) -> bool {
         self.rom[address::CGB_SUPPORT as usize] & 0x80 != 0
     }
@@ -499,6 +586,14 @@ impl AddressSpace {
 
     pub fn persist_cartridge_ram(&mut self) -> Result<(), io::Error> {
         self.cartridge.persist_external_ram()
+    }
+
+    pub fn persist_rtc(&mut self) -> Result<(), io::Error> {
+        self.cartridge.persist_rtc()
+    }
+
+    pub fn update_rtc(&mut self) {
+        self.cartridge.update_rtc();
     }
 
     pub fn copy_cartridge_rom_from(&mut self, other: &Self) {
