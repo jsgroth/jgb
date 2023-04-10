@@ -1,7 +1,7 @@
 use crate::audio::AudioError;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::cpu::{instructions, CgbSpeedMode, CpuRegisters};
-use crate::graphics::GraphicsError;
+use crate::graphics::{GbFrameTexture, GraphicsError};
 use crate::input::{
     ControllerMap, Hotkey, HotkeyMap, JoypadState, JoystickError, Joysticks, KeyMap, KeyMapError,
 };
@@ -13,7 +13,6 @@ use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
 use crate::{apu, audio, cpu, graphics, input, ppu, serialize, timer, RunConfig};
 use sdl2::event::Event;
-use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::TextureValueError;
 use std::io;
 use std::sync::{Arc, Mutex};
@@ -103,16 +102,12 @@ pub fn run(
         audio_playback_queue,
         joystick_subsystem,
         mut canvas,
+        texture_creator,
         mut event_pump,
         ..
     } = sdl_state;
 
-    let texture_creator = canvas.texture_creator();
-    let mut texture = texture_creator.create_texture_streaming(
-        PixelFormatEnum::RGB24,
-        ppu::SCREEN_WIDTH.into(),
-        ppu::SCREEN_HEIGHT.into(),
-    )?;
+    let mut texture = GbFrameTexture::create(&texture_creator)?;
 
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();

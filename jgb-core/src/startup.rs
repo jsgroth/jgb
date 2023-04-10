@@ -8,8 +8,8 @@ use crate::ppu::PpuState;
 use crate::{audio, graphics, HardwareMode};
 use sdl2::audio::AudioQueue;
 use sdl2::event::EventType;
-use sdl2::render::WindowCanvas;
-use sdl2::video::WindowBuildError;
+use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::video::{WindowBuildError, WindowContext};
 use sdl2::{AudioSubsystem, EventPump, JoystickSubsystem, Sdl, VideoSubsystem};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -70,6 +70,7 @@ pub struct SdlState {
     pub audio_playback_queue: Option<AudioQueue<f32>>,
     pub joystick_subsystem: JoystickSubsystem,
     pub canvas: WindowCanvas,
+    pub texture_creator: TextureCreator<WindowContext>,
     pub event_pump: EventPump,
 }
 
@@ -138,6 +139,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
         .build()?;
 
     let canvas = graphics::create_renderer(window, run_config)?;
+    let texture_creator = canvas.texture_creator();
 
     let mut event_pump = sdl.event_pump()?;
 
@@ -159,6 +161,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
         audio_playback_queue,
         joystick_subsystem,
         canvas,
+        texture_creator,
         event_pump,
     })
 }

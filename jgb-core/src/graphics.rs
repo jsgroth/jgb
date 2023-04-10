@@ -2,9 +2,9 @@ use crate::config::ColorScheme;
 use crate::cpu::ExecutionMode;
 use crate::ppu::{FrameBuffer, PpuState};
 use crate::{ppu, HardwareMode, RunConfig};
-use sdl2::pixels::Color;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
-use sdl2::render::{Texture, WindowCanvas};
+use sdl2::render::{Texture, TextureCreator, TextureValueError, WindowCanvas};
 use sdl2::video::{FullscreenType, Window};
 use sdl2::IntegerOrSdlError;
 use thiserror::Error;
@@ -17,6 +17,11 @@ pub enum GraphicsError {
     CreateRenderer {
         #[from]
         source: IntegerOrSdlError,
+    },
+    #[error("error creating texture: {source}")]
+    CreateTexture {
+        #[from]
+        source: TextureValueError,
     },
     #[error("error updating frame texture: {msg}")]
     Texture { msg: String },
@@ -82,6 +87,20 @@ pub fn create_renderer(
     Ok(canvas)
 }
 
+/// Newtype wrapper around an SDL2 Texture, specifically to use for rendering PPU output
+pub struct GbFrameTexture<'a>(Texture<'a>);
+
+impl<'a> GbFrameTexture<'a> {
+    pub fn create<T>(texture_creator: &'a TextureCreator<T>) -> Result<Self, GraphicsError> {
+        let texture = texture_creator.create_texture_streaming(
+            PixelFormatEnum::RGB24,
+            ppu::SCREEN_WIDTH.into(),
+            ppu::SCREEN_HEIGHT.into(),
+        )?;
+        Ok(Self(texture))
+    }
+}
+
 fn gb_texture_updater(
     frame_buffer: &FrameBuffer,
     palette: [[u8; 3]; 4],
@@ -131,19 +150,21 @@ pub fn render_frame(
     execution_mode: ExecutionMode,
     ppu_state: &PpuState,
     canvas: &mut WindowCanvas,
-    texture: &mut Texture,
+    texture: &mut GbFrameTexture,
     run_config: &RunConfig,
 ) -> Result<(), GraphicsError> {
     let frame_buffer = ppu_state.frame_buffer();
 
     match execution_mode {
         ExecutionMode::GameBoy => texture
+            .0
             .with_lock(
                 None,
                 gb_texture_updater(frame_buffer, palette_for(run_config.color_scheme)),
             )
             .map_err(|msg| GraphicsError::Texture { msg })?,
         ExecutionMode::GameBoyColor => texture
+            .0
             .with_lock(None, gbc_texture_updater(frame_buffer))
             .map_err(|msg| GraphicsError::Texture { msg })?,
     }
@@ -158,7 +179,7 @@ pub fn render_frame(
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
     canvas
-        .copy(texture, None, dst_rect)
+        .copy(&texture.0, None, dst_rect)
         .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
     canvas.present();
 
