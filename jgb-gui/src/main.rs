@@ -32,8 +32,33 @@ fn get_display_resolution() -> Result<Option<Rect>, String> {
     }
 }
 
+// Override winit scale factor to 1 if it looks like we're on a Steam Deck
+fn steam_deck_dpi_hack() -> Result<(), String> {
+    let sdl = sdl2::init()?;
+    let video = sdl.video()?;
+
+    let primary_display_name = video.display_name(0)?;
+    let (_, primary_display_hdpi, _) = video.display_dpi(0)?;
+    let primary_display_bounds = video.display_bounds(0)?;
+
+    log::info!("Primary display name: {primary_display_name}");
+
+    if primary_display_name.as_str() == "ANX7530 U 3\""
+        && primary_display_hdpi > 500.0
+        && primary_display_bounds.w == 1280
+        && primary_display_bounds.h == 800
+    {
+        log::info!("Assuming running on Steam Deck, overriding scale factor to 1 because otherwise it will default to 4.5");
+        env::set_var("WINIT_X11_SCALE_FACTOR", "1");
+    }
+
+    Ok(())
+}
+
 fn main() -> eframe::Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
+    steam_deck_dpi_hack().expect("checking video display information should not fail");
 
     let args = GuiArgs::parse();
 
