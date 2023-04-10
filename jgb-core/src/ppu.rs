@@ -427,6 +427,10 @@ pub fn progress_vram_dma_transfer(
             Some(vram_dma_status) => {
                 if hdma5 & 0x80 == 0 {
                     // VRAM DMA transfer has been canceled
+                    log::trace!(
+                        "VRAM DMA transfer has been canceled, was: {:04X?}",
+                        ppu_state.vram_dma_status
+                    );
                     let remaining_length =
                         ((vram_dma_status.bytes_remaining / 16) as u8).wrapping_sub(1);
                     address_space
@@ -485,8 +489,11 @@ pub fn progress_vram_dma_transfer(
         *period_bytes_remaining -= 1;
     }
 
+    log::trace!("new VRAM DMA status: {:04X?}", vram_dma_status);
+
     if vram_dma_status.bytes_remaining == 0 {
         // Transfer has completed
+        log::trace!("VRAM DMA transfer has completed");
         address_space
             .get_io_registers_mut()
             .privileged_set_hdma5(0xFF);

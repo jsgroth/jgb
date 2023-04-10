@@ -290,12 +290,15 @@ pub fn run(
                 ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
             }
 
+            // Shadow prev_mode so that it correctly updates when doing VRAM DMA transfers in double
+            // speed mode
+            let prev_mode = ppu_state.mode();
+            ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
+
             // Progress VRAM DMA transfer by 2 bytes per PPU M-cycle
             let current_mode = ppu_state.mode();
             ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
             ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, current_mode);
-
-            ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
 
             apu::tick_m_cycle(
                 &mut apu_state,
