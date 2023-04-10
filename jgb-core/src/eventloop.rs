@@ -245,6 +245,9 @@ pub fn run(
                     Event::JoyButtonUp { button_idx, .. } => {
                         joypad_state.joy_button_up(button_idx, &controller_map);
                     }
+                    Event::JoyHatMotion { hat_idx, state, .. } => {
+                        joypad_state.hat_motion(hat_idx, state, &controller_map);
+                    }
                     Event::JoyAxisMotion {
                         axis_idx, value, ..
                     } => {

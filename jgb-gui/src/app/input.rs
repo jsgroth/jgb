@@ -1,8 +1,8 @@
 use crate::AppConfig;
 use egui::{Color32, Grid, Ui};
-use jgb_core::{ControllerConfig, ControllerInput, HotkeyConfig, InputConfig};
+use jgb_core::{ControllerConfig, ControllerInput, HatDirection, HotkeyConfig, InputConfig};
 use sdl2::event::Event;
-use sdl2::joystick::Joystick;
+use sdl2::joystick::{HatState, Joystick};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rwops::RWops;
@@ -462,6 +462,50 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
                                     ControllerInput::AxisNegative(axis_idx)
                                 };
                                 return Ok(Some((button, InputPress::Controller(input))));
+                            }
+                        }
+                    }
+                    Event::JoyHatMotion { hat_idx, state, .. } => {
+                        if let InputType::Controller { .. } = input_type {
+                            match state {
+                                HatState::Up => {
+                                    return Ok(Some((
+                                        button,
+                                        InputPress::Controller(ControllerInput::Hat(
+                                            hat_idx,
+                                            HatDirection::Up,
+                                        )),
+                                    )));
+                                }
+                                HatState::Down => {
+                                    return Ok(Some((
+                                        button,
+                                        InputPress::Controller(ControllerInput::Hat(
+                                            hat_idx,
+                                            HatDirection::Down,
+                                        )),
+                                    )));
+                                }
+                                HatState::Left => {
+                                    return Ok(Some((
+                                        button,
+                                        InputPress::Controller(ControllerInput::Hat(
+                                            hat_idx,
+                                            HatDirection::Left,
+                                        )),
+                                    )));
+                                }
+                                HatState::Right => {
+                                    return Ok(Some((
+                                        button,
+                                        InputPress::Controller(ControllerInput::Hat(
+                                            hat_idx,
+                                            HatDirection::Right,
+                                        )),
+                                    )));
+                                }
+                                // Ignore diagonals
+                                _ => {}
                             }
                         }
                     }

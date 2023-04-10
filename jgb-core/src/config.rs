@@ -114,10 +114,44 @@ fn fmt_option<T: std::fmt::Display>(option: Option<&T>) -> String {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HatDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl std::fmt::Display for HatDirection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Up => write!(f, "Up"),
+            Self::Down => write!(f, "Down"),
+            Self::Left => write!(f, "Left"),
+            Self::Right => write!(f, "Right"),
+        }
+    }
+}
+
+impl FromStr for HatDirection {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "up" => Ok(Self::Up),
+            "down" => Ok(Self::Down),
+            "left" => Ok(Self::Left),
+            "right" => Ok(Self::Right),
+            _ => Err(format!("invalid hat direction: '{s}'")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ControllerInput {
     Button(u8),
     AxisNegative(u8),
     AxisPositive(u8),
+    Hat(u8, HatDirection),
 }
 
 impl std::fmt::Display for ControllerInput {
@@ -126,6 +160,7 @@ impl std::fmt::Display for ControllerInput {
             Self::Button(button) => write!(f, "Button {button}"),
             Self::AxisNegative(axis) => write!(f, "Axis {axis} -"),
             Self::AxisPositive(axis) => write!(f, "Axis {axis} +"),
+            Self::Hat(hat, direction) => write!(f, "Hat {hat} {direction}"),
         }
     }
 }
@@ -154,6 +189,13 @@ impl FromStr for ControllerInput {
                     .parse()
                     .map_err(|_err| format!("invalid axis index: '{idx}'"))?;
                 Ok(Self::AxisNegative(idx))
+            }
+            ["hat", idx, direction] => {
+                let idx: u8 = idx
+                    .parse()
+                    .map_err(|_err| format!("invalid hat index: '{idx}"))?;
+                let direction: HatDirection = direction.parse()?;
+                Ok(Self::Hat(idx, direction))
             }
             _ => Err(format!("invalid controller input string: '{s}'")),
         }

@@ -1,8 +1,8 @@
-use crate::config::{ControllerConfig, ControllerInput, InputConfig};
+use crate::config::{ControllerConfig, ControllerInput, HatDirection, InputConfig};
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use crate::HotkeyConfig;
-use sdl2::joystick::Joystick;
+use sdl2::joystick::{HatState, Joystick};
 use sdl2::keyboard::Keycode;
 use sdl2::{IntegerOrSdlError, JoystickSubsystem};
 use std::cmp::Ordering;
@@ -323,6 +323,37 @@ impl JoypadState {
             *field = neg_state;
         }
         log::debug!("Joy axis motion: axis={axis}, value={value}, current state: {self:?}");
+    }
+
+    pub fn hat_motion(&mut self, hat: u8, state: HatState, controller_map: &ControllerMap) {
+        let hat_up = matches!(state, HatState::Up | HatState::LeftUp | HatState::RightUp);
+        let hat_down = matches!(
+            state,
+            HatState::Down | HatState::LeftDown | HatState::RightDown
+        );
+        let hat_left = matches!(
+            state,
+            HatState::Left | HatState::LeftUp | HatState::LeftDown
+        );
+        let hat_right = matches!(
+            state,
+            HatState::Right | HatState::RightUp | HatState::RightDown
+        );
+
+        for (state, direction) in [
+            (hat_up, HatDirection::Up),
+            (hat_down, HatDirection::Down),
+            (hat_left, HatDirection::Left),
+            (hat_right, HatDirection::Right),
+        ] {
+            let button = controller_map
+                .map
+                .get(&ControllerInput::Hat(hat, direction))
+                .copied();
+            if let Some(button) = self.get_field_mut(button) {
+                *button = state;
+            }
+        }
     }
 }
 
