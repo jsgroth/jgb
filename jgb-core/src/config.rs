@@ -1,10 +1,10 @@
+use jgb_proc_macros::{EnumDisplay, EnumFromStr, StrDeserialize, StrSerialize};
 use sdl2::keyboard::Keycode;
-use serde::de::Visitor;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumDisplay, EnumFromStr, Serialize, Deserialize)]
 pub enum HardwareMode {
     GameBoy,
     GameBoyColor,
@@ -13,27 +13,6 @@ pub enum HardwareMode {
 impl Default for HardwareMode {
     fn default() -> Self {
         Self::GameBoy
-    }
-}
-
-impl std::fmt::Display for HardwareMode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::GameBoy => write!(f, "GameBoy"),
-            Self::GameBoyColor => write!(f, "GameBoyColor"),
-        }
-    }
-}
-
-impl FromStr for HardwareMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "GameBoy" => Ok(Self::GameBoy),
-            "GameBoyColor" => Ok(Self::GameBoyColor),
-            _ => Err(format!("invalid hardware mode string: '{s}'")),
-        }
     }
 }
 
@@ -113,7 +92,7 @@ fn fmt_option<T: std::fmt::Display>(option: Option<&T>) -> String {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay, EnumFromStr)]
 pub enum HatDirection {
     Up,
     Down,
@@ -121,32 +100,7 @@ pub enum HatDirection {
     Right,
 }
 
-impl std::fmt::Display for HatDirection {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Up => write!(f, "Up"),
-            Self::Down => write!(f, "Down"),
-            Self::Left => write!(f, "Left"),
-            Self::Right => write!(f, "Right"),
-        }
-    }
-}
-
-impl FromStr for HatDirection {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "up" => Ok(Self::Up),
-            "down" => Ok(Self::Down),
-            "left" => Ok(Self::Left),
-            "right" => Ok(Self::Right),
-            _ => Err(format!("invalid hat direction: '{s}'")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, StrSerialize, StrDeserialize)]
 pub enum ControllerInput {
     Button(u8),
     AxisNegative(u8),
@@ -202,42 +156,6 @@ impl FromStr for ControllerInput {
     }
 }
 
-impl Serialize for ControllerInput {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-struct ControllerInputVisitor;
-
-impl<'de> Visitor<'de> for ControllerInputVisitor {
-    type Value = ControllerInput;
-
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-        write!(formatter, "a string representing a ControllerInput")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        let input = v.parse().map_err(de::Error::custom)?;
-        Ok(input)
-    }
-}
-
-impl<'de> Deserialize<'de> for ControllerInput {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(ControllerInputVisitor)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ControllerConfig {
     pub up: Option<ControllerInput>,
@@ -285,7 +203,7 @@ impl std::fmt::Display for ControllerConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumDisplay, EnumFromStr, Serialize, Deserialize)]
 pub enum ColorScheme {
     BlackAndWhite,
     GreenTint,
@@ -294,27 +212,6 @@ pub enum ColorScheme {
 impl Default for ColorScheme {
     fn default() -> Self {
         Self::BlackAndWhite
-    }
-}
-
-impl std::fmt::Display for ColorScheme {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BlackAndWhite => write!(f, "BlackAndWhite"),
-            Self::GreenTint => write!(f, "GreenTint"),
-        }
-    }
-}
-
-impl FromStr for ColorScheme {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "BlackAndWhite" => Ok(Self::BlackAndWhite),
-            "GreenTint" => Ok(Self::GreenTint),
-            _ => Err(format!("invalid ColorScheme string: '{s}'")),
-        }
     }
 }
 

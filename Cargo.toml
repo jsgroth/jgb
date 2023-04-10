@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "jgb-proc-macros",
     "jgb-core",
     "jgb-cli",
     "jgb-gui",
