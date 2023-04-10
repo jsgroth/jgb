@@ -48,7 +48,8 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
 }
 
 /// Implement the `std::str::FromStr` trait for the given enum, with `FromStr::Err` set to `String`.
-/// Only supports enums which have only fieldless variants.
+/// Only supports enums which have only fieldless variants. The generated implementation will be
+/// case-insensitive.
 #[proc_macro_derive(EnumFromStr)]
 pub fn enum_from_str(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).expect("unable to parse input");
@@ -69,9 +70,9 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
                 panic!("EnumFromStr macro only supports enums with only fieldless variants; {name}::{variant_name} has fields");
             }
 
-            let variant_name_str = variant_name.to_string();
+            let variant_name_lowercase = variant_name.to_string().to_ascii_lowercase();
             quote! {
-                #variant_name_str => Ok(Self::#variant_name)
+                #variant_name_lowercase => Ok(Self::#variant_name)
             }
         })
         .collect();
@@ -82,7 +83,7 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
             type Err = String;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                match s {
+                match s.to_ascii_lowercase().as_str() {
                     #(#match_arms,)*
                     _ => Err(format!(#err_fmt_string, s))
                 }
