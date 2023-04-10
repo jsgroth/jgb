@@ -90,14 +90,15 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev libgtk-3-dev
 
       - name: Build release
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+        run: |
+          RUSTFLAGS="-Clink-args=-Wl,-rpath=." \
+          cargo build --release
 
       - name: Compress binaries
         run: |
-          tar -czvf jgb-linux.tar.gz LICENSE -C target/release jgb-cli jgb-gui
+          cp /lib/x86_64-linux-gnu/libSDL2-2.0.so.0 ./ && \
+          cp /lib/x86_64-linux-gnu/libSDL2_ttf-2.0.so.0 ./ && \
+          tar -czvf jgb-linux.tar.gz LICENSE libSDL2-2.0.so.0 libSDL2_ttf-2.0.so.0 -C target/release jgb-cli jgb-gui
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
