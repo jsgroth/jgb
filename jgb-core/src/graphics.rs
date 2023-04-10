@@ -4,9 +4,11 @@ use crate::ppu::{FrameBuffer, PpuState};
 use crate::{ppu, HardwareMode, RunConfig};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
-use sdl2::render::{Texture, TextureCreator, TextureValueError, WindowCanvas};
+use sdl2::render::{BlendMode, Texture, TextureCreator, TextureValueError, WindowCanvas};
+use sdl2::ttf::{Font, FontError};
 use sdl2::video::{FullscreenType, Window};
 use sdl2::IntegerOrSdlError;
+use std::time::{Duration, SystemTime};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -27,6 +29,11 @@ pub enum GraphicsError {
     Texture { msg: String },
     #[error("error copying frame texture to renderer: {msg}")]
     CopyToCanvas { msg: String },
+    #[error("error rendering font: {source}")]
+    FontRender {
+        #[from]
+        source: FontError,
+    },
 }
 
 // GB colors range from 0-3 with 0 being "white" and 3 being "black"
@@ -50,8 +57,8 @@ fn palette_for(color_scheme: ColorScheme) -> [[u8; 3]; 4] {
     }
 }
 
-/// Create an SDL2 renderer from the given SDL2 window, with VSync enabled and with the display area
-/// initialized to all white pixels.
+/// Create an SDL2 renderer from the given SDL2 window, with VSync optionally enabled and with the
+/// display area initialized to all white pixels.
 pub fn create_renderer(
     mut window: Window,
     run_config: &RunConfig,
@@ -143,16 +150,64 @@ fn gbc_texture_updater(frame_buffer: &FrameBuffer) -> impl FnOnce(&mut [u8], usi
     }
 }
 
+pub const FONT_SIZE: u16 = 16;
+
+#[derive(Debug, Clone)]
+pub struct Modal {
+    text: String,
+    end_time: SystemTime,
+}
+
+impl Modal {
+    pub fn new(text: String, duration: Duration) -> Self {
+        Self {
+            text,
+            end_time: SystemTime::now() + duration,
+        }
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.end_time <= SystemTime::now()
+    }
+}
+
+pub struct RenderFrameArgs<
+    'ttf,
+    'ppu,
+    'canvas,
+    'tx_creator,
+    'texture,
+    'font,
+    'font_rwops,
+    'modals,
+    'cfg,
+    T,
+> {
+    pub execution_mode: ExecutionMode,
+    pub ppu_state: &'ppu PpuState,
+    pub canvas: &'canvas mut WindowCanvas,
+    pub texture_creator: &'tx_creator TextureCreator<T>,
+    pub texture: &'texture mut GbFrameTexture<'tx_creator>,
+    pub font: &'font Font<'ttf, 'font_rwops>,
+    pub modals: &'modals [Modal],
+    pub run_config: &'cfg RunConfig,
+}
+
 /// Render the current frame to the SDL2 window, overwriting all previously displayed data.
 ///
 /// With VSync enabled this function will block until the next screen refresh.
-pub fn render_frame(
-    execution_mode: ExecutionMode,
-    ppu_state: &PpuState,
-    canvas: &mut WindowCanvas,
-    texture: &mut GbFrameTexture,
-    run_config: &RunConfig,
-) -> Result<(), GraphicsError> {
+pub fn render_frame<T>(args: RenderFrameArgs<T>) -> Result<(), GraphicsError> {
+    let RenderFrameArgs {
+        execution_mode,
+        ppu_state,
+        canvas,
+        texture_creator,
+        texture,
+        font,
+        modals,
+        run_config,
+    } = args;
+
     let frame_buffer = ppu_state.frame_buffer();
 
     match execution_mode {
@@ -181,7 +236,48 @@ pub fn render_frame(
     canvas
         .copy(&texture.0, None, dst_rect)
         .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
+
+    render_modals(canvas, texture_creator, font, modals)?;
+
     canvas.present();
+
+    Ok(())
+}
+
+fn render_modals<T>(
+    canvas: &mut WindowCanvas,
+    texture_creator: &TextureCreator<T>,
+    font: &Font,
+    modals: &[Modal],
+) -> Result<(), GraphicsError> {
+    if modals.is_empty() {
+        return Ok(());
+    }
+
+    canvas.set_blend_mode(BlendMode::Blend);
+
+    let mut y = 20;
+    for modal in modals {
+        let surface = font
+            .render(&modal.text)
+            .shaded(Color::RGBA(255, 255, 255, 255), Color::RGBA(0, 0, 0, 128))?;
+        let texture = surface.as_texture(texture_creator)?;
+
+        canvas
+            .copy(
+                &texture,
+                None,
+                Rect::new(20, y, surface.width(), surface.height()),
+            )
+            .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
+
+        canvas.set_draw_color(Color::RGBA(50, 50, 50, 200));
+        canvas
+            .draw_rect(Rect::new(20, y, surface.width(), surface.height()))
+            .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
+
+        y += surface.height() as i32 + 20;
+    }
 
     Ok(())
 }

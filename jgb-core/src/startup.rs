@@ -9,8 +9,9 @@ use crate::{audio, graphics, HardwareMode};
 use sdl2::audio::AudioQueue;
 use sdl2::event::EventType;
 use sdl2::render::{TextureCreator, WindowCanvas};
+use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::{WindowBuildError, WindowContext};
-use sdl2::{AudioSubsystem, EventPump, JoystickSubsystem, Sdl, VideoSubsystem};
+use sdl2::{ttf, AudioSubsystem, EventPump, JoystickSubsystem, Sdl, VideoSubsystem};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::io;
@@ -46,6 +47,11 @@ pub enum StartupError {
     },
     #[error("SDL2 audio initialization error: {msg}")]
     SdlAudioInit { msg: String },
+    #[error("SDL2 TTF initialization error: {source}")]
+    SdlTtfInit {
+        #[from]
+        source: ttf::InitError,
+    },
 }
 
 impl From<String> for StartupError {
@@ -72,6 +78,7 @@ pub struct SdlState {
     pub canvas: WindowCanvas,
     pub texture_creator: TextureCreator<WindowContext>,
     pub event_pump: EventPump,
+    pub ttf_ctx: Sdl2TtfContext,
 }
 
 pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, StartupError> {
@@ -126,6 +133,8 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
     let audio = sdl.audio()?;
     let joystick_subsystem = sdl.joystick()?;
 
+    let ttf_ctx = ttf::init()?;
+
     // Hide mouse cursor
     sdl.mouse().show_cursor(false);
 
@@ -163,6 +172,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
         canvas,
         texture_creator,
         event_pump,
+        ttf_ctx,
     })
 }
 

@@ -1,7 +1,7 @@
 use crate::audio::AudioError;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::cpu::{instructions, CgbSpeedMode, CpuRegisters};
-use crate::graphics::{GbFrameTexture, GraphicsError};
+use crate::graphics::{GbFrameTexture, GraphicsError, Modal, RenderFrameArgs};
 use crate::input::{
     ControllerMap, Hotkey, HotkeyMap, JoypadState, JoystickError, Joysticks, KeyMap, KeyMapError,
 };
@@ -11,11 +11,11 @@ use crate::ppu::{PpuMode, PpuState};
 use crate::serialize::SaveStateError;
 use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
-use crate::{apu, audio, cpu, graphics, input, ppu, serialize, timer, RunConfig};
+use crate::{apu, audio, cpu, font, graphics, input, ppu, serialize, timer, RunConfig};
 use sdl2::event::Event;
-use sdl2::render::TextureValueError;
 use std::io;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -30,16 +30,13 @@ pub enum RunError {
         #[from]
         source: ExecutionError,
     },
-    #[error("error creating SDL2 texture: {source}")]
-    TextureCreation {
-        #[from]
-        source: TextureValueError,
-    },
     #[error("rendering error: {source}")]
     Rendering {
         #[from]
         source: GraphicsError,
     },
+    #[error("font load error: {msg}")]
+    FontLoad { msg: String },
     #[error("audio playback error: {source}")]
     AudioPlayback {
         #[from]
@@ -104,10 +101,14 @@ pub fn run(
         mut canvas,
         texture_creator,
         mut event_pump,
+        ttf_ctx,
         ..
     } = sdl_state;
 
     let mut texture = GbFrameTexture::create(&texture_creator)?;
+
+    let font =
+        font::load_font(&ttf_ctx, graphics::FONT_SIZE).map_err(|msg| RunError::FontLoad { msg })?;
 
     let mut joypad_state = JoypadState::new();
     let mut timer_counter = TimerCounter::new();
@@ -118,6 +119,12 @@ pub fn run(
     let controller_map = ControllerMap::from_config(&run_config.controller_config)?;
 
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
+    let save_state_file_name = save_state_path
+        .file_name()
+        .and_then(|file_name| file_name.to_str())
+        .unwrap_or("<Unknown>");
+
+    let mut modals = Vec::new();
 
     let mut total_cycles = 0;
     let mut total_frames = 0;
@@ -194,6 +201,10 @@ pub fn run(
                                 };
 
                                 serialize::save_state(&state, &save_state_path)?;
+                                modals.push(Modal::new(
+                                    format!("Saved state to {save_state_file_name}"),
+                                    Duration::from_secs(3),
+                                ));
 
                                 address_space = state.address_space;
                                 cpu_registers = state.cpu_registers;
@@ -212,6 +223,11 @@ pub fn run(
                                         cpu_registers = state.cpu_registers;
                                         ppu_state = state.ppu_state;
                                         apu_state = state.apu_state;
+
+                                        modals.push(Modal::new(
+                                            format!("Loaded state from {save_state_file_name}",),
+                                            Duration::from_secs(3),
+                                        ));
                                     }
                                     Err((err, old_apu_state)) => {
                                         log::error!("error loading save state: {err}");
@@ -262,6 +278,8 @@ pub fn run(
                     .persist_cartridge_state()
                     .map_err(|err| RunError::RamPersist { source: err })?;
             }
+
+            modals.retain(|modal| !modal.is_finished());
         }
         total_cycles += u64::from(cycles_required);
 
@@ -312,13 +330,16 @@ pub fn run(
         if (prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank)
             || (prev_enabled && !ppu_state.enabled())
         {
-            graphics::render_frame(
+            graphics::render_frame(RenderFrameArgs {
                 execution_mode,
-                &ppu_state,
-                &mut canvas,
-                &mut texture,
+                ppu_state: &ppu_state,
+                canvas: &mut canvas,
+                texture_creator: &texture_creator,
+                texture: &mut texture,
+                font: &font,
+                modals: &modals,
                 run_config,
-            )?;
+            })?;
         }
     }
 
