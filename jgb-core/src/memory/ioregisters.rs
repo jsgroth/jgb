@@ -1,7 +1,8 @@
 mod lcdc;
 
-use crate::cpu::InterruptType;
+use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::address;
+use crate::ppu::PpuMode;
 pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +50,23 @@ pub enum IoRegister {
     OBP1,
     WY,
     WX,
+    // CGB-only registers start here
+    KEY1,
+    VBK,
+    HDMA1,
+    HDMA2,
+    HDMA3,
+    HDMA4,
+    HDMA5,
+    RP,
+    BCPS,
+    BCPD,
+    OCPS,
+    OCPD,
+    OPRI,
+    SVBK,
+    PCM12,
+    PCM34,
 }
 
 impl IoRegister {
@@ -96,6 +114,22 @@ impl IoRegister {
             0xFF49 => Self::OBP1,
             0xFF4A => Self::WY,
             0xFF4B => Self::WX,
+            0xFF4D => Self::KEY1,
+            0xFF4F => Self::VBK,
+            0xFF51 => Self::HDMA1,
+            0xFF52 => Self::HDMA2,
+            0xFF53 => Self::HDMA3,
+            0xFF54 => Self::HDMA4,
+            0xFF55 => Self::HDMA5,
+            0xFF56 => Self::RP,
+            0xFF68 => Self::BCPS,
+            0xFF69 => Self::BCPD,
+            0xFF6A => Self::OCPS,
+            0xFF6B => Self::OCPD,
+            0xFF6C => Self::OPRI,
+            0xFF70 => Self::SVBK,
+            0xFF76 => Self::PCM12,
+            0xFF77 => Self::PCM34,
             _ => return None,
         };
 
@@ -145,6 +179,22 @@ impl IoRegister {
             Self::OBP1 => 0x49,
             Self::WY => 0x4A,
             Self::WX => 0x4B,
+            Self::KEY1 => 0x4D,
+            Self::VBK => 0x4F,
+            Self::HDMA1 => 0x51,
+            Self::HDMA2 => 0x52,
+            Self::HDMA3 => 0x53,
+            Self::HDMA4 => 0x54,
+            Self::HDMA5 => 0x55,
+            Self::RP => 0x56,
+            Self::BCPS => 0x68,
+            Self::BCPD => 0x69,
+            Self::OCPS => 0x6A,
+            Self::OCPD => 0x6B,
+            Self::OPRI => 0x6C,
+            Self::SVBK => 0x70,
+            Self::PCM12 => 0x76,
+            Self::PCM34 => 0x77,
         }
     }
 
@@ -152,13 +202,21 @@ impl IoRegister {
     pub fn is_cpu_readable(self) -> bool {
         !matches!(
             self,
-            Self::NR13 | Self::NR23 | Self::NR31 | Self::NR33 | Self::NR41
+            Self::NR13
+                | Self::NR23
+                | Self::NR31
+                | Self::NR33
+                | Self::NR41
+                | Self::HDMA1
+                | Self::HDMA2
+                | Self::HDMA3
+                | Self::HDMA4
         )
     }
 
     /// Return whether or not the CPU is allowed to write to this hardware register.
     pub fn is_cpu_writable(self) -> bool {
-        !matches!(self, Self::LY)
+        !matches!(self, Self::LY | Self::PCM12 | Self::PCM34)
     }
 
     /// Return whether or not this is an audio register.
@@ -186,6 +244,29 @@ impl IoRegister {
                 | Self::NR50
                 | Self::NR51
                 | Self::NR52
+        )
+    }
+
+    /// Return whether this register is only accessible in CGB mode.
+    pub fn is_cgb_only_register(self) -> bool {
+        matches!(
+            self,
+            Self::KEY1
+                | Self::VBK
+                | Self::HDMA1
+                | Self::HDMA2
+                | Self::HDMA3
+                | Self::HDMA4
+                | Self::HDMA5
+                | Self::RP
+                | Self::BCPS
+                | Self::BCPD
+                | Self::OCPS
+                | Self::OCPD
+                | Self::OPRI
+                | Self::SVBK
+                | Self::PCM12
+                | Self::PCM34
         )
     }
 }
@@ -246,6 +327,7 @@ fn dirty_bit_for_register(io_register: IoRegister) -> Option<u16> {
         IoRegister::NR41 => Some(0x1000),
         IoRegister::NR44 => Some(0x2000),
         IoRegister::DMA => Some(0x4000),
+        IoRegister::HDMA5 => Some(0x8000),
         _ => None,
     }
 }
@@ -257,53 +339,59 @@ pub struct IoRegisters {
         deserialize_with = "crate::serialize::deserialize_array"
     )]
     contents: [u8; 0x80],
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
+    cgb_bg_palette_ram: [u8; 64],
+    #[serde(
+        serialize_with = "crate::serialize::serialize_array",
+        deserialize_with = "crate::serialize::deserialize_array"
+    )]
+    cgb_obj_palette_ram: [u8; 64],
     dirty_bits: u16,
+    execution_mode: ExecutionMode,
+    current_ppu_mode: PpuMode,
 }
 
 impl IoRegisters {
-    const JOYP_RELATIVE_ADDR: usize = IoRegister::JOYP.to_relative_address();
-    const DIV_RELATIVE_ADDR: usize = IoRegister::DIV.to_relative_address();
-    const IF_RELATIVE_ADDR: usize = IoRegister::IF.to_relative_address();
-    const NR52_RELATIVE_ADDR: usize = IoRegister::NR52.to_relative_address();
-    const LCDC_RELATIVE_ADDR: usize = IoRegister::LCDC.to_relative_address();
-    const STAT_RELATIVE_ADDR: usize = IoRegister::STAT.to_relative_address();
-    const LY_RELATIVE_ADDR: usize = IoRegister::LY.to_relative_address();
-
-    pub fn new() -> Self {
+    pub fn new(execution_mode: ExecutionMode) -> Self {
         let mut contents = [0; 0x80];
 
-        // JOYP
-        contents[0x00] = 0xCF;
+        contents[IoRegister::JOYP.to_relative_address()] = 0xCF;
 
-        // DIV
-        contents[0x04] = 0x18;
+        contents[IoRegister::DIV.to_relative_address()] = 0x18;
 
-        // TAC
-        contents[0x07] = 0xF8;
+        contents[IoRegister::TAC.to_relative_address()] = 0xF8;
 
-        // IF
-        contents[0x0F] = 0xE1;
+        contents[IoRegister::IF.to_relative_address()] = 0xE1;
 
-        // LCDC
-        contents[0x40] = 0x91;
+        contents[IoRegister::LCDC.to_relative_address()] = 0x91;
 
-        // STAT
-        contents[0x41] = 0x81;
+        contents[IoRegister::STAT.to_relative_address()] = 0x81;
 
-        // LY
-        contents[0x44] = 0x91;
+        contents[IoRegister::LY.to_relative_address()] = 0x91;
 
-        // DMA
-        contents[0x46] = 0xFF;
+        contents[IoRegister::DMA.to_relative_address()] = 0xFF;
 
-        // BGP
-        contents[0x47] = 0xFC;
+        contents[IoRegister::BGP.to_relative_address()] = 0xFC;
 
         init_audio_registers(&mut contents);
 
+        if matches!(execution_mode, ExecutionMode::GameBoyColor) {
+            contents[IoRegister::KEY1.to_relative_address()] = 0x7F;
+        }
+
+        // Don't boot with DMA transfer registers flagged as dirty
+        let dirty_bits = !dirty_bit_for_register(IoRegister::DMA).unwrap()
+            & !dirty_bit_for_register(IoRegister::HDMA5).unwrap();
         Self {
             contents,
-            dirty_bits: 0xFFFF,
+            cgb_bg_palette_ram: [0; 64],
+            cgb_obj_palette_ram: [0; 64],
+            dirty_bits,
+            execution_mode,
+            current_ppu_mode: PpuMode::VBlank,
         }
     }
 
@@ -332,10 +420,24 @@ impl IoRegisters {
         self.write_register(register, value);
     }
 
+    fn current_bg_palette_address(&self) -> usize {
+        (self.contents[IoRegister::BCPS.to_relative_address()] & 0x3F) as usize
+    }
+
+    fn current_obj_palette_address(&self) -> usize {
+        (self.contents[IoRegister::OCPS.to_relative_address()] & 0x3F) as usize
+    }
+
     /// Read the value from the given hardware register. Returns 0xFF if the register is not
     /// readable by the CPU.
     pub fn read_register(&self, register: IoRegister) -> u8 {
         if !register.is_cpu_readable() {
+            return 0xFF;
+        }
+
+        if !matches!(self.execution_mode, ExecutionMode::GameBoyColor)
+            && register.is_cgb_only_register()
+        {
             return 0xFF;
         }
 
@@ -350,6 +452,17 @@ impl IoRegisters {
                 byte | 0xBF
             }
             IoRegister::NR52 => byte | 0x70,
+            IoRegister::KEY1 => byte | 0x7E,
+            IoRegister::VBK => byte | 0xFE,
+            IoRegister::SVBK => byte | 0xF8,
+            IoRegister::BCPD => match self.current_ppu_mode {
+                PpuMode::RenderingScanline => 0xFF,
+                _ => self.cgb_bg_palette_ram[self.current_bg_palette_address()],
+            },
+            IoRegister::OCPD => match self.current_ppu_mode {
+                PpuMode::RenderingScanline => 0xFF,
+                _ => self.cgb_obj_palette_ram[self.current_obj_palette_address()],
+            },
             _ => byte,
         }
     }
@@ -361,8 +474,14 @@ impl IoRegisters {
             return;
         }
 
+        if !matches!(self.execution_mode, ExecutionMode::GameBoyColor)
+            && register.is_cgb_only_register()
+        {
+            return;
+        }
+
         // Audio registers other than NR52 are not writable while the APU is disabled
-        let apu_enabled = self.contents[Self::NR52_RELATIVE_ADDR] & 0x80 != 0;
+        let apu_enabled = self.contents[IoRegister::NR52.to_relative_address()] & 0x80 != 0;
         if !apu_enabled && register.is_audio_register() && register != IoRegister::NR52 {
             return;
         }
@@ -394,6 +513,30 @@ impl IoRegisters {
                 // Only bit 7 is CPU-writable and bits 4-6 are unused
                 self.contents[relative_addr] = (existing_value & 0x0F) | (value & 0x80);
             }
+            IoRegister::BCPD => {
+                let bg_palette_address = self.current_bg_palette_address();
+                if !matches!(self.current_ppu_mode, PpuMode::RenderingScanline) {
+                    self.cgb_bg_palette_ram[bg_palette_address] = value;
+                }
+                if self.contents[IoRegister::BCPS.to_relative_address()] & 0x80 != 0 {
+                    // Auto-increment BG palette index
+                    let new_palette_address = ((bg_palette_address + 1) & 0x3F) as u8;
+                    self.contents[IoRegister::BCPS.to_relative_address()] =
+                        0x80 | new_palette_address;
+                }
+            }
+            IoRegister::OCPD => {
+                let obj_palette_address = self.current_obj_palette_address();
+                if !matches!(self.current_ppu_mode, PpuMode::RenderingScanline) {
+                    self.cgb_obj_palette_ram[obj_palette_address] = value;
+                }
+                if self.contents[IoRegister::OCPS.to_relative_address()] & 0x80 != 0 {
+                    // Auto-increment OBJ palette index
+                    let new_palette_address = ((obj_palette_address + 1) & 0x3F) as u8;
+                    self.contents[IoRegister::OCPS.to_relative_address()] =
+                        0x80 | new_palette_address;
+                }
+            }
             _ => {
                 self.contents[relative_addr] = value;
             }
@@ -402,25 +545,46 @@ impl IoRegisters {
 
     /// Assign a value to the JOYP register, including bits that the CPU cannot write.
     pub fn privileged_set_joyp(&mut self, value: u8) {
-        self.contents[Self::JOYP_RELATIVE_ADDR] = value & 0x3F;
+        self.contents[IoRegister::JOYP.to_relative_address()] = value & 0x3F;
     }
 
     /// Assign a value to the STAT register (LCD status), including bits that the CPU cannot write.
     /// Should only be used by the PPU.
     pub fn privileged_set_stat(&mut self, value: u8) {
-        self.contents[Self::STAT_RELATIVE_ADDR] = value & 0x7F;
+        self.contents[IoRegister::STAT.to_relative_address()] = value & 0x7F;
     }
 
     /// Assign a value to the LY register (current scanline), which the CPU cannot normally write
     /// to. Should only be used by the PPU.
     pub fn privileged_set_ly(&mut self, value: u8) {
-        self.contents[Self::LY_RELATIVE_ADDR] = value;
+        self.contents[IoRegister::LY.to_relative_address()] = value;
+    }
+
+    /// Read an HDMA register which is normally not readable by the CPU. Should only be called
+    /// by the VRAM DMA transfer code.
+    pub fn privileged_read_hdma_register(&self, register: IoRegister) -> u8 {
+        match register {
+            IoRegister::HDMA1
+            | IoRegister::HDMA2
+            | IoRegister::HDMA3
+            | IoRegister::HDMA4
+            | IoRegister::HDMA5 => self.contents[register.to_relative_address()],
+            _ => panic!(
+                "privileged_read_hdma_register called with a non-HDMA register: {register:?}"
+            ),
+        }
+    }
+
+    /// Assign a value to the HDMA5 register, which the CPU cannot normally write to without
+    /// triggering a VRAM DMA transfer. Should only be called by the VRAM DMA transfer code.
+    pub fn privileged_set_hdma5(&mut self, value: u8) {
+        self.contents[IoRegister::HDMA5.to_relative_address()] = value;
     }
 
     /// Assign a value to the DIV register (timer divider), which is normally always reset to 0x00
     /// when the CPU writes to it. Should only be used by the timer code.
     pub fn privileged_set_div(&mut self, value: u8) {
-        self.contents[Self::DIV_RELATIVE_ADDR] = value;
+        self.contents[IoRegister::DIV.to_relative_address()] = value;
     }
 
     /// Read an audio register from the perspective of the APU, bypassing CPU access checks (both
@@ -455,12 +619,12 @@ impl IoRegisters {
 
     /// Obtain a read-only view around the LCDC register (LCD control).
     pub fn lcdc(&self) -> Lcdc {
-        Lcdc(&self.contents[Self::LCDC_RELATIVE_ADDR])
+        Lcdc(&self.contents[IoRegister::LCDC.to_relative_address()])
     }
 
     /// Obtain a read/write view around the IF register (interrupt request flags).
     pub fn interrupt_flags(&mut self) -> InterruptFlags {
-        InterruptFlags(&mut self.contents[Self::IF_RELATIVE_ADDR])
+        InterruptFlags(&mut self.contents[IoRegister::IF.to_relative_address()])
     }
 
     /// Returns whether or not the given register has been written to.
@@ -490,62 +654,84 @@ impl IoRegisters {
 
         self.dirty_bits &= !bit;
     }
+
+    /// Get the current CGB VRAM bank number according to the VBK register. Only bit 0 is read,
+    /// other bits are ignored.
+    ///
+    /// This method will always return 0 or 1. The GBC has 2 8KB VRAM banks.
+    pub fn get_cgb_vram_bank(&self) -> usize {
+        (self.contents[IoRegister::VBK.to_relative_address()] & 0x01) as usize
+    }
+
+    /// Get the current CGB working RAM bank number according to the SVBK register. Only bits 0-2
+    /// are read, other bits are ignored. Additionally, a value of 0 is treated as a bank number of
+    /// 1.
+    ///
+    /// This method will always return a number between 1 and 7 (inclusive). The GBC has 8 4KB
+    /// working RAM banks, and bank 0 is always mapped to the same address range.
+    pub fn get_cgb_working_ram_bank(&self) -> usize {
+        let svbk_value = self.contents[IoRegister::SVBK.to_relative_address()] & 0x07;
+        // SVBK value of 0 is treated as RAM bank 1
+        if svbk_value == 0 {
+            1
+        } else {
+            svbk_value as usize
+        }
+    }
+
+    /// Update the current PPU mode. This is necessary because the CPU cannot access CGB palette RAM
+    /// while the PPU is rendering a scanline.
+    pub fn update_ppu_mode(&mut self, mode: PpuMode) {
+        self.current_ppu_mode = mode;
+    }
+
+    /// Retrieve a reference to BG palette RAM (CGB-only). This should only be called by the PPU.
+    pub fn get_bg_palette_ram(&self) -> &[u8; 64] {
+        &self.cgb_bg_palette_ram
+    }
+
+    /// Retrieve a reference to OBJ palette RAM (CGB-only). This should only be called by the PPU.
+    pub fn get_obj_palette_ram(&self) -> &[u8; 64] {
+        &self.cgb_obj_palette_ram
+    }
 }
 
 fn init_audio_registers(contents: &mut [u8; 0x80]) {
-    // NR10
-    contents[0x10] = 0x80;
+    contents[IoRegister::NR10.to_relative_address()] = 0x80;
 
-    // NR11
-    contents[0x11] = 0xBF;
+    contents[IoRegister::NR11.to_relative_address()] = 0xBF;
 
-    // NR12
-    contents[0x12] = 0xF3;
+    contents[IoRegister::NR12.to_relative_address()] = 0xF3;
 
-    // NR13
-    contents[0x13] = 0xFF;
+    contents[IoRegister::NR13.to_relative_address()] = 0xFF;
 
-    // NR14
-    contents[0x14] = 0xBF;
+    contents[IoRegister::NR14.to_relative_address()] = 0xBF;
 
-    // NR21
-    contents[0x16] = 0x3F;
+    contents[IoRegister::NR21.to_relative_address()] = 0x3F;
 
-    // NR23
-    contents[0x18] = 0xFF;
+    contents[IoRegister::NR23.to_relative_address()] = 0xFF;
 
-    // NR24
-    contents[0x19] = 0xBF;
+    contents[IoRegister::NR24.to_relative_address()] = 0xBF;
 
-    // NR30
-    contents[0x1A] = 0x7F;
+    contents[IoRegister::NR30.to_relative_address()] = 0x7F;
 
-    // NR31
-    contents[0x1B] = 0xFF;
+    contents[IoRegister::NR31.to_relative_address()] = 0xFF;
 
-    // NR32
-    contents[0x1C] = 0x9F;
+    contents[IoRegister::NR32.to_relative_address()] = 0x9F;
 
-    // NR33
-    contents[0x1D] = 0xFF;
+    contents[IoRegister::NR33.to_relative_address()] = 0xFF;
 
-    // NR34
-    contents[0x1E] = 0xBF;
+    contents[IoRegister::NR34.to_relative_address()] = 0xBF;
 
-    // NR41
-    contents[0x20] = 0xFF;
+    contents[IoRegister::NR41.to_relative_address()] = 0xFF;
 
-    // NR44
-    contents[0x23] = 0xBF;
+    contents[IoRegister::NR44.to_relative_address()] = 0xBF;
 
-    // NR50
-    contents[0x24] = 0x77;
+    contents[IoRegister::NR50.to_relative_address()] = 0x77;
 
-    // NR51
-    contents[0x25] = 0xF3;
+    contents[IoRegister::NR51.to_relative_address()] = 0xF3;
 
-    // NR52
-    contents[0x26] = 0xF1;
+    contents[IoRegister::NR52.to_relative_address()] = 0xF1;
 }
 
 fn is_waveform_address(address: u16) -> bool {
@@ -559,7 +745,11 @@ mod tests {
     fn empty_io_registers() -> IoRegisters {
         IoRegisters {
             contents: [0; 0x80],
+            cgb_bg_palette_ram: [0; 64],
+            cgb_obj_palette_ram: [0; 64],
             dirty_bits: 0x00,
+            execution_mode: ExecutionMode::GameBoy,
+            current_ppu_mode: PpuMode::VBlank,
         }
     }
 

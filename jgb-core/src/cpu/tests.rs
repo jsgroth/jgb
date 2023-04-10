@@ -9,7 +9,7 @@ mod load;
 mod singlebit;
 
 use crate::cpu::registers::CpuRegister;
-use crate::cpu::{instructions, CpuRegisters};
+use crate::cpu::{instructions, CpuRegisters, ExecutionMode};
 use crate::memory::{AddressSpace, Cartridge};
 use std::collections::HashMap;
 use std::fmt::Formatter;
@@ -177,10 +177,14 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
 
     let rom_len = rom.len() as u16;
 
-    let mut address_space =
-        AddressSpace::new(Cartridge::new(rom, None).expect("synthesized test ROM should be valid"));
-    let mut cpu_registers = CpuRegisters::new();
-    let ppu_state = PpuState::new();
+    let mut address_space = AddressSpace::new(
+        Cartridge::new(rom, None).expect("synthesized test ROM should be valid"),
+        ExecutionMode::GameBoy,
+    );
+    let mut cpu_registers = CpuRegisters::new(ExecutionMode::GameBoy);
+    cpu_registers.flags = 0x00;
+
+    let ppu_state = PpuState::new(ExecutionMode::GameBoy);
 
     while cpu_registers.pc >= 0x0100 && cpu_registers.pc < rom_len {
         let (instruction, pc) =

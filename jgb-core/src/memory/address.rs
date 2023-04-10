@@ -3,6 +3,7 @@
 //
 
 pub const ENTRY_POINT: u16 = 0x0100;
+pub const CGB_SUPPORT: u16 = 0x0143;
 pub const MAPPER: u16 = 0x0147;
 pub const RAM_SIZE: u16 = 0x0149;
 
@@ -21,6 +22,9 @@ pub const EXTERNAL_RAM_END: u16 = 0xBFFF;
 
 pub const WORKING_RAM_START: u16 = 0xC000;
 pub const WORKING_RAM_END: u16 = 0xDFFF;
+
+pub const CGB_BANK_0_WORKING_RAM_END: u16 = 0xCFFF;
+pub const CGB_BANKED_WORKING_RAM_START: u16 = 0xD000;
 
 pub const ECHO_RAM_START: u16 = 0xE000;
 pub const ECHO_RAM_END: u16 = 0xFDFF;

@@ -1,3 +1,4 @@
+use crate::cpu::ExecutionMode;
 use crate::memory::address;
 use serde::{Deserialize, Serialize};
 
@@ -115,8 +116,31 @@ impl CFlag {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CgbSpeedMode {
+    Normal,
+    Double,
+}
+
+impl CgbSpeedMode {
+    pub fn toggle(self) -> Self {
+        match self {
+            Self::Normal => Self::Double,
+            Self::Double => Self::Normal,
+        }
+    }
+
+    pub fn key1_bit(self) -> u8 {
+        match self {
+            Self::Normal => 0x00,
+            Self::Double => 0x80,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CpuRegisters {
+    pub execution_mode: ExecutionMode,
     pub accumulator: u8,
     pub flags: u8,
     pub b: u8,
@@ -131,6 +155,8 @@ pub struct CpuRegisters {
     // Tracks whether the previous instruction was EI
     pub interrupt_delay: bool,
     pub halted: bool,
+    pub cgb_speed_mode: CgbSpeedMode,
+    pub speed_switch_wait_cycles_remaining: Option<u32>,
 }
 
 impl CpuRegisters {
@@ -138,21 +164,39 @@ impl CpuRegisters {
     ///
     /// In particular, the program counter is initialized to 0x0100 (entry point in cartridge ROM),
     /// and the stack pointer is initialized to 0xFFFE (last address in HRAM).
-    pub fn new() -> Self {
+    pub fn new(execution_mode: ExecutionMode) -> Self {
         Self {
-            accumulator: 0x01,
-            flags: 0x00,
+            execution_mode,
+            accumulator: match execution_mode {
+                ExecutionMode::GameBoy => 0x01,
+                ExecutionMode::GameBoyColor => 0x11,
+            },
+            flags: 0x80,
             b: 0x00,
-            c: 0x13,
+            c: match execution_mode {
+                ExecutionMode::GameBoy => 0x13,
+                ExecutionMode::GameBoyColor => 0x00,
+            },
             d: 0x00,
-            e: 0xD8,
-            h: 0x01,
-            l: 0x4D,
+            e: match execution_mode {
+                ExecutionMode::GameBoy => 0xD8,
+                ExecutionMode::GameBoyColor => 0x56,
+            },
+            h: match execution_mode {
+                ExecutionMode::GameBoy => 0x01,
+                ExecutionMode::GameBoyColor => 0x00,
+            },
+            l: match execution_mode {
+                ExecutionMode::GameBoy => 0x4D,
+                ExecutionMode::GameBoyColor => 0x0D,
+            },
             pc: address::ENTRY_POINT,
             sp: address::HRAM_END,
             ime: false,
             interrupt_delay: false,
             halted: false,
+            cgb_speed_mode: CgbSpeedMode::Normal,
+            speed_switch_wait_cycles_remaining: None,
         }
     }
 

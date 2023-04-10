@@ -4,6 +4,39 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Formatter;
 use std::str::FromStr;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HardwareMode {
+    GameBoy,
+    GameBoyColor,
+}
+
+impl Default for HardwareMode {
+    fn default() -> Self {
+        Self::GameBoy
+    }
+}
+
+impl std::fmt::Display for HardwareMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GameBoy => write!(f, "GameBoy"),
+            Self::GameBoyColor => write!(f, "GameBoyColor"),
+        }
+    }
+}
+
+impl FromStr for HardwareMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "GameBoy" => Ok(Self::GameBoy),
+            "GameBoyColor" => Ok(Self::GameBoyColor),
+            _ => Err(format!("invalid hardware mode string: '{s}'")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InputConfig {
     pub up: String,
@@ -246,6 +279,7 @@ impl FromStr for ColorScheme {
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub gb_file_path: String,
+    pub hardware_mode: HardwareMode,
     pub audio_enabled: bool,
     pub sync_to_audio: bool,
     pub vsync_enabled: bool,
@@ -265,6 +299,7 @@ pub struct RunConfig {
 impl std::fmt::Display for RunConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "gb_file_path: {}", self.gb_file_path)?;
+        writeln!(f, "hardware_mode: {}", self.hardware_mode)?;
         writeln!(f, "audio_enabled: {}", self.audio_enabled)?;
         writeln!(f, "sync_to_audio: {}", self.sync_to_audio)?;
         writeln!(f, "vsync_enabled: {}", self.vsync_enabled)?;

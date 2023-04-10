@@ -7,10 +7,17 @@ mod tests;
 use crate::memory::ioregisters::IoRegister;
 use crate::memory::AddressSpace;
 use crate::ppu::PpuState;
-pub use registers::CpuRegisters;
+pub use registers::{CgbSpeedMode, CpuRegisters};
+use serde::{Deserialize, Serialize};
 
 /// The number of clock cycles required to execute the interrupt service routine.
 pub const ISR_CYCLES_REQUIRED: u32 = 20;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionMode {
+    GameBoy,
+    GameBoyColor,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InterruptType {
