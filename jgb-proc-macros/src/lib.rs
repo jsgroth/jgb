@@ -2,8 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::Data::Enum;
-use syn::DeriveInput;
+use syn::{Data, DeriveInput};
 
 /// Implement the `std::fmt::Display` trait for the given enum. Only supports enums which have only
 /// fieldless variants.
@@ -13,7 +12,7 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
 
-    let Enum(data) = &ast.data
+    let Data::Enum(data) = &ast.data
     else {
         panic!("EnumDisplay derive macro can only be applied to enums; {name} is not an enum")
     };
@@ -56,7 +55,7 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
 
-    let Enum(data) = &ast.data
+    let Data::Enum(data) = &ast.data
     else {
         panic!("EnumFromStr derive macro can only be applied to enums; {name} is not an enum");
     };
