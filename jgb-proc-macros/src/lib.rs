@@ -35,8 +35,8 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
         .collect();
 
     let gen = quote! {
-        impl std::fmt::Display for #name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl ::std::fmt::Display for #name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 match self {
                     #(#match_arms,)*
                 }
@@ -79,10 +79,10 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
 
     let err_fmt_string = format!("invalid {name} string: '{{}}'");
     let gen = quote! {
-        impl std::str::FromStr for #name {
-            type Err = String;
+        impl ::std::str::FromStr for #name {
+            type Err = ::std::string::String;
 
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
+            fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
                 match s.to_ascii_lowercase().as_str() {
                     #(#match_arms,)*
                     _ => Err(format!(#err_fmt_string, s))
@@ -103,10 +103,10 @@ pub fn str_serialize(input: TokenStream) -> TokenStream {
     let ident = &ast.ident;
 
     let gen = quote! {
-        impl serde::Serialize for #ident {
+        impl ::serde::Serialize for #ident {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
-                S: serde::Serializer,
+                S: ::serde::Serializer,
             {
                 serializer.serialize_str(&self.to_string())
             }
@@ -129,26 +129,26 @@ pub fn str_deserialize(input: TokenStream) -> TokenStream {
     let gen = quote! {
         struct #visitor_struct_name;
 
-        impl<'de> serde::de::Visitor<'de> for #visitor_struct_name {
+        impl<'de> ::serde::de::Visitor<'de> for #visitor_struct_name {
             type Value = #ident;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 write!(formatter, #expecting_fmt_string)
             }
 
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            fn visit_str<E>(self, v: &str) -> ::std::result::Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: ::serde::de::Error,
             {
-                let input = v.parse().map_err(serde::de::Error::custom)?;
+                let input = v.parse().map_err(::serde::de::Error::custom)?;
                 Ok(input)
             }
         }
 
-        impl<'de> serde::Deserialize<'de> for #ident {
+        impl<'de> ::serde::Deserialize<'de> for #ident {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
-                D: serde::Deserializer<'de>,
+                D: ::serde::Deserializer<'de>,
             {
                 deserializer.deserialize_str(#visitor_struct_name)
             }
