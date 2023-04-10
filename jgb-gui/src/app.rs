@@ -200,11 +200,7 @@ impl JgbApp {
     }
 
     fn handle_open(&mut self, hardware_mode: HardwareMode) {
-        let mut file_dialog = FileDialog::new();
-        file_dialog = match hardware_mode {
-            HardwareMode::GameBoy => file_dialog.add_filter("gb", &["gb"]),
-            HardwareMode::GameBoyColor => file_dialog.add_filter("gbc", &["gbc"]),
-        };
+        let mut file_dialog = FileDialog::new().add_filter("gb/gbc", &["gb", "gbc"]);
         if let Some(rom_search_dir) = &self.config.rom_search_dir {
             file_dialog = file_dialog.set_directory(Path::new(rom_search_dir));
         }
@@ -263,6 +259,11 @@ impl JgbApp {
             self.handle_open(HardwareMode::GameBoy);
         }
 
+        let gbc_open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::P);
+        if ctx.input_mut(|input| input.consume_shortcut(&gbc_open_shortcut)) {
+            self.handle_open(HardwareMode::GameBoyColor);
+        }
+
         let quit_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Q);
         if ctx.input_mut(|input| input.consume_shortcut(&quit_shortcut)) {
             frame.close();
@@ -276,7 +277,7 @@ impl JgbApp {
             );
             menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    let gb_open_button = Button::new("Open GB ROM")
+                    let gb_open_button = Button::new("Open (GB)")
                         .shortcut_text(ctx.format_shortcut(&gb_open_shortcut))
                         .ui(ui);
                     if gb_open_button.clicked() {
@@ -284,7 +285,10 @@ impl JgbApp {
                         ui.close_menu();
                     }
 
-                    if ui.button("Open GBC ROM").clicked() {
+                    let gbc_open_button = Button::new("Open (GBC)")
+                        .shortcut_text(ctx.format_shortcut(&gbc_open_shortcut))
+                        .ui(ui);
+                    if gbc_open_button.clicked() {
                         self.handle_open(HardwareMode::GameBoyColor);
                         ui.close_menu();
                     }
