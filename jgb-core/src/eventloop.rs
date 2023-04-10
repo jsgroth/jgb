@@ -125,6 +125,7 @@ pub fn run(
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
 
     let mut total_cycles = 0;
+    let mut total_frames = 0;
 
     // Track how many 4MHz clock cycles are "left over" when running in double speed mode
     let mut leftover_cpu_cycles = 0;
@@ -257,14 +258,15 @@ pub fn run(
                 }
             }
 
-            address_space
-                .persist_cartridge_ram()
-                .map_err(|err| RunError::RamPersist { source: err })?;
-
             address_space.update_rtc();
-            address_space
-                .persist_rtc()
-                .map_err(|err| RunError::RtcPersist { source: err })?;
+
+            // Write out cartridge state roughly once per second at most
+            total_frames += 1;
+            if total_frames % 60 == 0 {
+                address_space
+                    .persist_cartridge_state()
+                    .map_err(|err| RunError::RamPersist { source: err })?;
+            }
         }
         total_cycles += u64::from(cycles_required);
 

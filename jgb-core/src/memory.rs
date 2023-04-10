@@ -40,7 +40,7 @@ impl FsRamBattery {
         self.dirty = true;
     }
 
-    fn persist_ram(&mut self, ram: &[u8]) -> Result<(), io::Error> {
+    fn persist_state(&mut self, ram: &[u8], rtc: Option<&RealTimeClock>) -> Result<(), io::Error> {
         if !self.dirty {
             return Ok(());
         }
@@ -48,6 +48,14 @@ impl FsRamBattery {
         let tmp_file = self.sav_path.with_extension("sav.tmp");
         fs::write(&tmp_file, ram)?;
         fs::rename(&tmp_file, &self.sav_path)?;
+
+        if let Some(rtc) = rtc {
+            let rtc_file = self.sav_path.with_extension("rtc");
+            let rtc_bytes = bincode::serialize(rtc)
+                .expect("RTC value-to-bytes serialization should never fail");
+
+            fs::write(rtc_file, rtc_bytes)?;
+        }
 
         self.dirty = false;
 
@@ -295,24 +303,12 @@ impl Cartridge {
         }
     }
 
-    /// If this cartridge has external RAM, save it to disk if it has been modified since the last
-    /// time this method was called.
-    pub fn persist_external_ram(&mut self) -> Result<(), io::Error> {
+    /// If this cartridge has external RAM and, save it to disk if it has been modified since the last
+    /// time this method was called. If the cartridge has a real-time clock, the clock state will
+    /// be saved as well.
+    pub fn persist_state(&mut self) -> Result<(), io::Error> {
         if let Some(ram_battery) = &mut self.ram_battery {
-            ram_battery.persist_ram(&self.ram)
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Save the current state of the real-time clock, if this cartridge has one.
-    pub fn persist_rtc(&self) -> Result<(), io::Error> {
-        if let (Some(rtc), Some(battery)) = (self.mapper.get_clock(), self.ram_battery.as_ref()) {
-            let rtc_bytes = bincode::serialize(rtc)
-                .expect("RTC value-to-bytes serialization should never fail");
-
-            let rtc_path = battery.sav_path.with_extension("rtc");
-            fs::write(rtc_path, rtc_bytes)?;
+            ram_battery.persist_state(&self.ram, self.mapper.get_clock())?;
         }
 
         Ok(())
@@ -584,12 +580,8 @@ impl AddressSpace {
         self.write_address_u8_no_access_check(dst_address, byte);
     }
 
-    pub fn persist_cartridge_ram(&mut self) -> Result<(), io::Error> {
-        self.cartridge.persist_external_ram()
-    }
-
-    pub fn persist_rtc(&mut self) -> Result<(), io::Error> {
-        self.cartridge.persist_rtc()
+    pub fn persist_cartridge_state(&mut self) -> Result<(), io::Error> {
+        self.cartridge.persist_state()
     }
 
     pub fn update_rtc(&mut self) {

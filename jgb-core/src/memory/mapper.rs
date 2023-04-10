@@ -35,7 +35,7 @@ impl RtcTime {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct RealTimeClock {
     last_update: SystemTime,
     current_time: RtcTime,
