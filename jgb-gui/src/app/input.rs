@@ -1,13 +1,11 @@
 use crate::AppConfig;
 use egui::{Color32, Grid, Ui};
-use jgb_core::{ControllerConfig, ControllerInput, HatDirection, HotkeyConfig, InputConfig};
+use jgb_core::{font, ControllerConfig, ControllerInput, HatDirection, HotkeyConfig, InputConfig};
 use sdl2::event::Event;
 use sdl2::joystick::{HatState, Joystick};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use sdl2::rwops::RWops;
 use sdl2::ttf;
-use sdl2::ttf::{Font, Sdl2TtfContext};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -390,15 +388,6 @@ pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
     }
 }
 
-const FONT_BYTES: &[u8] = include_bytes!("fonts/IBMPlexMono-Bold.ttf");
-
-fn load_font(ttf_context: &Sdl2TtfContext) -> anyhow::Result<Font<'_, 'static>> {
-    let font_bytes_rwops = RWops::from_bytes(FONT_BYTES).map_err(anyhow::Error::msg)?;
-    ttf_context
-        .load_font_from_rwops(font_bytes_rwops, 40)
-        .map_err(anyhow::Error::msg)
-}
-
 #[must_use]
 fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> InputThread {
     thread::spawn(move || {
@@ -415,7 +404,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
         let mut canvas = window.into_canvas().build()?;
 
         let ttf_context = ttf::init()?;
-        let font = load_font(&ttf_context)?;
+        let font = font::load_font(&ttf_context, 40).map_err(anyhow::Error::msg)?;
         let rendered_text = font.render(window_title).solid(Color::RGB(255, 255, 255))?;
 
         let texture_creator = canvas.texture_creator();
@@ -519,15 +508,4 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
             thread::sleep(Duration::from_millis(1));
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn can_load_font() {
-        let ttf_context = ttf::init().unwrap();
-        load_font(&ttf_context).expect("loading font should not fail");
-    }
 }

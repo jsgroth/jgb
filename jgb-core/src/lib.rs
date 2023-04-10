@@ -6,6 +6,7 @@ mod config;
 mod cpu;
 mod debug;
 mod eventloop;
+pub mod font;
 mod graphics;
 mod input;
 mod memory;
