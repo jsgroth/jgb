@@ -42,12 +42,12 @@ pub enum GraphicsError {
 const GB_COLOR_TO_RGB_BW: [[u8; 3]; 4] =
     [[255, 255, 255], [170, 170, 170], [85, 85, 85], [0, 0, 0]];
 
-// Render with a lime-green tint that mimics the original Game Boy LCD screen
+// Render with a green tint that somewhat mimics the original Game Boy LCD screen
 const GB_COLOR_TO_RGB_GREEN: [[u8; 3]; 4] = [
-    [0x80, 0xA6, 0x08],
-    [0x5D, 0x7F, 0x07],
-    [0x25, 0x5C, 0x1A],
-    [0x00, 0x32, 0x00],
+    [0xA6, 0xBF, 0x78],
+    [0x79, 0x92, 0x6C],
+    [0x48, 0x6A, 0x33],
+    [0x18, 0x39, 0x10],
 ];
 
 fn palette_for(color_scheme: ColorScheme) -> [[u8; 3]; 4] {

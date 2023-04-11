@@ -350,7 +350,7 @@ impl JgbApp {
                     ui.label("Color palette");
                     ui.horizontal(|ui| {
                         ui.radio_value(&mut self.config.color_scheme, ColorScheme::BlackAndWhite, "Black & white");
-                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::GreenTint, "Lime-green tint");
+                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::GreenTint, "Green tint");
                     });
                 });
 
