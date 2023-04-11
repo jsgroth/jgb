@@ -44,10 +44,10 @@ const GB_COLOR_TO_RGB_BW: [[u8; 3]; 4] =
 
 // Render with a green tint that somewhat mimics the original Game Boy LCD screen
 const GB_COLOR_TO_RGB_GREEN: [[u8; 3]; 4] = [
-    [0xA6, 0xBF, 0x78],
+    [0xB7, 0xD2, 0x94],
     [0x79, 0x92, 0x6C],
-    [0x48, 0x6A, 0x33],
-    [0x18, 0x39, 0x10],
+    [0x3A, 0x55, 0x29],
+    [0x0B, 0x1B, 0x08],
 ];
 
 fn palette_for(color_scheme: ColorScheme) -> [[u8; 3]; 4] {
