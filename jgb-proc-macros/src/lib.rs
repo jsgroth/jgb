@@ -6,6 +6,11 @@ use syn::{Data, DeriveInput};
 
 /// Implement the `std::fmt::Display` trait for the given enum. Only supports enums which have only
 /// fieldless variants.
+///
+/// # Panics
+///
+/// This macro will panic if applied to a struct, a union, or an enum with any variants that have
+/// fields.
 #[proc_macro_derive(EnumDisplay)]
 pub fn enum_display(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).expect("unable to parse input");
@@ -22,9 +27,7 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
         .iter()
         .map(|variant| {
             let variant_name = &variant.ident;
-            if !variant.fields.is_empty() {
-                panic!("EnumDisplay macro only supports enums with only fieldless variants; {name}::{variant_name} has fields");
-            }
+            assert!(variant.fields.is_empty(), "EnumDisplay macro only supports enums with only fieldless variants; {name}::{variant_name} has fields");
 
             let variant_name_str = variant_name.to_string();
             quote! {
@@ -49,6 +52,11 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
 /// Implement the `std::str::FromStr` trait for the given enum, with `FromStr::Err` set to `String`.
 /// Only supports enums which have only fieldless variants. The generated implementation will be
 /// case-insensitive.
+///
+/// # Panics
+///
+/// This macro will panic if applied to a struct, a union, or an enum with any variants that have
+/// fields.
 #[proc_macro_derive(EnumFromStr)]
 pub fn enum_from_str(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).expect("unable to parse input");
@@ -65,9 +73,7 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
         .iter()
         .map(|variant| {
             let variant_name = &variant.ident;
-            if !variant.fields.is_empty() {
-                panic!("EnumFromStr macro only supports enums with only fieldless variants; {name}::{variant_name} has fields");
-            }
+            assert!(variant.fields.is_empty(), "EnumFromStr macro only supports enums with only fieldless variants; {name}::{variant_name} has fields");
 
             let variant_name_lowercase = variant_name.to_string().to_ascii_lowercase();
             quote! {

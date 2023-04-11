@@ -70,31 +70,31 @@ impl RealTimeClock {
             return;
         }
 
-        let nanos = self.current_time.nanos as u128 + since.as_nanos();
+        let nanos = u128::from(self.current_time.nanos) + since.as_nanos();
         self.current_time.nanos = (nanos % 1_000_000_000) as u32;
         if nanos < 1_000_000_000 {
             return;
         }
 
-        let seconds = self.current_time.seconds as u64 + (nanos / 1_000_000_000) as u64;
+        let seconds = u64::from(self.current_time.seconds) + (nanos / 1_000_000_000) as u64;
         self.current_time.seconds = (seconds % 60) as u8;
         if seconds < 60 {
             return;
         }
 
-        let minutes = self.current_time.minutes as u64 + (seconds / 60);
+        let minutes = u64::from(self.current_time.minutes) + (seconds / 60);
         self.current_time.minutes = (minutes % 60) as u8;
         if minutes < 60 {
             return;
         }
 
-        let hours = self.current_time.hours as u64 + (minutes / 60);
+        let hours = u64::from(self.current_time.hours) + (minutes / 60);
         self.current_time.hours = (hours % 24) as u8;
         if hours < 24 {
             return;
         }
 
-        let days = self.current_time.days as u64 + (hours / 24);
+        let days = u64::from(self.current_time.days) + (hours / 24);
         self.current_time.days = (days % 512) as u16;
         if days < 512 {
             return;
@@ -576,19 +576,17 @@ pub(crate) fn parse_byte(mapper_byte: u8) -> Option<(MapperType, MapperFeatures)
         0x03 => (MapperType::MBC1, true, true),
         0x05 => (MapperType::MBC2, true, false),
         0x06 => (MapperType::MBC2, true, true),
-        // 0x0F-0x10 are MBC3 w/ RTC, RTC not supported yet
         0x0F => (MapperType::MBC3, false, true),
-        0x10 => (MapperType::MBC3, true, true),
+        // 0x10 is w/ RTC, 0x13 is w/o RTC
+        0x10 | 0x13 => (MapperType::MBC3, true, true),
         0x11 => (MapperType::MBC3, false, false),
         0x12 => (MapperType::MBC3, true, false),
-        0x13 => (MapperType::MBC3, true, true),
-        0x19 => (MapperType::MBC5, false, false),
-        0x1A => (MapperType::MBC5, true, false),
-        0x1B => (MapperType::MBC5, true, true),
-        // MBC5 w/ rumble, rumble not supported
-        0x1C => (MapperType::MBC5, false, false),
-        0x1D => (MapperType::MBC5, true, false),
-        0x1E => (MapperType::MBC5, true, true),
+        // 0x19 is w/o rumble, 0x1C is w/ rumble
+        0x19 | 0x1C => (MapperType::MBC5, false, false),
+        // 0x1A is w/o rumble, 0x1D is w/ rumble
+        0x1A | 0x1D => (MapperType::MBC5, true, false),
+        // 0x1B is w/o rumble, 0x1E is w/ rumble
+        0x1B | 0x1E => (MapperType::MBC5, true, true),
         _ => return None,
     };
 

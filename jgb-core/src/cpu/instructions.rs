@@ -923,7 +923,8 @@ impl Instruction {
             | Self::DisableInterrupts
             | Self::EnableInterrupts
             | Self::JumpHL
-            | Self::Halt => 4,
+            | Self::Halt
+            | Self::Stop => 4,
             Self::LoadRegisterImmediate(..)
             | Self::LoadRegisterIndirectHL(..)
             | Self::LoadIndirectHLRegister(..)
@@ -1026,7 +1027,6 @@ impl Instruction {
                     8
                 }
             }
-            Self::Stop => 4,
         }
     }
 }

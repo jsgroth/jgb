@@ -13,6 +13,7 @@ use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
 use crate::{apu, audio, cpu, font, graphics, input, ppu, serialize, timer, RunConfig};
 use sdl2::event::Event;
+use std::ffi::OsStr;
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -121,7 +122,7 @@ pub fn run(
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
     let save_state_file_name = save_state_path
         .file_name()
-        .and_then(|file_name| file_name.to_str())
+        .and_then(OsStr::to_str)
         .unwrap_or("<Unknown>");
 
     let mut modals = Vec::new();
@@ -193,11 +194,11 @@ pub fn run(
                             }
                             Some(Hotkey::SaveState) => {
                                 let state = EmulationState {
+                                    execution_mode,
                                     address_space,
                                     cpu_registers,
                                     ppu_state,
                                     apu_state,
-                                    execution_mode,
                                 };
 
                                 serialize::save_state(&state, &save_state_path)?;
