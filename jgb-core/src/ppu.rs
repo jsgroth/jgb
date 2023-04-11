@@ -318,6 +318,7 @@ pub struct PpuState {
     frame_buffer: FrameBuffer,
     last_stat_interrupt_line: bool,
     skip_next_frame: bool,
+    stat_interrupt_pending: bool,
 }
 
 impl PpuState {
@@ -336,6 +337,7 @@ impl PpuState {
             frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
             last_stat_interrupt_line: false,
             skip_next_frame: false,
+            stat_interrupt_pending: false,
         }
     }
 
@@ -570,6 +572,16 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             .set(InterruptType::VBlank);
     }
 
+    // Similarly, fire off STAT interrupt when the STAT interrupt line flipped from low to high
+    // during the last tick
+    if ppu_state.stat_interrupt_pending {
+        address_space
+            .get_io_registers_mut()
+            .interrupt_flags()
+            .set(InterruptType::LcdStatus);
+        ppu_state.stat_interrupt_pending = false;
+    }
+
     let old_state = std::mem::replace(&mut ppu_state.state, DUMMY_STATE);
     let new_state = process_state(
         ppu_state.execution_mode,
@@ -611,10 +623,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     let stat_interrupt_line =
         compute_stat_interrupt_line(address_space.get_io_registers(), lyc_match, new_mode);
     if !ppu_state.last_stat_interrupt_line && stat_interrupt_line {
-        address_space
-            .get_io_registers_mut()
-            .interrupt_flags()
-            .set(InterruptType::LcdStatus);
+        ppu_state.stat_interrupt_pending = true;
     }
 
     address_space
