@@ -1,6 +1,6 @@
 # jgb
 
-An attempt at writing a Game Boy emulator. jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a functional low-level emulator.
+An attempt at writing a Game Boy emulator. jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a functional low-level emulator with no game-specific logic or game-specific hacks. It should be able to run the majority of licensed Game Boy and Game Boy Color games.
 
 ## Requirements
 
@@ -22,6 +22,10 @@ macOS:
 ```shell
 brew install sdl2 sdl2-ttf
 ```
+
+Windows:
+* https://github.com/libsdl-org/SDL/releases/
+* https://github.com/libsdl-org/SDL_ttf/releases/
 
 ### GTK3 (Linux GUI only)
 
