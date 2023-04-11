@@ -3,6 +3,7 @@ mod filter;
 
 use crate::apu::channels::{Channel, NoiseChannel, PulseChannel, WaveChannel};
 use crate::apu::filter::LowPassFilter;
+use crate::cpu::CgbSpeedMode;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -263,7 +264,12 @@ impl ApuState {
 
 // Progress the APU by 1 M-cycle (4 APU clock cycles). Audio samples will be written to the APU
 // state's sample queue if appropriate.
-pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, audio_60hz: bool) {
+pub fn tick_m_cycle(
+    apu_state: &mut ApuState,
+    io_registers: &mut IoRegisters,
+    cgb_speed_mode: CgbSpeedMode,
+    audio_60hz: bool,
+) {
     let nr52_value = io_registers.apu_read_register(IoRegister::NR52);
     let apu_enabled = nr52_value & 0x80 != 0;
 
@@ -291,9 +297,13 @@ pub fn tick_m_cycle(apu_state: &mut ApuState, io_registers: &mut IoRegisters, au
     }
     apu_state.enabled = true;
 
-    // Tick 512Hz timers every time DIV bit 4 flips from 1 to 0
+    // Tick 512Hz timers every time DIV bit 4 flips from 1 to 0 (bit 5 in double speed mode)
     let divider = io_registers.read_register(IoRegister::DIV);
-    if apu_state.last_divider & 0x10 != 0 && divider & 0x10 == 0 {
+    let divider_mask = match cgb_speed_mode {
+        CgbSpeedMode::Normal => 0x10,
+        CgbSpeedMode::Double => 0x20,
+    };
+    if apu_state.last_divider & divider_mask != 0 && divider & divider_mask == 0 {
         apu_state.tick_divider(io_registers);
     }
     apu_state.last_divider = divider;

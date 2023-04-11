@@ -321,6 +321,7 @@ pub fn run(
             apu::tick_m_cycle(
                 &mut apu_state,
                 address_space.get_io_registers_mut(),
+                cpu_registers.cgb_speed_mode,
                 run_config.audio_60hz,
             );
         }
