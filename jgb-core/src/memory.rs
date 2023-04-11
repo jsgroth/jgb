@@ -4,7 +4,7 @@ mod mapper;
 
 use crate::cpu::ExecutionMode;
 use crate::memory::ioregisters::IoRegisters;
-use crate::memory::mapper::{Mapper, RamMapResult, RealTimeClock};
+use crate::memory::mapper::{Mapper, MapperType, RamMapResult, RealTimeClock};
 use crate::ppu::{PpuMode, PpuState};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -160,7 +160,7 @@ impl Cartridge {
         log::info!("Detected mapper type {mapper_type:?} (byte: {mapper_byte:02X})");
         log::info!("Mapper features: {mapper_features}");
 
-        let ram = if let Some(sav_path) = &sav_path {
+        let loaded_ram = if let Some(sav_path) = &sav_path {
             load_sav_file(sav_path)?
         } else {
             None
@@ -180,21 +180,36 @@ impl Cartridge {
             _ => None,
         };
 
-        let ram = match (mapper_features.has_ram, mapper_features.has_battery, ram) {
-            (true, true, Some(ram)) => ram,
-            (true, _, _) => {
+        let expected_ram_size = match (mapper_type, mapper_features.has_ram) {
+            // MBC2 cartridges always have 512 bytes of RAM (technically 512 4-bit nibbles)
+            (MapperType::MBC2, _) => 512,
+            (_, true) => {
+                // Non-MBC2 cartridges specify RAM size through a header byte
                 let ram_size_code = rom[address::RAM_SIZE as usize];
-                let ram_size: usize = match ram_size_code {
+                match ram_size_code {
                     0x00 => 0,
                     0x02 => 8192,   // 8 KB
                     0x03 => 32768,  // 32 KB
                     0x04 => 131072, // 128 KB
                     0x05 => 65536,  // 64 KB
                     _ => return Err(CartridgeLoadError::InvalidRamSize { ram_size_code }),
-                };
-                vec![0; ram_size]
+                }
             }
-            _ => Vec::new(),
+            // Cartridge has no RAM
+            _ => 0,
+        };
+
+        let ram = if let Some(loaded_ram) = loaded_ram {
+            if mapper_features.has_ram
+                && mapper_features.has_battery
+                && loaded_ram.len() == expected_ram_size
+            {
+                loaded_ram
+            } else {
+                vec![0; expected_ram_size]
+            }
+        } else {
+            vec![0; expected_ram_size]
         };
 
         let ram_battery = match (mapper_features.has_battery, sav_path) {
