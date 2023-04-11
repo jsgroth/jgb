@@ -96,9 +96,8 @@ jobs:
 
       - name: Compress binaries
         run: |
-          cp /lib/x86_64-linux-gnu/libSDL2-2.0.so.0 ./ && \
           cp /lib/x86_64-linux-gnu/libSDL2_ttf-2.0.so.0 ./ && \
-          tar -czvf jgb-linux.tar.gz LICENSE libSDL2-2.0.so.0 libSDL2_ttf-2.0.so.0 -C target/release jgb-cli jgb-gui
+          tar -czvf jgb-linux.tar.gz LICENSE libSDL2_ttf-2.0.so.0 -C target/release jgb-cli jgb-gui
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
