@@ -540,8 +540,8 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             .read_register(IoRegister::STAT);
         address_space
             .get_io_registers_mut()
-            .privileged_set_stat(stat & 0xF8);
-        address_space.get_io_registers_mut().privileged_set_ly(0x00);
+            .ppu_set_stat(stat & 0xF8);
+        address_space.get_io_registers_mut().ppu_set_ly(0x00);
     }
 
     if !enabled {
@@ -609,9 +609,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     } else {
         scanline
     };
-    address_space
-        .get_io_registers_mut()
-        .privileged_set_ly(ly_value);
+    address_space.get_io_registers_mut().ppu_set_ly(ly_value);
 
     let lyc_match = ly_value
         == address_space
@@ -640,7 +638,7 @@ fn update_stat_register(io_registers: &mut IoRegisters, lyc_match: bool, mode: P
     let existing_stat = io_registers.read_register(IoRegister::STAT) & 0xF8;
     let new_stat = existing_stat | (u8::from(lyc_match) << 2) | mode_bits;
 
-    io_registers.privileged_set_stat(new_stat);
+    io_registers.ppu_set_stat(new_stat);
 }
 
 fn compute_stat_interrupt_line(io_registers: &IoRegisters, lyc_match: bool, mode: PpuMode) -> bool {

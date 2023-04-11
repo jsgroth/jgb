@@ -550,18 +550,22 @@ impl IoRegisters {
 
     /// Assign a value to the STAT register (LCD status), including bits that the CPU cannot write.
     /// Should only be used by the PPU.
-    pub fn privileged_set_stat(&mut self, value: u8) {
+    pub fn ppu_set_stat(&mut self, value: u8) {
         self.contents[IoRegister::STAT.to_relative_address()] = value & 0x7F;
     }
 
     /// Assign a value to the LY register (current scanline), which the CPU cannot normally write
     /// to. Should only be used by the PPU.
-    pub fn privileged_set_ly(&mut self, value: u8) {
+    pub fn ppu_set_ly(&mut self, value: u8) {
         self.contents[IoRegister::LY.to_relative_address()] = value;
     }
 
     /// Read an HDMA register which is normally not readable by the CPU. Should only be called
     /// by the VRAM DMA transfer code.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if called with a non-HDMA register.
     pub fn privileged_read_hdma_register(&self, register: IoRegister) -> u8 {
         match register {
             IoRegister::HDMA1
@@ -592,7 +596,7 @@ impl IoRegisters {
     ///
     /// # Panics
     ///
-    /// This method will panic if passed a non-audio register.
+    /// This method will panic if called with a non-audio register.
     pub fn apu_read_register(&self, register: IoRegister) -> u8 {
         assert!(
             register.is_audio_register(),
@@ -795,7 +799,7 @@ mod tests {
         registers.write_register(IoRegister::STAT, 0x28);
         assert_eq!(0xA8, registers.read_register(IoRegister::STAT));
 
-        registers.privileged_set_stat(0x2F);
+        registers.ppu_set_stat(0x2F);
         assert_eq!(0xAF, registers.read_register(IoRegister::STAT));
     }
 
@@ -805,7 +809,7 @@ mod tests {
 
         let mut registers = empty_io_registers();
 
-        registers.privileged_set_ly(0x57);
+        registers.ppu_set_ly(0x57);
         assert_eq!(0x57, registers.read_register(IoRegister::LY));
 
         registers.write_register(IoRegister::LY, !0x57);
