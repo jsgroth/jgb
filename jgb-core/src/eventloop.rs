@@ -327,8 +327,9 @@ pub fn run(
 
         // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
         // to render. Also render a (blank) frame if the PPU was just disabled.
-        if (prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank)
-            || (prev_enabled && !ppu_state.enabled())
+        if ppu_state.should_render_current_frame()
+            && ((prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank)
+                || (prev_enabled && !ppu_state.enabled()))
         {
             graphics::render_frame(RenderFrameArgs {
                 execution_mode,
