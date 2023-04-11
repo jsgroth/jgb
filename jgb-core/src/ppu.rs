@@ -317,6 +317,7 @@ pub struct PpuState {
     )]
     frame_buffer: FrameBuffer,
     last_stat_interrupt_line: bool,
+    skip_next_frame: bool,
 }
 
 impl PpuState {
@@ -334,6 +335,7 @@ impl PpuState {
             vram_dma_status: None,
             frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
             last_stat_interrupt_line: false,
+            skip_next_frame: false,
         }
     }
 
@@ -363,6 +365,10 @@ impl PpuState {
 
     pub fn frame_buffer(&self) -> &FrameBuffer {
         &self.frame_buffer
+    }
+
+    pub fn should_render_current_frame(&self) -> bool {
+        !self.skip_next_frame
     }
 }
 
@@ -550,6 +556,9 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             sprites: Vec::new(),
         });
         ppu_state.last_stat_interrupt_line = false;
+
+        // Renderer should skip the frame immediately after the PPU is powered on
+        ppu_state.skip_next_frame = true;
     }
 
     // Fire off VBlank interrupt when the *last* state was VBlank start so that VBlank interrupt
@@ -575,6 +584,12 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     let new_mode = new_state.mode();
 
     let scanline = new_state.scanline();
+
+    if scanline == LAST_VBLANK_SCANLINE {
+        // Clear skip_next_frame at the end of every frame
+        ppu_state.skip_next_frame = false;
+    }
+
     let ly_value = if scanline == LAST_VBLANK_SCANLINE && new_state.dot() >= 4 {
         // The LY=0 period begins at the 5th dot of the final VBlank scanline. Yes, LY=153 only
         // lasts for 4 dots.
