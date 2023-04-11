@@ -14,7 +14,7 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
 
     let Data::Enum(data) = &ast.data
     else {
-        panic!("EnumDisplay derive macro can only be applied to enums; {name} is not an enum")
+        panic!("EnumDisplay derive macro can only be applied to enums; {name} is not an enum");
     };
 
     let match_arms: Vec<_> = data
