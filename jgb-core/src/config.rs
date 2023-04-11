@@ -207,6 +207,7 @@ impl std::fmt::Display for ControllerConfig {
 pub enum ColorScheme {
     BlackAndWhite,
     GreenTint,
+    LimeGreen,
 }
 
 impl Default for ColorScheme {

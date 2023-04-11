@@ -347,10 +347,11 @@ impl JgbApp {
                 });
 
                 ui.group(|ui| {
-                    ui.label("Color palette");
+                    ui.label("GB color palette");
                     ui.horizontal(|ui| {
                         ui.radio_value(&mut self.config.color_scheme, ColorScheme::BlackAndWhite, "Black & white");
                         ui.radio_value(&mut self.config.color_scheme, ColorScheme::GreenTint, "Green tint");
+                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::LimeGreen, "Lime-green");
                     });
                 });
 

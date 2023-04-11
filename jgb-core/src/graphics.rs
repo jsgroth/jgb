@@ -42,18 +42,27 @@ pub enum GraphicsError {
 const GB_COLOR_TO_RGB_BW: [[u8; 3]; 4] =
     [[255, 255, 255], [170, 170, 170], [85, 85, 85], [0, 0, 0]];
 
-// Render with a green tint that somewhat mimics the original Game Boy LCD screen
-const GB_COLOR_TO_RGB_GREEN: [[u8; 3]; 4] = [
-    [0xB7, 0xD2, 0x94],
-    [0x79, 0x92, 0x6C],
-    [0x3A, 0x55, 0x29],
-    [0x0B, 0x1B, 0x08],
+// Render with a light green tint
+const GB_COLOR_TO_RGB_GREEN_TINT: [[u8; 3]; 4] = [
+    [0xAE, 0xD2, 0x8D],
+    [0x75, 0x9C, 0x68],
+    [0x40, 0x5E, 0x2D],
+    [0x0C, 0x1E, 0x09],
+];
+
+// Render with an intense green tint that somewhat mimics the original Game Boy LCD screen
+const GB_COLOR_TO_RGB_LIME_GREEN: [[u8; 3]; 4] = [
+    [0x80, 0xA6, 0x08],
+    [0x5D, 0x7F, 0x07],
+    [0x25, 0x5C, 0x1A],
+    [0x00, 0x32, 0x00],
 ];
 
 fn palette_for(color_scheme: ColorScheme) -> [[u8; 3]; 4] {
     match color_scheme {
         ColorScheme::BlackAndWhite => GB_COLOR_TO_RGB_BW,
-        ColorScheme::GreenTint => GB_COLOR_TO_RGB_GREEN,
+        ColorScheme::GreenTint => GB_COLOR_TO_RGB_GREEN_TINT,
+        ColorScheme::LimeGreen => GB_COLOR_TO_RGB_LIME_GREEN,
     }
 }
 
