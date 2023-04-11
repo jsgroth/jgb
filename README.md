@@ -1,6 +1,8 @@
 # jgb
 
-An attempt at writing a Game Boy emulator. jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a functional low-level emulator with no game-specific logic or game-specific hacks. It should be able to run the majority of licensed Game Boy and Game Boy Color games.
+An attempt at writing a Game Boy emulator.
+
+jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a functional low-level emulator with no game-specific logic or game-specific hacks. It should be able to run the majority of licensed Game Boy and Game Boy Color games.
 
 ## Requirements
 
