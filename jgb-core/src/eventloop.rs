@@ -226,12 +226,19 @@ pub fn run(
                                         apu_state = state.apu_state;
 
                                         modals.push(Modal::new(
-                                            format!("Loaded state from {save_state_file_name}",),
+                                            format!("Loaded state from {save_state_file_name}"),
                                             Duration::from_secs(3),
                                         ));
                                     }
                                     Err((err, old_apu_state)) => {
                                         log::error!("error loading save state: {err}");
+
+                                        modals.push(Modal::new(
+                                            format!(
+                                                "Unable to load state from {save_state_file_name}"
+                                            ),
+                                            Duration::from_secs(3),
+                                        ));
 
                                         apu_state = *old_apu_state;
                                     }
