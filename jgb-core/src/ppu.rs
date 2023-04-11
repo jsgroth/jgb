@@ -520,7 +520,12 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     if prev_enabled && !enabled {
         // If the PPU was just disabled then clear the frame buffer, clear the LY=LYC and mode bits
         // in STAT, and set LY to 0
-        ppu_state.frame_buffer = [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize];
+        ppu_state.frame_buffer = match ppu_state.execution_mode {
+            ExecutionMode::GameBoy => [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
+            ExecutionMode::GameBoyColor => {
+                [[0xFFFF; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize]
+            }
+        };
 
         let stat = address_space
             .get_io_registers()
