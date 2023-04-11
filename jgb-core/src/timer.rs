@@ -22,6 +22,10 @@ pub fn read_timer_modulo(io_registers: &IoRegisters) -> u8 {
 /// register may or may not be updated depending on whether the timer is enabled in TAC.
 ///
 /// This function will request a timer interrupt if the TIMA register overflows.
+///
+/// # Panics
+///
+/// This function will panic if called with a cycles value greater than 256.
 pub fn update_timer_registers(
     io_registers: &mut IoRegisters,
     counter: &mut TimerCounter,

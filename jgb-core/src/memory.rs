@@ -557,6 +557,10 @@ impl AddressSpace {
 
     /// Read a byte directly from VRAM using the given address+bank. This should only be called
     /// by the PPU.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if called with a non-VRAM address.
     pub fn read_vram_direct(&self, address: u16, vram_bank: VramBank) -> u8 {
         assert!(
             (address::VRAM_START..=address::VRAM_END).contains(&address),
