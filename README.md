@@ -2,7 +2,26 @@
 
 An attempt at writing a Game Boy emulator.
 
-jgb is not cycle-accurate (mainly due to non-cycle-accurate memory timings) but it is a functional low-level emulator with no game-specific logic or game-specific hacks. It should be able to run the majority of licensed Game Boy and Game Boy Color games.
+jgb is a cross-platform low-level Game Boy \[Color\] emulator with no game-specific logic or game-specific hacks. It is not completely cycle-accurate due to CPU emulation being instruction-based rather than cycle-based, but it should be able to run the vast majority of licensed Game Boy and Game Boy Color games.
+
+Features:
+* Game Boy and Game Boy Color emulation
+* Support for cartridges using MBC1, MBC2, MBC3, MBC5 mappers
+* Save file / cartridge RAM persistence to disk
+* Support for the MBC3 real-time clock with persistence to disk
+* Keyboard input and DirectInput gamepad support
+* 2x fast-forward toggle
+* Save & load state
+* Three different color palette options for GB mode (black & white, light green tint, intense lime green)
+* Option for integer scaling regardless of window/display size
+
+Not Currently Implemented:
+* MBC6 and MBC7 mappers (only used in a handful of games, most notably Kirby Tilt 'n' Tumble)
+* Multi-game MBC1M and MMM01 mappers (only used in compilation cartridges)
+* Non-standard mappers such as HuC (mostly used in unlicensed games)
+* MBC5 rumble support
+* Serial port and GBC IR functionality
+* Use of GBC palettes in games that don't support GBC enhancements
 
 ## Requirements
 
