@@ -39,7 +39,7 @@ pub struct AppConfig {
     #[serde(default = "true_fn")]
     pub audio_sync_enabled: bool,
 
-    #[serde(default = "true_fn")]
+    #[serde(default)]
     pub audio_60hz_hack_enabled: bool,
 
     #[serde(default = "default_window_width")]

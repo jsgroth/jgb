@@ -54,9 +54,9 @@ struct CliArgs {
     #[arg(long = "audio-debugging-enabled", default_value_t)]
     audio_debugging_enabled: bool,
 
-    /// Disable hack that samples audio at a slightly higher rate than actual hardware; this is more
-    /// accurate but can cause video choppiness when audio sync is enabled
-    #[arg(long = "no-audio-60hz", default_value_t = true, action = clap::ArgAction::SetFalse)]
+    /// Enable hack that samples audio at a slightly higher rate than actual hardware; this is less
+    /// accurate but can reduce video choppiness when audio sync is enabled
+    #[arg(long = "audio-60hz", default_value_t)]
     audio_60hz: bool,
 
     #[arg(long = "color-scheme", default_value_t)]
