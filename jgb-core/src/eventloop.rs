@@ -155,7 +155,68 @@ pub fn run(
 
         let double_speed = matches!(cpu_registers.cgb_speed_mode, CgbSpeedMode::Double);
 
-        // Process SDL events and write save file roughly once per frametime
+        // Timer updates pause while a VRAM DMA transfer is in progress
+        if !ppu_state.is_vram_dma_in_progress() {
+            let timer_cycles = if double_speed {
+                // Timer and divider registers update twice as fast in double speed mode
+                2 * u64::from(cycles_required)
+            } else {
+                cycles_required.into()
+            };
+            timer::update_timer_registers(
+                address_space.get_io_registers_mut(),
+                &mut timer_counter,
+                timer_modulo,
+                timer_cycles,
+            );
+        }
+
+        let prev_mode = ppu_state.mode();
+        let prev_enabled = ppu_state.enabled();
+        for _ in (0..cycles_required).step_by(4) {
+            ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+            if double_speed {
+                // OAM DMA transfers progress at double speed in double speed mode so call twice
+                ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
+            }
+
+            // Shadow prev_mode so that it correctly updates when doing VRAM DMA transfers in double
+            // speed mode
+            let prev_mode = ppu_state.mode();
+            ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
+
+            // Progress VRAM DMA transfer by 2 bytes per PPU M-cycle
+            let current_mode = ppu_state.mode();
+            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
+            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, current_mode);
+
+            apu::tick_m_cycle(
+                &mut apu_state,
+                address_space.get_io_registers_mut(),
+                cpu_registers.cgb_speed_mode,
+                run_config.audio_60hz,
+            );
+        }
+
+        // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
+        // to render. Also render a (blank) frame if the PPU was just disabled.
+        if ppu_state.should_render_current_frame()
+            && ((prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank)
+                || (prev_enabled && !ppu_state.enabled()))
+        {
+            graphics::render_frame(RenderFrameArgs {
+                execution_mode,
+                ppu_state: &ppu_state,
+                canvas: &mut canvas,
+                texture_creator: &texture_creator,
+                texture: &mut texture,
+                font: &font,
+                modals: &modals,
+                run_config,
+            })?;
+        }
+
+        // Process SDL events, push audio, and write save file roughly once per frametime
         if total_cycles / CYCLES_PER_FRAME
             != (total_cycles + u64::from(cycles_required)) / CYCLES_PER_FRAME
         {
@@ -290,67 +351,6 @@ pub fn run(
             modals.retain(|modal| !modal.is_finished());
         }
         total_cycles += u64::from(cycles_required);
-
-        // Timer updates pause while a VRAM DMA transfer is in progress
-        if !ppu_state.is_vram_dma_in_progress() {
-            let timer_cycles = if double_speed {
-                // Timer and divider registers update twice as fast in double speed mode
-                2 * u64::from(cycles_required)
-            } else {
-                cycles_required.into()
-            };
-            timer::update_timer_registers(
-                address_space.get_io_registers_mut(),
-                &mut timer_counter,
-                timer_modulo,
-                timer_cycles,
-            );
-        }
-
-        let prev_mode = ppu_state.mode();
-        let prev_enabled = ppu_state.enabled();
-        for _ in (0..cycles_required).step_by(4) {
-            ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
-            if double_speed {
-                // OAM DMA transfers progress at double speed in double speed mode so call twice
-                ppu::progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
-            }
-
-            // Shadow prev_mode so that it correctly updates when doing VRAM DMA transfers in double
-            // speed mode
-            let prev_mode = ppu_state.mode();
-            ppu::tick_m_cycle(&mut ppu_state, &mut address_space);
-
-            // Progress VRAM DMA transfer by 2 bytes per PPU M-cycle
-            let current_mode = ppu_state.mode();
-            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, prev_mode);
-            ppu::progress_vram_dma_transfer(&mut ppu_state, &mut address_space, current_mode);
-
-            apu::tick_m_cycle(
-                &mut apu_state,
-                address_space.get_io_registers_mut(),
-                cpu_registers.cgb_speed_mode,
-                run_config.audio_60hz,
-            );
-        }
-
-        // Check if the PPU just entered VBlank mode, which indicates that the next frame is ready
-        // to render. Also render a (blank) frame if the PPU was just disabled.
-        if ppu_state.should_render_current_frame()
-            && ((prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank)
-                || (prev_enabled && !ppu_state.enabled()))
-        {
-            graphics::render_frame(RenderFrameArgs {
-                execution_mode,
-                ppu_state: &ppu_state,
-                canvas: &mut canvas,
-                texture_creator: &texture_creator,
-                texture: &mut texture,
-                font: &font,
-                modals: &modals,
-                run_config,
-            })?;
-        }
     }
 
     Ok(())
