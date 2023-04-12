@@ -389,12 +389,28 @@ impl AddressSpace {
         }
     }
 
-    fn is_cpu_access_allowed(address: u16, ppu_state: &PpuState) -> bool {
-        // Non-HRAM access not allowed while an OAM DMA transfer is active, even if the PPU is disabled
-        if ppu_state.oam_dma_status().is_some()
-            && !(address::HRAM_START..=address::HRAM_END).contains(&address)
-        {
-            return false;
+    fn is_cpu_access_allowed(&self, address: u16, ppu_state: &PpuState) -> bool {
+        if let Some(oam_dma_status) = ppu_state.oam_dma_status() {
+            match self.execution_mode {
+                ExecutionMode::GameBoy => {
+                    // In DMG mode, non-HRAM access is not allowed while an OAM DMA transfer is active,
+                    // even if the PPU is disabled
+                    if !(address::HRAM_START..=address::HRAM_END).contains(&address) {
+                        return false;
+                    }
+                }
+                ExecutionMode::GameBoyColor => {
+                    // In CGB mode, the CPU is not allowed to access the same section of RAM that
+                    // the transfer is accessing
+                    let requested_address_range = AddressRange::from_address(address);
+                    if requested_address_range == AddressRange::Oam
+                        || requested_address_range
+                            == AddressRange::from_address(oam_dma_status.current_source_address())
+                    {
+                        return false;
+                    }
+                }
+            }
         }
 
         // OAM access not allowed while PPU is scanning OAM or rendering a scanline
@@ -417,7 +433,7 @@ impl AddressSpace {
     /// Read the value at the given address from the perspective of the CPU. Returns 0xFF if the
     /// CPU is not able to access the given address because of PPU state.
     pub fn read_address_u8(&self, address: u16, ppu_state: &PpuState) -> u8 {
-        if !Self::is_cpu_access_allowed(address, ppu_state) {
+        if !self.is_cpu_access_allowed(address, ppu_state) {
             return 0xFF;
         }
 
@@ -512,7 +528,7 @@ impl AddressSpace {
     /// Assign a value to the given address from the perspective of the CPU. The write is ignored
     /// if the CPU is not allowed to access the given address due to PPU state.
     pub fn write_address_u8(&mut self, address: u16, value: u8, ppu_state: &PpuState) {
-        if !Self::is_cpu_access_allowed(address, ppu_state) {
+        if !self.is_cpu_access_allowed(address, ppu_state) {
             return;
         }
 
@@ -610,6 +626,48 @@ impl AddressSpace {
 
     pub fn copy_cartridge_rom_from(&mut self, other: &Self) {
         self.cartridge.rom = other.cartridge.rom.clone();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AddressRange {
+    Rom,
+    Vram,
+    CartridgeRam,
+    WorkingRam,
+    Oam,
+    Unusable,
+    HardwareRegisters,
+    Hram,
+    IeRegister,
+}
+
+impl AddressRange {
+    fn from_address(address: u16) -> Self {
+        match address {
+            _address @ address::ROM_START..=address::ROM_END => Self::Rom,
+            // VRAM
+            _address @ address::VRAM_START..=address::VRAM_END => Self::Vram,
+            // SRAM
+            _address @ address::EXTERNAL_RAM_START..=address::EXTERNAL_RAM_END => {
+                Self::CartridgeRam
+            }
+            // WRAM / echo RAM
+            _address @ address::WORKING_RAM_START..=address::WORKING_RAM_END
+            | _address @ address::ECHO_RAM_START..=address::ECHO_RAM_END => Self::WorkingRam,
+            // OAM
+            _address @ address::OAM_START..=address::OAM_END => Self::Oam,
+            // Unusable address space
+            _address @ address::UNUSABLE_START..=address::UNUSABLE_END => Self::Unusable,
+            // Hardware registers
+            _address @ address::IO_REGISTERS_START..=address::IO_REGISTERS_END => {
+                Self::HardwareRegisters
+            }
+            // HRAM
+            _address @ address::HRAM_START..=address::HRAM_END => Self::Hram,
+            // IE register
+            address::IE_REGISTER => Self::IeRegister,
+        }
     }
 }
 
