@@ -394,8 +394,8 @@ impl IoRegisters {
             & !dirty_bit_for_register(IoRegister::HDMA5).unwrap();
         Self {
             contents,
-            cgb_bg_palette_ram: [0; 64],
-            cgb_obj_palette_ram: [0; 64],
+            cgb_bg_palette_ram: [0xFF; 64],
+            cgb_obj_palette_ram: [0xFF; 64],
             dirty_bits,
             execution_mode,
             current_ppu_mode: PpuMode::VBlank,
