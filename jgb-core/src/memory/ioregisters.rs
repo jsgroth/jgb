@@ -379,7 +379,14 @@ impl IoRegisters {
         init_audio_registers(&mut contents);
 
         if matches!(execution_mode, ExecutionMode::GameBoyColor) {
-            contents[IoRegister::KEY1.to_relative_address()] = 0x7F;
+            contents[IoRegister::KEY1.to_relative_address()] = 0x7E;
+            contents[IoRegister::HDMA1.to_relative_address()] = 0xFF;
+            contents[IoRegister::HDMA2.to_relative_address()] = 0xFF;
+            contents[IoRegister::HDMA3.to_relative_address()] = 0xFF;
+            contents[IoRegister::HDMA4.to_relative_address()] = 0xFF;
+            contents[IoRegister::HDMA5.to_relative_address()] = 0xFF;
+            contents[IoRegister::BCPS.to_relative_address()] = 0xC0;
+            contents[IoRegister::OCPS.to_relative_address()] = 0xC1;
         }
 
         // Don't boot with DMA transfer registers flagged as dirty
