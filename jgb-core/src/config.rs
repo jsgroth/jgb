@@ -59,6 +59,7 @@ pub struct HotkeyConfig {
     pub toggle_fullscreen: Option<String>,
     pub save_state: Option<String>,
     pub load_state: Option<String>,
+    pub fast_forward: Option<String>,
 }
 
 impl Default for HotkeyConfig {
@@ -68,6 +69,7 @@ impl Default for HotkeyConfig {
             toggle_fullscreen: Some(Keycode::F9.name()),
             save_state: Some(Keycode::F5.name()),
             load_state: Some(Keycode::F6.name()),
+            fast_forward: Some(Keycode::Tab.name()),
         }
     }
 }
@@ -76,11 +78,12 @@ impl std::fmt::Display for HotkeyConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Exit={}, ToggleFullscreen={}, SaveState={}, LoadState={}",
+            "Exit={}, ToggleFullscreen={}, SaveState={}, LoadState={}, FastForward={}",
             fmt_option(self.exit.as_ref()),
             fmt_option(self.toggle_fullscreen.as_ref()),
             fmt_option(self.save_state.as_ref()),
-            fmt_option(self.load_state.as_ref())
+            fmt_option(self.load_state.as_ref()),
+            fmt_option(self.fast_forward.as_ref())
         )
     }
 }

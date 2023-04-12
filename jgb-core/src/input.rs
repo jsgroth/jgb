@@ -89,6 +89,7 @@ pub enum Hotkey {
     ToggleFullscreen,
     SaveState,
     LoadState,
+    FastForward,
 }
 
 macro_rules! build_hotkey_map {
@@ -120,6 +121,7 @@ impl HotkeyMap {
             hotkey_config.toggle_fullscreen => Hotkey::ToggleFullscreen,
             hotkey_config.save_state => Hotkey::SaveState,
             hotkey_config.load_state => Hotkey::LoadState,
+            hotkey_config.fast_forward => Hotkey::FastForward,
         );
 
         Ok(Self(map))

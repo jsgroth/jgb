@@ -127,8 +127,11 @@ pub fn run(
 
     let mut modals = Vec::new();
 
+    let mut fast_forwarding = false;
+
     let mut total_cycles = 0;
-    let mut total_frames = 0;
+    let mut total_frame_times = 0;
+    let mut total_rendered_frames = 0;
 
     // Track how many 4MHz clock cycles are "left over" when running in double speed mode
     let mut leftover_cpu_cycles = 0;
@@ -204,16 +207,20 @@ pub fn run(
             && ((prev_mode != PpuMode::VBlank && ppu_state.mode() == PpuMode::VBlank)
                 || (prev_enabled && !ppu_state.enabled()))
         {
-            graphics::render_frame(RenderFrameArgs {
-                execution_mode,
-                ppu_state: &ppu_state,
-                canvas: &mut canvas,
-                texture_creator: &texture_creator,
-                texture: &mut texture,
-                font: &font,
-                modals: &modals,
-                run_config,
-            })?;
+            // Skip every other frame when fast-forwarding
+            if !fast_forwarding || total_rendered_frames % 2 == 0 {
+                graphics::render_frame(RenderFrameArgs {
+                    execution_mode,
+                    ppu_state: &ppu_state,
+                    canvas: &mut canvas,
+                    texture_creator: &texture_creator,
+                    texture: &mut texture,
+                    font: &font,
+                    modals: &modals,
+                    run_config,
+                })?;
+            }
+            total_rendered_frames += 1;
         }
 
         // Process SDL events, push audio, and write save file roughly once per frametime
@@ -226,7 +233,12 @@ pub fn run(
             }
 
             if let Some(audio_device_queue) = &audio_playback_queue {
-                audio::push_samples(audio_device_queue, &mut apu_state, run_config)?;
+                audio::push_samples(
+                    audio_device_queue,
+                    &mut apu_state,
+                    run_config,
+                    fast_forwarding,
+                )?;
             }
 
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
@@ -305,6 +317,9 @@ pub fn run(
                                     }
                                 }
                             }
+                            Some(Hotkey::FastForward) => {
+                                fast_forwarding = true;
+                            }
                             None => {}
                         }
                     }
@@ -313,6 +328,12 @@ pub fn run(
                         ..
                     } => {
                         joypad_state.key_up(keycode, &key_map);
+
+                        if let Some(Hotkey::FastForward) =
+                            input::check_for_hotkey(keycode, &hotkey_map)
+                        {
+                            fast_forwarding = false;
+                        }
                     }
                     Event::JoyDeviceAdded { which, .. } => {
                         joysticks.device_added(which)?;
@@ -341,8 +362,8 @@ pub fn run(
             address_space.update_rtc();
 
             // Write out cartridge state roughly once per second at most
-            total_frames += 1;
-            if total_frames % 60 == 0 {
+            total_frame_times += 1;
+            if total_frame_times % 60 == 0 {
                 address_space
                     .persist_cartridge_state()
                     .map_err(|err| RunError::RamPersist { source: err })?;

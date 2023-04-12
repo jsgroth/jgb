@@ -110,6 +110,10 @@ struct CliArgs {
     #[arg(long)]
     hotkey_load_state: Option<String>,
 
+    /// Fast forward hotkey (default Tab)
+    #[arg(long)]
+    hotkey_fast_forward: Option<String>,
+
     /// Up controller input ("button N" / "axis N +" / "axis N -")
     #[arg(long)]
     controller_up: Option<String>,
@@ -172,6 +176,7 @@ impl CliArgs {
                 .or(default.toggle_fullscreen),
             save_state: self.hotkey_save_state.clone().or(default.save_state),
             load_state: self.hotkey_load_state.clone().or(default.load_state),
+            fast_forward: self.hotkey_fast_forward.clone().or(default.fast_forward),
         }
     }
 

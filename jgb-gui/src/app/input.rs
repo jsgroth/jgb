@@ -38,6 +38,7 @@ pub enum ConfigurableInput {
     HotkeyToggleFullscreen,
     HotkeySaveState,
     HotkeyLoadState,
+    HotkeyFastForward,
 }
 
 impl ConfigurableInput {
@@ -55,6 +56,7 @@ impl ConfigurableInput {
             Self::HotkeyToggleFullscreen => "Toggle Fullscreen",
             Self::HotkeySaveState => "Save State",
             Self::HotkeyLoadState => "Load State",
+            Self::HotkeyFastForward => "Fast Forward",
         }
     }
 }
@@ -204,6 +206,12 @@ impl<'a> HotkeySettingsWidget<'a> {
                     )
                     .add_clear_button(&mut self.hotkey_config.load_state)
                     .ui(ui),
+                    SingleInput::new(
+                        ConfigurableInput::HotkeyFastForward,
+                        self.hotkey_config.fast_forward.clone(),
+                    )
+                    .add_clear_button(&mut self.hotkey_config.fast_forward)
+                    .ui(ui),
                 ]
                 .into_iter()
                 .reduce(Option::or)
@@ -351,6 +359,9 @@ pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
                 ConfigurableInput::HotkeyLoadState => {
                     config.hotkeys.load_state = Some(input_str);
                 }
+                ConfigurableInput::HotkeyFastForward => {
+                    config.hotkeys.fast_forward = Some(input_str);
+                }
             }
         }
         InputPress::Controller(controller_input) => match button {
@@ -381,7 +392,8 @@ pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
             ConfigurableInput::HotkeyExit
             | ConfigurableInput::HotkeyToggleFullscreen
             | ConfigurableInput::HotkeySaveState
-            | ConfigurableInput::HotkeyLoadState => {
+            | ConfigurableInput::HotkeyLoadState
+            | ConfigurableInput::HotkeyFastForward => {
                 panic!("should never attempt to set a hotkey to a controller input");
             }
         },
