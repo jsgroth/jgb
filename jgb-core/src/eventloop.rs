@@ -241,6 +241,18 @@ pub fn run(
                 )?;
             }
 
+            address_space.update_rtc();
+
+            // Write out cartridge state roughly once per second at most
+            total_frame_times += 1;
+            if total_frame_times % 60 == 0 {
+                address_space
+                    .persist_cartridge_state()
+                    .map_err(|err| RunError::RamPersist { source: err })?;
+            }
+
+            modals.retain(|modal| !modal.is_finished());
+
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
                 if matches!(event, Event::JoyAxisMotion { .. }) {
@@ -358,18 +370,6 @@ pub fn run(
                     _ => {}
                 }
             }
-
-            address_space.update_rtc();
-
-            // Write out cartridge state roughly once per second at most
-            total_frame_times += 1;
-            if total_frame_times % 60 == 0 {
-                address_space
-                    .persist_cartridge_state()
-                    .map_err(|err| RunError::RamPersist { source: err })?;
-            }
-
-            modals.retain(|modal| !modal.is_finished());
         }
         total_cycles += u64::from(cycles_required);
     }
