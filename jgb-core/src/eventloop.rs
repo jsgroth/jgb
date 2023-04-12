@@ -129,9 +129,9 @@ pub fn run(
 
     let mut fast_forwarding = false;
 
-    let mut total_cycles = 0;
-    let mut total_frame_times = 0;
-    let mut total_rendered_frames = 0;
+    let mut total_cycles = 0_u64;
+    let mut total_frame_times = 0_u64;
+    let mut total_rendered_frames = 0_u64;
 
     // Track how many 4MHz clock cycles are "left over" when running in double speed mode
     let mut leftover_cpu_cycles = 0;
