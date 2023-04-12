@@ -22,6 +22,7 @@ Not Currently Implemented:
 * MBC5 rumble support
 * Serial port and GBC IR functionality
 * Use of GBC palettes in games that don't support GBC enhancements
+* Cycle-based interrupt handling to make Pinball Deluxe not crash after a few seconds of gameplay
 
 ## Requirements
 
