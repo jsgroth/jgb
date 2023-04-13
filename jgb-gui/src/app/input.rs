@@ -413,7 +413,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
         };
 
         let window = video.window(window_title, 400, 100).build()?;
-        let mut canvas = window.into_canvas().build()?;
+        let mut canvas = window.into_canvas().present_vsync().build()?;
 
         let ttf_context = ttf::init()?;
         let font = font::load_font(&ttf_context, 40).map_err(anyhow::Error::msg)?;
@@ -421,11 +421,6 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
 
         let texture_creator = canvas.texture_creator();
         let font_texture = rendered_text.as_texture(&texture_creator)?;
-        canvas
-            .copy(&font_texture, None, None)
-            .map_err(anyhow::Error::msg)?;
-
-        canvas.present();
 
         let mut joysticks: Vec<Joystick> = Vec::new();
 
@@ -516,6 +511,15 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
                     _ => {}
                 }
             }
+
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas.clear();
+
+            canvas
+                .copy(&font_texture, None, None)
+                .map_err(anyhow::Error::msg)?;
+
+            canvas.present();
 
             thread::sleep(Duration::from_millis(1));
         }
