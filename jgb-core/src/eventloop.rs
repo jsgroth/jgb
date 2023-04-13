@@ -1,7 +1,7 @@
 use crate::audio::AudioError;
 use crate::cpu::instructions::{ExecutionError, ParseError};
 use crate::cpu::{instructions, CgbSpeedMode, CpuRegisters};
-use crate::graphics::{GbFrameTexture, GraphicsError, Modal, RenderFrameArgs};
+use crate::graphics::{GbFrameTexture, GraphicsError, Modal};
 use crate::input::{
     ControllerMap, Hotkey, HotkeyMap, JoypadState, JoystickError, Joysticks, KeyMap, KeyMapError,
 };
@@ -210,16 +210,16 @@ pub fn run(
         {
             // Skip every other frame when fast-forwarding
             if !fast_forwarding || total_rendered_frames % 2 == 0 {
-                graphics::render_frame(RenderFrameArgs {
+                graphics::render_frame(
                     execution_mode,
-                    ppu_state: &ppu_state,
-                    canvas: &mut canvas,
-                    texture_creator: &texture_creator,
-                    texture: &mut texture,
-                    font: &font,
-                    modals: &modals,
+                    &ppu_state,
+                    &mut canvas,
+                    &texture_creator,
+                    &mut texture,
+                    &font,
+                    &modals,
                     run_config,
-                })?;
+                )?;
             }
             total_rendered_frames += 1;
         }

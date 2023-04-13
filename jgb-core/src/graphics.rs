@@ -180,45 +180,20 @@ impl Modal {
     }
 }
 
-pub struct RenderFrameArgs<
-    'ttf,
-    'ppu,
-    'canvas,
-    'tx_creator,
-    'texture,
-    'font,
-    'font_rwops,
-    'modals,
-    'cfg,
-    T,
-> {
-    pub execution_mode: ExecutionMode,
-    pub ppu_state: &'ppu PpuState,
-    pub canvas: &'canvas mut WindowCanvas,
-    pub texture_creator: &'tx_creator TextureCreator<T>,
-    pub texture: &'texture mut GbFrameTexture<'tx_creator>,
-    pub font: &'font Font<'ttf, 'font_rwops>,
-    pub modals: &'modals [Modal],
-    pub run_config: &'cfg RunConfig,
-}
-
 /// Render the current frame to the SDL2 window, overwriting all previously displayed data.
 ///
 /// With VSync enabled this function will block until the next screen refresh.
+#[allow(clippy::too_many_arguments)]
 pub fn render_frame<T>(
-    args: RenderFrameArgs<'_, '_, '_, '_, '_, '_, '_, '_, '_, T>,
+    execution_mode: ExecutionMode,
+    ppu_state: &PpuState,
+    canvas: &mut WindowCanvas,
+    texture_creator: &TextureCreator<T>,
+    texture: &mut GbFrameTexture<'_>,
+    font: &Font<'_, '_>,
+    modals: &[Modal],
+    run_config: &RunConfig,
 ) -> Result<(), GraphicsError> {
-    let RenderFrameArgs {
-        execution_mode,
-        ppu_state,
-        canvas,
-        texture_creator,
-        texture,
-        font,
-        modals,
-        run_config,
-    } = args;
-
     let frame_buffer = ppu_state.frame_buffer();
 
     match execution_mode {
