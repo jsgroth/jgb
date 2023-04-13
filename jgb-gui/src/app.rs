@@ -431,7 +431,9 @@ impl JgbApp {
                     }
                 });
 
-                ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                ui.add_space(20.0);
+
+                ui.with_layout(Layout::top_down(Align::Center), |ui| {
                     if ui.button("Close").clicked() {
                         self.state.open_settings_window = None;
                     }
