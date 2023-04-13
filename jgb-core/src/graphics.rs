@@ -291,6 +291,7 @@ fn render_modals<T>(
     Ok(())
 }
 
+#[allow(clippy::maybe_infinite_iter)]
 fn determine_integer_scale_rect(w: u32, h: u32) -> Option<Rect> {
     let screen_width: u32 = ppu::SCREEN_WIDTH.into();
     let screen_height: u32 = ppu::SCREEN_HEIGHT.into();

@@ -78,6 +78,7 @@ pub enum RunError {
 const CYCLES_PER_FRAME: u64 = 4 * 1024 * 1024 / 60;
 
 /// Start and run the emulator until it terminates, either by closing it or due to an error.
+#[allow(clippy::too_many_lines)]
 pub fn run(
     emulation_state: EmulationState,
     sdl_state: SdlState,

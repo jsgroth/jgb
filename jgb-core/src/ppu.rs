@@ -980,6 +980,7 @@ fn render_to_frame_buffer(
     })
 }
 
+#[allow(clippy::too_many_lines)]
 fn populate_bg_pixel_queue(
     execution_mode: ExecutionMode,
     state_data: RenderingScanlineStateData,

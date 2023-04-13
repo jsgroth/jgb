@@ -82,6 +82,12 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// Load a config from the given path.
+    ///
+    /// # Errors
+    ///
+    /// This method will return an error if it cannot read the file or if the file does not contain
+    /// the expected TOML config format.
     pub fn from_toml_file<P>(path: P) -> Result<Self, anyhow::Error>
     where
         P: AsRef<Path>,
@@ -102,6 +108,11 @@ impl AppConfig {
         Ok(config)
     }
 
+    /// Save a config to the given path.
+    ///
+    /// # Errors
+    ///
+    /// This method will return an error if it is unable to write the config to disk.
     pub fn save_to_file<P>(&self, path: P) -> Result<(), anyhow::Error>
     where
         P: AsRef<Path>,
