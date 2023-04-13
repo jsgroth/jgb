@@ -653,8 +653,8 @@ impl AddressRange {
                 Self::CartridgeRam
             }
             // WRAM / echo RAM
-            _address @ address::WORKING_RAM_START..=address::WORKING_RAM_END
-            | _address @ address::ECHO_RAM_START..=address::ECHO_RAM_END => Self::WorkingRam,
+            _address @ (address::WORKING_RAM_START..=address::WORKING_RAM_END
+            | address::ECHO_RAM_START..=address::ECHO_RAM_END) => Self::WorkingRam,
             // OAM
             _address @ address::OAM_START..=address::OAM_END => Self::Oam,
             // Unusable address space
