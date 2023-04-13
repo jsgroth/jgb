@@ -135,7 +135,7 @@ pub fn run(
 
     // Track how many 4MHz clock cycles are "left over" when running in double speed mode
     let mut leftover_cpu_cycles = 0;
-    'running: loop {
+    loop {
         input::update_joyp_register(&joypad_state, address_space.get_io_registers_mut());
 
         // Read TMA register before executing anything in case the instruction updates the register
@@ -229,7 +229,7 @@ pub fn run(
         {
             if *quit_signal.lock().unwrap() {
                 log::info!("Quit signal received, exiting main loop");
-                break;
+                return Ok(());
             }
 
             if let Some(audio_device_queue) = &audio_playback_queue {
@@ -262,7 +262,7 @@ pub fn run(
                 }
                 match event {
                     Event::Quit { .. } => {
-                        break 'running;
+                        return Ok(());
                     }
                     Event::KeyDown {
                         keycode: Some(keycode),
@@ -272,7 +272,7 @@ pub fn run(
 
                         match input::check_for_hotkey(keycode, &hotkey_map) {
                             Some(Hotkey::Exit) => {
-                                break 'running;
+                                return Ok(());
                             }
                             Some(Hotkey::ToggleFullscreen) => {
                                 graphics::toggle_fullscreen(&mut canvas, run_config)?;
@@ -373,8 +373,6 @@ pub fn run(
         }
         total_cycles += u64::from(cycles_required);
     }
-
-    Ok(())
 }
 
 fn tick_cpu(
