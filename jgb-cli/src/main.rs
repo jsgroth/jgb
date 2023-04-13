@@ -59,6 +59,7 @@ struct CliArgs {
     #[arg(long = "audio-60hz", default_value_t)]
     audio_60hz: bool,
 
+    /// GB color palette (BlackAndWhite / GreenTint / LimeGreen)
     #[arg(long = "color-scheme", default_value_t)]
     color_scheme: ColorScheme,
 
