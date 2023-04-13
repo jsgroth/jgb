@@ -281,7 +281,7 @@ impl<'a> ControllerSettingsWidget<'a> {
 
         let deadzone_invalid = ui
             .horizontal(|ui| {
-                ui.label("Axis deadzone:");
+                ui.label("Axis deadzone (0-32767):");
                 if !ui.text_edit_singleline(self.deadzone_text).has_focus() {
                     match self.deadzone_text.parse::<u16>() {
                         Ok(deadzone @ 0..=32767) => {
