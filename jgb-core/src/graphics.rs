@@ -205,7 +205,9 @@ pub struct RenderFrameArgs<
 /// Render the current frame to the SDL2 window, overwriting all previously displayed data.
 ///
 /// With VSync enabled this function will block until the next screen refresh.
-pub fn render_frame<T>(args: RenderFrameArgs<T>) -> Result<(), GraphicsError> {
+pub fn render_frame<T>(
+    args: RenderFrameArgs<'_, '_, '_, '_, '_, '_, '_, '_, '_, T>,
+) -> Result<(), GraphicsError> {
     let RenderFrameArgs {
         execution_mode,
         ppu_state,
@@ -256,7 +258,7 @@ pub fn render_frame<T>(args: RenderFrameArgs<T>) -> Result<(), GraphicsError> {
 fn render_modals<T>(
     canvas: &mut WindowCanvas,
     texture_creator: &TextureCreator<T>,
-    font: &Font,
+    font: &Font<'_, '_>,
     modals: &[Modal],
 ) -> Result<(), GraphicsError> {
     if modals.is_empty() {

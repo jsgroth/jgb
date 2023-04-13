@@ -57,7 +57,7 @@ where
 {
     type Value = [T; N];
 
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "an array of size {N}")
     }
 
@@ -131,7 +131,7 @@ where
 {
     type Value = [[T; M]; N];
 
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "a 2D array with {N} rows and {M} cols")
     }
 

@@ -629,12 +629,12 @@ impl IoRegisters {
     }
 
     /// Obtain a read-only view around the LCDC register (LCD control).
-    pub fn lcdc(&self) -> Lcdc {
+    pub fn lcdc(&self) -> Lcdc<'_> {
         Lcdc(&self.contents[IoRegister::LCDC.to_relative_address()])
     }
 
     /// Obtain a read/write view around the IF register (interrupt request flags).
-    pub fn interrupt_flags(&mut self) -> InterruptFlags {
+    pub fn interrupt_flags(&mut self) -> InterruptFlags<'_> {
         InterruptFlags(&mut self.contents[IoRegister::IF.to_relative_address()])
     }
 

@@ -137,7 +137,7 @@ pub fn str_deserialize(input: TokenStream) -> TokenStream {
         impl<'de> ::serde::de::Visitor<'de> for #visitor_struct_name {
             type Value = #ident;
 
-            fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 write!(formatter, #expecting_fmt_string)
             }
 
