@@ -1,4 +1,7 @@
+mod mbc7;
+
 use crate::memory::address;
+use crate::memory::mapper::mbc7::Mbc7Eeprom;
 use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
 use std::time::{Duration, SystemTime};
@@ -10,6 +13,7 @@ pub(crate) enum MapperType {
     MBC2,
     MBC3,
     MBC5,
+    MBC7,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +131,7 @@ pub enum RamMapResult {
     None,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Mapper {
     None,
@@ -157,6 +162,11 @@ pub(crate) enum Mapper {
         rom_bank_number: u16,
         ram_bank_number: u8,
     },
+    MBC7 {
+        eeprom: Mbc7Eeprom,
+        rom_bank_bit_mask: u16,
+        rom_bank_number: u16,
+    },
 }
 
 impl Mapper {
@@ -166,6 +176,7 @@ impl Mapper {
         rtc: Option<RealTimeClock>,
         rom_size: u32,
         ram_size: u32,
+        loaded_ram: Option<&Vec<u8>>,
     ) -> Self {
         let rom_bank_bit_mask = if rom_size >= 1 << 14 {
             ((rom_size >> 14) - 1) as u16
@@ -218,6 +229,11 @@ impl Mapper {
                 ram_enable: 0x00,
                 rom_bank_number: 0x01,
                 ram_bank_number: 0x00,
+            },
+            MapperType::MBC7 => Self::MBC7 {
+                eeprom: Mbc7Eeprom::new(loaded_ram),
+                rom_bank_bit_mask,
+                rom_bank_number: 0x01,
             },
         }
     }
@@ -288,8 +304,13 @@ impl Mapper {
                 rom_bank_bit_mask,
                 rom_bank_number,
                 ..
+            }
+            | &Self::MBC7 {
+                rom_bank_bit_mask,
+                rom_bank_number,
+                ..
             } => {
-                // ROM bank 0 is actually bank 0 in MBC5
+                // ROM bank 0 is actually bank 0 in MBC5 and MBC7
 
                 match address {
                     address @ 0x0000..=0x3FFF => u32::from(address),
@@ -392,6 +413,23 @@ impl Mapper {
                 _address @ 0x6000..=0x7FFF => {}
                 _ => panic!("invalid ROM write address in MBC5 mapper: {address:04X}"),
             },
+            Self::MBC7 {
+                rom_bank_number, ..
+            } => {
+                match address {
+                    _address @ 0x0000..=0x1FFF => {
+                        // TODO RAM enable 1
+                    }
+                    _address @ 0x2000..=0x3FFF => {
+                        *rom_bank_number = value.into();
+                    }
+                    _address @ 0x4000..=0x5FFF => {
+                        // TODO RAM enable 2
+                    }
+                    _address @ 0x6000..=0x7FFF => {}
+                    _ => panic!("invalid ROM write address in MBC7 mapper: {address:04X}"),
+                }
+            }
         }
     }
 
@@ -464,6 +502,10 @@ impl Mapper {
                 } else {
                     RamMapResult::None
                 }
+            }
+            &Self::MBC7 { .. } => {
+                // TODO RAM must be enabled
+                RamMapResult::MapperRegister
             }
         }
     }
@@ -544,6 +586,14 @@ impl Mapper {
             _ => None,
         }
     }
+
+    /// Get a reference to the mapper chip's raw EEPROM, if any (only MBC7 mapper has such a chip)
+    pub(crate) fn get_eeprom_memory(&self) -> Option<&[u8]> {
+        match self {
+            Self::MBC7 { eeprom, .. } => Some(eeprom.raw_memory()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -582,6 +632,7 @@ pub(crate) fn parse_byte(mapper_byte: u8) -> Option<(MapperType, MapperFeatures)
         0x1A | 0x1D => (MapperType::MBC5, true, false),
         // 0x1B is w/o rumble, 0x1E is w/ rumble
         0x1B | 0x1E => (MapperType::MBC5, true, true),
+        0x22 => (MapperType::MBC7, true, true),
         _ => return None,
     };
 

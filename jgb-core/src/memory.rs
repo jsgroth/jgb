@@ -184,6 +184,8 @@ impl Cartridge {
         let expected_ram_size = match (mapper_type, mapper_features.has_ram) {
             // MBC2 cartridges always have 512 bytes of RAM (technically 512 4-bit nibbles)
             (MapperType::MBC2, _) => 512,
+            // MBC7 cartridges always have 256 bytes of RAM
+            (MapperType::MBC7, _) => 256,
             (_, true) => {
                 // Non-MBC2 cartridges specify RAM size through a header byte
                 let ram_size_code = rom[address::RAM_SIZE as usize];
@@ -200,12 +202,12 @@ impl Cartridge {
             _ => 0,
         };
 
-        let ram = if let Some(loaded_ram) = loaded_ram {
+        let ram = if let Some(loaded_ram) = &loaded_ram {
             if mapper_features.has_ram
                 && mapper_features.has_battery
                 && loaded_ram.len() == expected_ram_size
             {
-                loaded_ram
+                loaded_ram.clone()
             } else {
                 vec![0; expected_ram_size]
             }
@@ -231,6 +233,7 @@ impl Cartridge {
             rtc,
             rom.len() as u32,
             ram.len() as u32,
+            loaded_ram.as_ref(),
         );
 
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
@@ -324,7 +327,9 @@ impl Cartridge {
     /// be saved as well.
     pub fn persist_state(&mut self) -> Result<(), io::Error> {
         if let Some(ram_battery) = &mut self.ram_battery {
-            ram_battery.persist_state(&self.ram, self.mapper.get_clock())?;
+            // Prefer to serialize EEPROM memory if the mapper has an EEPROM chip
+            let ram_to_persist = self.mapper.get_eeprom_memory().unwrap_or(&self.ram);
+            ram_battery.persist_state(ram_to_persist, self.mapper.get_clock())?;
         }
 
         Ok(())
