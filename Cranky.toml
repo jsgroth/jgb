@@ -6,7 +6,7 @@ warn = [
     "clippy::all",
     "clippy::pedantic",
     "rust_2018_idioms",
-    # A small selection of restricton lints
+    # A small selection of restriction lints
     "clippy::clone_on_ref_ptr",
     "clippy::dbg_macro",
     "clippy::empty_drop",
