@@ -1190,16 +1190,12 @@ fn populate_sprite_pixel_queue(
                 };
 
                 let pixel_color_id = get_pixel_color_id(tile_data, x);
-                if pixel_color_id != 0x00 {
-                    Some(QueuedObjPixel {
-                        color_id: pixel_color_id,
-                        obj_palette,
-                        cgb_palette_index: sprite_data.cgb_palette_index(),
-                        bg_over_obj,
-                    })
-                } else {
-                    None
-                }
+                (pixel_color_id != 0x00).then(|| QueuedObjPixel {
+                    color_id: pixel_color_id,
+                    obj_palette,
+                    cgb_palette_index: sprite_data.cgb_palette_index(),
+                    bg_over_obj,
+                })
             })
             .unwrap_or(QueuedObjPixel::TRANSPARENT);
 

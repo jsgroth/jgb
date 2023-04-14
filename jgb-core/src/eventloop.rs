@@ -15,7 +15,8 @@ use crate::{apu, audio, cpu, font, graphics, input, ppu, serialize, timer, RunCo
 use sdl2::event::Event;
 use std::ffi::OsStr;
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -83,7 +84,7 @@ pub fn run(
     emulation_state: EmulationState,
     sdl_state: SdlState,
     run_config: &RunConfig,
-    quit_signal: Arc<Mutex<bool>>,
+    quit_signal: Arc<AtomicBool>,
 ) -> Result<(), RunError> {
     log::info!("Running with config:\n{run_config}");
 
@@ -228,7 +229,7 @@ pub fn run(
         if total_cycles / CYCLES_PER_FRAME
             != (total_cycles + u64::from(cycles_required)) / CYCLES_PER_FRAME
         {
-            if *quit_signal.lock().unwrap() {
+            if quit_signal.load(Ordering::Relaxed) {
                 log::info!("Quit signal received, exiting main loop");
                 return Ok(());
             }

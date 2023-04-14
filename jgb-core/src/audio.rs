@@ -66,6 +66,6 @@ fn drain_sample_queue<T>(sample_queue: &mut VecDeque<T>, fast_forwarding: bool) 
     sample_queue
         .drain(..drain_len)
         .enumerate()
-        .filter_map(|(i, sample)| if i % 2 == 0 { Some(sample) } else { None })
+        .filter_map(|(i, sample)| (i % 2 == 0).then_some(sample))
         .collect()
 }

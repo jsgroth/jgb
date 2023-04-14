@@ -197,18 +197,13 @@ impl Mapper {
                 rom_bank_number: 0x00,
             },
             MapperType::MBC3 => {
-                let real_time_clock = if mapper_features.has_rtc {
-                    let rtc = match rtc {
-                        Some(mut rtc) => {
-                            rtc.update(SystemTime::now());
-                            rtc
-                        }
-                        None => RealTimeClock::new(SystemTime::now()),
-                    };
-                    Some(rtc)
-                } else {
-                    None
-                };
+                let real_time_clock = mapper_features.has_rtc.then(|| match rtc {
+                    Some(mut rtc) => {
+                        rtc.update(SystemTime::now());
+                        rtc
+                    }
+                    None => RealTimeClock::new(SystemTime::now()),
+                });
                 Self::MBC3 {
                     rom_bank_bit_mask: rom_bank_bit_mask as u8,
                     ram_enable: 0x00,

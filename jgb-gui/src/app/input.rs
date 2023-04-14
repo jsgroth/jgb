@@ -96,11 +96,10 @@ impl<'a, T: std::fmt::Display> SingleInput<'a, T> {
             Some(current_input) => current_input.to_string(),
             None => "<None>".into(),
         };
-        let thread = if ui.button(button_text).clicked() {
-            Some(spawn_input_thread(self.input, self.input_type))
-        } else {
-            None
-        };
+        let thread = ui
+            .button(button_text)
+            .clicked()
+            .then(|| spawn_input_thread(self.input, self.input_type));
 
         if let Some(field_to_clear) = self.field_to_clear {
             if ui.button("Clear").clicked() {

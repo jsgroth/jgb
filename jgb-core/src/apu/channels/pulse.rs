@@ -112,11 +112,7 @@ impl PulseSweep {
             SlopeDirection::Decreasing => frequency.wrapping_sub(delta),
         };
 
-        if next_frequency <= 0x07FF {
-            Some(next_frequency)
-        } else {
-            None
-        }
+        (next_frequency <= 0x07FF).then_some(next_frequency)
     }
 }
 

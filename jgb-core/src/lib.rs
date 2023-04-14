@@ -15,7 +15,8 @@ mod serialize;
 mod startup;
 mod timer;
 
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use thiserror::Error;
 
 use crate::eventloop::RunError;
@@ -45,7 +46,7 @@ pub enum EmulationError {
 /// # Errors
 ///
 /// This function will return an error if emulation terminates unexpectedly.
-pub fn run(run_config: &RunConfig, quit_signal: Arc<Mutex<bool>>) -> Result<(), EmulationError> {
+pub fn run(run_config: &RunConfig, quit_signal: Arc<AtomicBool>) -> Result<(), EmulationError> {
     let emulation_state = startup::init_emulation_state(run_config)?;
 
     let sdl_state = startup::init_sdl_state(run_config)?;

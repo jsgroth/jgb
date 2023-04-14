@@ -15,7 +15,8 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::{fs, thread};
 
@@ -101,6 +102,7 @@ impl AppState {
         }
     }
 
+    #[allow(clippy::if_then_some_else_none)]
     fn refresh_rom_search_results(&mut self, rom_search_dir: Option<&String>) {
         let Some(rom_search_dir) = rom_search_dir
         else {
@@ -217,7 +219,7 @@ impl JgbApp {
         if let Some(running_emulator) = self.state.running_emulator.take() {
             log::info!("Shutting down existing emulator instance");
 
-            *running_emulator.quit_signal.lock().unwrap() = true;
+            running_emulator.quit_signal.store(true, Ordering::Relaxed);
 
             // TODO actually handle errors
             running_emulator.thread.join().unwrap().unwrap();
@@ -641,7 +643,7 @@ impl eframe::App for JgbApp {
 #[derive(Debug)]
 struct EmulatorInstance {
     thread: JoinHandle<Result<(), EmulationError>>,
-    quit_signal: Arc<Mutex<bool>>,
+    quit_signal: Arc<AtomicBool>,
 }
 
 #[must_use]
@@ -671,7 +673,7 @@ fn launch_emulator(
         controller_config: app_config.controller.clone(),
     };
 
-    let quit_signal = Arc::new(Mutex::new(false));
+    let quit_signal = Arc::new(AtomicBool::new(false));
 
     let quit_signal_clone = Arc::clone(&quit_signal);
     let thread = thread::spawn(move || {

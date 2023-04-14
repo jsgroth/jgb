@@ -54,7 +54,7 @@ macro_rules! build_key_map {
             $(
                 let keycode = try_parse_keycode(&$config_field)?;
                 if let Some(_) = map.insert(keycode, $button) {
-                    Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() })?;
+                    return Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() });
                 }
             )*
 
@@ -101,7 +101,7 @@ macro_rules! build_hotkey_map {
                 if let Some(keycode) = $config_field.as_ref() {
                     let keycode = try_parse_keycode(keycode)?;
                     if map.insert(keycode, $hotkey).is_some() {
-                        Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() })?;
+                        return Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() });
                     }
                 }
             )*
@@ -136,7 +136,7 @@ macro_rules! build_controller_map {
             $(
                 if let Some(input) = $config_field {
                     if map.insert(input, $button).is_some() {
-                        Err(JoystickError::DuplicateInput { input })?;
+                        return Err(JoystickError::DuplicateInput { input });
                     }
                 }
             )*

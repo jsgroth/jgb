@@ -67,6 +67,7 @@ impl FsRamBattery {
     }
 }
 
+#[allow(clippy::if_then_some_else_none)]
 fn load_sav_file<P>(sav_file: P) -> Result<Option<Vec<u8>>, CartridgeLoadError>
 where
     P: AsRef<Path>,

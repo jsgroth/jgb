@@ -7,7 +7,8 @@ use jgb_core::{
     ColorScheme, ControllerConfig, ControllerInput, HardwareMode, HotkeyConfig, InputConfig,
     RunConfig,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 #[derive(Parser)]
 struct CliArgs {
@@ -243,7 +244,7 @@ fn main() -> anyhow::Result<()> {
         controller_config,
     };
 
-    if let Err(err) = jgb_core::run(&run_config, Arc::new(Mutex::new(false))) {
+    if let Err(err) = jgb_core::run(&run_config, Arc::new(AtomicBool::new(false))) {
         log::error!("emulator terminated with error: {err}");
         return Err(err.into());
     }

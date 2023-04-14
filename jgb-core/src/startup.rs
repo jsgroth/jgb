@@ -127,6 +127,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
     })
 }
 
+#[allow(clippy::if_then_some_else_none)]
 pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
