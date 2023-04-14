@@ -29,6 +29,13 @@ pub enum RamMapResult {
     None,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum Mbc7RamStatus {
+    Enabled,
+    PreEnabled,
+    Disabled,
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Mapper {
@@ -63,6 +70,7 @@ pub(crate) enum Mapper {
     MBC7 {
         eeprom: Mbc7Eeprom,
         rom_bank_bit_mask: u16,
+        ram_status: Mbc7RamStatus,
         rom_bank_number: u16,
     },
 }
@@ -131,6 +139,7 @@ impl Mapper {
             MapperType::MBC7 => Self::MBC7 {
                 eeprom: Mbc7Eeprom::new(loaded_ram),
                 rom_bank_bit_mask,
+                ram_status: Mbc7RamStatus::Disabled,
                 rom_bank_number: 0x01,
             },
         }
@@ -312,22 +321,28 @@ impl Mapper {
                 _ => panic!("invalid ROM write address in MBC5 mapper: {address:04X}"),
             },
             Self::MBC7 {
-                rom_bank_number, ..
-            } => {
-                match address {
-                    _address @ 0x0000..=0x1FFF => {
-                        // TODO RAM enable 1
+                rom_bank_number,
+                ram_status,
+                ..
+            } => match address {
+                _address @ 0x0000..=0x1FFF => {
+                    if value == 0x0A {
+                        *ram_status = Mbc7RamStatus::PreEnabled;
+                    } else {
+                        *ram_status = Mbc7RamStatus::Disabled;
                     }
-                    _address @ 0x2000..=0x3FFF => {
-                        *rom_bank_number = value.into();
-                    }
-                    _address @ 0x4000..=0x5FFF => {
-                        // TODO RAM enable 2
-                    }
-                    _address @ 0x6000..=0x7FFF => {}
-                    _ => panic!("invalid ROM write address in MBC7 mapper: {address:04X}"),
                 }
-            }
+                _address @ 0x2000..=0x3FFF => {
+                    *rom_bank_number = value.into();
+                }
+                _address @ 0x4000..=0x5FFF => {
+                    if *ram_status == Mbc7RamStatus::PreEnabled && value == 0x40 {
+                        *ram_status = Mbc7RamStatus::Enabled;
+                    }
+                }
+                _address @ 0x6000..=0x7FFF => {}
+                _ => panic!("invalid ROM write address in MBC7 mapper: {address:04X}"),
+            },
         }
     }
 
@@ -401,37 +416,68 @@ impl Mapper {
                     RamMapResult::None
                 }
             }
-            &Self::MBC7 { .. } => {
-                // TODO RAM must be enabled
-                RamMapResult::MapperRegister
-            }
+            &Self::MBC7 { ram_status, .. } => match ram_status {
+                Mbc7RamStatus::Enabled => RamMapResult::MapperRegister,
+                _ => RamMapResult::None,
+            },
         }
     }
 
-    pub(crate) fn read_ram_addressed_register(&self) -> Option<u8> {
-        let Self::MBC3 {
-            ram_bank_number,
-            real_time_clock: Some(real_time_clock),
-            ..
-        } = self
-        else {
-            return None;
-        };
-
-        real_time_clock.handle_ram_read(*ram_bank_number)
+    pub(crate) fn read_ram_addressed_register(&self, address: u16) -> Option<u8> {
+        match self {
+            Self::MBC3 {
+                ram_bank_number,
+                real_time_clock: Some(real_time_clock),
+                ..
+            } => real_time_clock.handle_ram_read(*ram_bank_number),
+            Self::MBC7 { eeprom, .. } if (0xA000..=0xAFFF).contains(&address) => {
+                match address & 0x00F0 {
+                    0x0020 | 0x0030 => {
+                        // TODO read accelerometer X
+                        None
+                    }
+                    0x0040 | 0x0050 => {
+                        // TODO read accelerometer Y
+                        None
+                    }
+                    // Unused register that always reads out 0, possibly meant for accelerometer Z
+                    0x0060 => Some(0x00),
+                    0x0080 => {
+                        log::trace!("Reading from EEPROM, address={address:04X}");
+                        let value = eeprom.handle_read();
+                        log::trace!("Read {value:02X}");
+                        Some(value)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
     }
 
-    pub(crate) fn write_ram_addressed_register(&mut self, value: u8) {
-        let Self::MBC3 {
-            ram_bank_number,
-            real_time_clock: Some(real_time_clock),
-            ..
-        } = self
-        else {
-            return;
-        };
-
-        real_time_clock.handle_ram_write(*ram_bank_number, value);
+    pub(crate) fn write_ram_addressed_register(&mut self, address: u16, value: u8) {
+        match self {
+            Self::MBC3 {
+                ram_bank_number,
+                real_time_clock: Some(real_time_clock),
+                ..
+            } => {
+                real_time_clock.handle_ram_write(*ram_bank_number, value);
+            }
+            Self::MBC7 { eeprom, .. } if (0xA000..=0xAFFF).contains(&address) => {
+                match address & 0x00F0 {
+                    0x0000 | 0x0010 => {
+                        // TODO latch accelerometer
+                    }
+                    0x0080 => {
+                        log::trace!("Writing to EEPROM, value={value:02X}");
+                        eeprom.handle_write(value);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
     }
 
     pub(crate) fn update_rtc(&mut self) {

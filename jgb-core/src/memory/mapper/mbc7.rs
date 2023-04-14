@@ -312,7 +312,22 @@ impl Mbc7Eeprom {
         let data_in = DataIn::from_byte(value);
 
         if !self.last_clock.0 && clock.0 {
+            log::trace!("Clocking EEPROM, current state = {:?}", self.state);
             self.state = self.state.clock(chip_select, data_in, &mut self.memory);
+            log::trace!("new state = {:?}", self.state);
+        } else if !chip_select.0 {
+            // CS going low sets the chip to standby even if it hasn't clocked
+            match self.state {
+                ChipState::ReadingOp(write_status, ..)
+                | ChipState::SendingOutput(write_status, ..)
+                | ChipState::Finished(write_status) => {
+                    self.state = ChipState::Standby(write_status);
+                }
+                ChipState::ReadingData(..) => {
+                    self.state = ChipState::Standby(WriteStatus::Enabled);
+                }
+                _ => {}
+            }
         }
         self.last_clock = clock;
     }

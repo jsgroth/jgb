@@ -297,9 +297,10 @@ impl Cartridge {
                 .get(mapped_address as usize)
                 .copied()
                 .unwrap_or(0xFF),
-            RamMapResult::MapperRegister => {
-                self.mapper.read_ram_addressed_register().unwrap_or(0xFF)
-            }
+            RamMapResult::MapperRegister => self
+                .mapper
+                .read_ram_addressed_register(address)
+                .unwrap_or(0xFF),
             RamMapResult::None => 0xFF,
         }
     }
@@ -316,7 +317,10 @@ impl Cartridge {
                 }
             }
             RamMapResult::MapperRegister => {
-                self.mapper.write_ram_addressed_register(value);
+                self.mapper.write_ram_addressed_register(address, value);
+                if let Some(ram_battery) = &mut self.ram_battery {
+                    ram_battery.mark_dirty();
+                }
             }
             RamMapResult::None => {}
         }
