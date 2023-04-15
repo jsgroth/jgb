@@ -399,7 +399,6 @@ pub fn handle_input_thread_result(thread: InputThread, config: &mut AppConfig) {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 #[must_use]
 fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> InputThread {
     thread::spawn(move || {

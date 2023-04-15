@@ -3,6 +3,7 @@ use crate::config::RunConfig;
 use crate::cpu::{CpuRegisters, ExecutionMode};
 use crate::debug::FileApuDebugSink;
 use crate::graphics::GraphicsError;
+use crate::input::AccelerometerState;
 use crate::memory::{AddressSpace, Cartridge, CartridgeLoadError};
 use crate::ppu::PpuState;
 use crate::{audio, graphics, HardwareMode};
@@ -11,11 +12,15 @@ use sdl2::event::EventType;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::{WindowBuildError, WindowContext};
-use sdl2::{ttf, AudioSubsystem, EventPump, JoystickSubsystem, Sdl, VideoSubsystem};
+use sdl2::{
+    ttf, AudioSubsystem, EventPump, GameControllerSubsystem, JoystickSubsystem, Sdl, VideoSubsystem,
+};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
+use std::rc::Rc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -67,6 +72,8 @@ pub struct EmulationState {
     pub cpu_registers: CpuRegisters,
     pub ppu_state: PpuState,
     pub apu_state: ApuState,
+    #[serde(skip)]
+    pub accelerometer_state: Rc<RefCell<AccelerometerState>>,
 }
 
 pub struct SdlState {
@@ -75,6 +82,7 @@ pub struct SdlState {
     pub audio: AudioSubsystem,
     pub audio_playback_queue: Option<AudioQueue<f32>>,
     pub joystick_subsystem: JoystickSubsystem,
+    pub controller_subsystem: GameControllerSubsystem,
     pub canvas: WindowCanvas,
     pub texture_creator: TextureCreator<WindowContext>,
     pub event_pump: EventPump,
@@ -82,15 +90,18 @@ pub struct SdlState {
 }
 
 pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, StartupError> {
-    let cartridge = match Cartridge::from_file(&run_config.gb_file_path) {
-        Ok(cartridge) => cartridge,
-        Err(err) => {
-            return Err(StartupError::FileRead {
-                file_path: run_config.gb_file_path.clone(),
-                source: err,
-            })
-        }
-    };
+    let accelerometer_state = Rc::default();
+
+    let cartridge =
+        match Cartridge::from_file(&run_config.gb_file_path, Rc::clone(&accelerometer_state)) {
+            Ok(cartridge) => cartridge,
+            Err(err) => {
+                return Err(StartupError::FileRead {
+                    file_path: run_config.gb_file_path.clone(),
+                    source: err,
+                })
+            }
+        };
 
     let execution_mode = match run_config.hardware_mode {
         HardwareMode::GameBoy => ExecutionMode::GameBoy,
@@ -124,6 +135,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
         cpu_registers,
         ppu_state,
         apu_state,
+        accelerometer_state,
     })
 }
 
@@ -133,6 +145,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
     let video = sdl.video()?;
     let audio = sdl.audio()?;
     let joystick_subsystem = sdl.joystick()?;
+    let controller_subsystem = sdl.game_controller()?;
 
     let ttf_ctx = ttf::init()?;
 
@@ -170,6 +183,7 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
         audio,
         audio_playback_queue,
         joystick_subsystem,
+        controller_subsystem,
         canvas,
         texture_creator,
         event_pump,

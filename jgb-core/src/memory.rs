@@ -3,11 +3,14 @@ pub mod ioregisters;
 mod mapper;
 
 use crate::cpu::ExecutionMode;
+use crate::input::AccelerometerState;
 use crate::memory::ioregisters::IoRegisters;
 use crate::memory::mapper::{Mapper, MapperType, RamMapResult, RealTimeClock};
 use crate::ppu::{PpuMode, PpuState};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::{fs, io};
 use thiserror::Error;
 
@@ -143,7 +146,11 @@ impl Cartridge {
     /// * The ROM is too short (must be at least 0x150 bytes)
     /// * The mapper byte in the cartridge header is invalid (or not implemented yet)
     /// * The RAM size byte in the cartridge header is invalid
-    pub fn new(rom: Vec<u8>, sav_path: Option<PathBuf>) -> Result<Self, CartridgeLoadError> {
+    pub fn new(
+        rom: Vec<u8>,
+        sav_path: Option<PathBuf>,
+        accelerometer_state: Rc<RefCell<AccelerometerState>>,
+    ) -> Result<Self, CartridgeLoadError> {
         log::info!("Initializing cartridge using {} bytes of data", rom.len());
 
         if rom.len() < 0x0150 {
@@ -184,6 +191,8 @@ impl Cartridge {
         let expected_ram_size = match (mapper_type, mapper_features.has_ram) {
             // MBC2 cartridges always have 512 bytes of RAM (technically 512 4-bit nibbles)
             (MapperType::MBC2, _) => 512,
+            // MBC7 cartridges always have 256 bytes of RAM
+            (MapperType::MBC7, _) => 256,
             (_, true) => {
                 // Non-MBC2 cartridges specify RAM size through a header byte
                 let ram_size_code = rom[address::RAM_SIZE as usize];
@@ -200,12 +209,12 @@ impl Cartridge {
             _ => 0,
         };
 
-        let ram = if let Some(loaded_ram) = loaded_ram {
+        let ram = if let Some(loaded_ram) = &loaded_ram {
             if mapper_features.has_ram
                 && mapper_features.has_battery
                 && loaded_ram.len() == expected_ram_size
             {
-                loaded_ram
+                loaded_ram.clone()
             } else {
                 vec![0; expected_ram_size]
             }
@@ -231,6 +240,8 @@ impl Cartridge {
             rtc,
             rom.len() as u32,
             ram.len() as u32,
+            loaded_ram.as_ref(),
+            accelerometer_state,
         );
 
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
@@ -248,10 +259,13 @@ impl Cartridge {
     pub fn new_cgb_test() -> Self {
         let mut rom = vec![0; 0x0150];
         rom[address::CGB_SUPPORT as usize] = 0x80;
-        Self::new(rom, None).unwrap()
+        Self::new(rom, None, Rc::default()).unwrap()
     }
 
-    pub fn from_file(file_path: &str) -> Result<Self, CartridgeLoadError> {
+    pub fn from_file(
+        file_path: &str,
+        accelerometer_state: Rc<RefCell<AccelerometerState>>,
+    ) -> Result<Self, CartridgeLoadError> {
         log::info!("Loading cartridge from '{file_path}'");
 
         let rom =
@@ -262,7 +276,7 @@ impl Cartridge {
 
         let sav_file = Path::new(file_path).with_extension("sav");
 
-        Self::new(rom, Some(sav_file))
+        Self::new(rom, Some(sav_file), accelerometer_state)
     }
 
     /// Read a value from the given ROM address.
@@ -294,9 +308,10 @@ impl Cartridge {
                 .get(mapped_address as usize)
                 .copied()
                 .unwrap_or(0xFF),
-            RamMapResult::MapperRegister => {
-                self.mapper.read_ram_addressed_register().unwrap_or(0xFF)
-            }
+            RamMapResult::MapperRegister => self
+                .mapper
+                .read_ram_addressed_register(address)
+                .unwrap_or(0xFF),
             RamMapResult::None => 0xFF,
         }
     }
@@ -313,7 +328,10 @@ impl Cartridge {
                 }
             }
             RamMapResult::MapperRegister => {
-                self.mapper.write_ram_addressed_register(value);
+                self.mapper.write_ram_addressed_register(address, value);
+                if let Some(ram_battery) = &mut self.ram_battery {
+                    ram_battery.mark_dirty();
+                }
             }
             RamMapResult::None => {}
         }
@@ -324,7 +342,9 @@ impl Cartridge {
     /// be saved as well.
     pub fn persist_state(&mut self) -> Result<(), io::Error> {
         if let Some(ram_battery) = &mut self.ram_battery {
-            ram_battery.persist_state(&self.ram, self.mapper.get_clock())?;
+            // Prefer to serialize EEPROM memory if the mapper has an EEPROM chip
+            let ram_to_persist = self.mapper.get_eeprom_memory().unwrap_or(&self.ram);
+            ram_battery.persist_state(ram_to_persist, self.mapper.get_clock())?;
         }
 
         Ok(())

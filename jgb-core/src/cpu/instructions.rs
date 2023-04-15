@@ -255,7 +255,6 @@ impl Instruction {
     ///
     /// This method does *not* update the PC register for the given instruction. It expects that the
     /// PC register was updated before this method was called.
-    #[allow(clippy::too_many_lines)]
     pub fn execute(
         self,
         address_space: &mut AddressSpace,
@@ -899,7 +898,6 @@ impl Instruction {
     ///
     /// Requires CPU registers as a parameter because conditional control flow instructions can
     /// take different numbers of cycles depending on whether the condition is true or false.
-    #[allow(clippy::too_many_lines)]
     pub fn cycles_required(self, cpu_registers: &CpuRegisters) -> u32 {
         match self {
             Self::LoadRegisterRegister(..)

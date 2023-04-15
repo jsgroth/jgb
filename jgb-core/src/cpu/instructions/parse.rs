@@ -10,7 +10,6 @@ pub enum ParseError {
     InvalidOpcode { opcodes: Vec<u8> },
 }
 
-#[allow(clippy::too_many_lines)]
 pub fn parse_next_instruction(
     address_space: &AddressSpace,
     pc: u16,
