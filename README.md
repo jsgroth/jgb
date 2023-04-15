@@ -16,9 +16,8 @@ Features:
 * Option for integer scaling regardless of window/display size
 
 Not Currently Implemented:
-* MBC6 and MBC7 mappers (only used in a handful of games, most notably Kirby Tilt 'n' Tumble)
-* Multi-game MBC1M and MMM01 mappers (only used in compilation cartridges)
-* Non-standard mappers such as HuC (mostly used in unlicensed games)
+* Various less commonly used mappers: MBC6, MBC7, multi-game mappers (e.g. MBC1M and MMM01), HuC-1, HuC-3, custom third-party mappers
+  * Most notably prevents Kirby Tilt 'n' Tumble from running
 * MBC5 rumble support
 * Serial port and GBC IR functionality
 * Use of GBC palettes in games that don't support GBC enhancements
