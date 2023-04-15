@@ -9,6 +9,7 @@ Features:
 * Support for cartridges using MBC1, MBC2, MBC3, MBC5, MBC7 mappers
 * Save file / cartridge RAM persistence to disk
 * Support for the MBC3 real-time clock with persistence to disk
+* Support for MBC5 rumble cartridges (requires a gamepad with rumble)
 * Support for the MBC7 accelerometer (requires a gamepad with an accelerometer)
 * Keyboard input and DirectInput gamepad support
 * 2x fast-forward toggle
@@ -17,7 +18,6 @@ Features:
 * Option for integer scaling regardless of window/display size
 
 Not Currently Implemented:
-* MBC5 rumble support
 * Serial port and GBC IR functionality
 * Use of GBC palettes in games that don't support GBC enhancements
 * Cycle-based interrupt handling to make Pinball Deluxe not crash after a few seconds of gameplay
