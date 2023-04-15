@@ -6,9 +6,10 @@ jgb is a cross-platform low-level Game Boy \[Color\] emulator with no game-speci
 
 Features:
 * Game Boy and Game Boy Color emulation
-* Support for cartridges using MBC1, MBC2, MBC3, MBC5 mappers
+* Support for cartridges using MBC1, MBC2, MBC3, MBC5, MBC7 mappers
 * Save file / cartridge RAM persistence to disk
 * Support for the MBC3 real-time clock with persistence to disk
+* Support for the MBC7 accelerometer (requires a gamepad with an accelerometer)
 * Keyboard input and DirectInput gamepad support
 * 2x fast-forward toggle
 * Save & load state
@@ -21,7 +22,7 @@ Not Currently Implemented:
 * Use of GBC palettes in games that don't support GBC enhancements
 * Cycle-based interrupt handling to make Pinball Deluxe not crash after a few seconds of gameplay
 * Various less commonly used mappers
-  * MBC6 and MBC7 (only used in 3 games, most notably Kirby Tilt 'n' Tumble)
+  * MBC6 (only used in 1 game, Net de Get: Minigame @ 100)
   * Multi-game mappers such as MBC1M and MMM01 (only used in compilation cartridges)
   * Custom third-party mappers such as HuC-1, HuC-3, TAMA5, Wisdom Tree (used in unlicensed games and a small number of Japanese games)
 
