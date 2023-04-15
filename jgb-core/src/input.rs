@@ -451,7 +451,7 @@ impl AccelerometerState {
 
         if value < 0.0 {
             0
-        } else if value > u16::MAX as f32 {
+        } else if value > f32::from(u16::MAX) {
             u16::MAX
         } else {
             value as u16

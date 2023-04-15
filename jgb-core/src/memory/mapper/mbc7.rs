@@ -182,8 +182,8 @@ impl ChipState {
                             Self::SendingOutput(write_status, ReadOutput::new(value))
                         }
                         (Operation::WriteEnable, _) => Self::Finished(WriteStatus::Enabled),
-                        (Operation::WriteDisable, _) => Self::Finished(WriteStatus::Disabled),
-                        (
+                        (Operation::WriteDisable, _)
+                        | (
                             Operation::Write { .. }
                             | Operation::WriteAll
                             | Operation::Erase { .. }
@@ -320,7 +320,7 @@ impl Mbc7Eeprom {
                 ChipState::ReadingData(..) => {
                     self.state = ChipState::Standby(WriteStatus::Enabled);
                 }
-                _ => {}
+                ChipState::Standby(..) => {}
             }
         }
         self.last_clock = clock;
