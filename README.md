@@ -8,10 +8,10 @@ Features:
 * Game Boy and Game Boy Color emulation
 * Support for cartridges using MBC1, MBC2, MBC3, MBC5, MBC7 mappers
 * Save file / cartridge RAM persistence to disk
+* Keyboard input and DirectInput gamepad support
 * Support for the MBC3 real-time clock with persistence to disk
 * Support for MBC5 rumble cartridges (requires a gamepad with rumble)
 * Support for the MBC7 accelerometer (requires a gamepad with an accelerometer)
-* Keyboard input and DirectInput gamepad support
 * 2x fast-forward toggle
 * Save & load state
 * Three different color palette options for GB mode (black & white, light green tint, intense lime green)
