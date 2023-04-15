@@ -67,7 +67,9 @@ impl From<String> for StartupError {
 
 #[derive(Debug, Clone, Default)]
 pub struct ControllerStates {
+    // Set in the MBC5 mapper, read in the main loop to set gamepad rumble
     pub rumble_motor_on: Rc<RefCell<bool>>,
+    // Set in the main loop based on input events, read in the MBC7 mapper when latching state
     pub accelerometer_state: Rc<RefCell<AccelerometerState>>,
 }
 
