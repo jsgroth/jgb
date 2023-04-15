@@ -169,7 +169,10 @@ pub struct ControllerConfig {
     pub b: Option<ControllerInput>,
     pub start: Option<ControllerInput>,
     pub select: Option<ControllerInput>,
+    #[serde(default = "default_axis_deadzone")]
     pub axis_deadzone: u16,
+    #[serde(default = "default_rumble_enabled")]
+    pub rumble_enabled: bool,
 }
 
 impl Default for ControllerConfig {
@@ -184,8 +187,17 @@ impl Default for ControllerConfig {
             start: None,
             select: None,
             axis_deadzone: 5000,
+            rumble_enabled: true,
         }
     }
+}
+
+fn default_axis_deadzone() -> u16 {
+    ControllerConfig::default().axis_deadzone
+}
+
+fn default_rumble_enabled() -> bool {
+    ControllerConfig::default().rumble_enabled
 }
 
 impl std::fmt::Display for ControllerConfig {

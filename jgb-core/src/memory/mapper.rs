@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::time::SystemTime;
 
 use crate::input::AccelerometerState;
+use crate::startup::ControllerStates;
 pub(crate) use mbc3::RealTimeClock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +70,8 @@ pub(crate) enum Mapper {
         ram_enable: u8,
         rom_bank_number: u16,
         ram_bank_number: u8,
+        #[serde(skip)]
+        rumble_motor_on: Rc<RefCell<bool>>,
     },
     MBC7 {
         eeprom: Mbc7Eeprom,
@@ -89,7 +92,7 @@ impl Mapper {
         rom_size: u32,
         ram_size: u32,
         loaded_ram: Option<&Vec<u8>>,
-        accelerometer_state: Rc<RefCell<AccelerometerState>>,
+        controller_states: ControllerStates,
     ) -> Self {
         let rom_bank_bit_mask = if rom_size >= 1 << 14 {
             ((rom_size >> 14) - 1) as u16
@@ -142,13 +145,19 @@ impl Mapper {
                 ram_enable: 0x00,
                 rom_bank_number: 0x01,
                 ram_bank_number: 0x00,
+                rumble_motor_on: if mapper_features.has_rumble {
+                    controller_states.rumble_motor_on
+                } else {
+                    // Intentionally ignore shared reference
+                    Rc::default()
+                },
             },
             MapperType::MBC7 => Self::MBC7 {
                 eeprom: Mbc7Eeprom::new(loaded_ram),
                 rom_bank_bit_mask,
                 ram_status: Mbc7RamStatus::Disabled,
                 rom_bank_number: 0x01,
-                live_accelerometer_state: accelerometer_state,
+                live_accelerometer_state: controller_states.accelerometer_state,
                 latched_accelerometer_state: None,
             },
         }
@@ -312,6 +321,7 @@ impl Mapper {
                 ram_enable,
                 rom_bank_number,
                 ram_bank_number,
+                rumble_motor_on,
                 ..
             } => match address {
                 _address @ 0x0000..=0x1FFF => {
@@ -325,6 +335,7 @@ impl Mapper {
                 }
                 _address @ 0x4000..=0x5FFF => {
                     *ram_bank_number = value;
+                    *rumble_motor_on.borrow_mut() = value & 0x08 != 0;
                 }
                 _address @ 0x6000..=0x7FFF => {}
                 _ => panic!("invalid ROM write address in MBC5 mapper: {address:04X}"),
@@ -542,18 +553,31 @@ impl Mapper {
     }
 
     pub(crate) fn move_unserializable_fields_from(&mut self, other: Self) {
-        if let (
-            Self::MBC7 {
-                live_accelerometer_state,
-                ..
-            },
-            Self::MBC7 {
-                live_accelerometer_state: other_live_accelerometer_state,
-                ..
-            },
-        ) = (self, other)
-        {
-            *live_accelerometer_state = other_live_accelerometer_state;
+        match (self, other) {
+            (
+                Self::MBC5 {
+                    rumble_motor_on, ..
+                },
+                Self::MBC5 {
+                    rumble_motor_on: other_rumble_motor_on,
+                    ..
+                },
+            ) => {
+                *rumble_motor_on = other_rumble_motor_on;
+            }
+            (
+                Self::MBC7 {
+                    live_accelerometer_state,
+                    ..
+                },
+                Self::MBC7 {
+                    live_accelerometer_state: other_live_accelerometer_state,
+                    ..
+                },
+            ) => {
+                *live_accelerometer_state = other_live_accelerometer_state;
+            }
+            _ => {}
         }
     }
 }
@@ -563,14 +587,15 @@ pub(crate) struct MapperFeatures {
     pub(crate) has_ram: bool,
     pub(crate) has_battery: bool,
     pub(crate) has_rtc: bool,
+    pub(crate) has_rumble: bool,
 }
 
 impl std::fmt::Display for MapperFeatures {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "has_ram={}, has_battery={}, has_rtc={}",
-            self.has_ram, self.has_battery, self.has_rtc
+            "has_ram={}, has_battery={}, has_rtc={}, has_rumble={}",
+            self.has_ram, self.has_battery, self.has_rtc, self.has_rumble
         )
     }
 }
@@ -600,10 +625,13 @@ pub(crate) fn parse_byte(mapper_byte: u8) -> Option<(MapperType, MapperFeatures)
 
     let has_rtc = mapper_byte == 0x0F || mapper_byte == 0x10;
 
+    let has_rumble = [0x1C, 0x1D, 0x1E].contains(&mapper_byte);
+
     let features = MapperFeatures {
         has_ram,
         has_battery,
         has_rtc,
+        has_rumble,
     };
     Some((mapper_type, features))
 }
@@ -617,6 +645,7 @@ mod tests {
             has_ram: false,
             has_battery: false,
             has_rtc: false,
+            has_rumble: false,
         }
     }
 
@@ -630,7 +659,7 @@ mod tests {
             1 << 18,
             0,
             None,
-            Rc::default(),
+            ControllerStates::default(),
         );
 
         assert_eq!(0x0000, mapper.map_rom_address(0x0000));
@@ -677,7 +706,7 @@ mod tests {
             1 << 21,
             0,
             None,
-            Rc::default(),
+            ControllerStates::default(),
         );
 
         assert_eq!(0x0000, mapper.map_rom_address(0x0000));
@@ -716,7 +745,7 @@ mod tests {
             1 << 18,
             8192,
             None,
-            Rc::default(),
+            ControllerStates::default(),
         );
 
         // Enable RAM

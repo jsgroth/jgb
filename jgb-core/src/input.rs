@@ -268,6 +268,16 @@ impl<'joy, 'gc> Joysticks<'joy, 'gc> {
             log::info!("Game controller disconnected: {}", removed.name());
         }
     }
+
+    pub fn set_rumble(&mut self, rumble_motor_on: bool) {
+        let rumble_intensity = u16::from(rumble_motor_on) * 0xFFFF;
+        for joystick in self.joysticks.values_mut() {
+            // Ignore errors because attempting to toggle rumble on a controller that doesn't
+            // support rumble will result in an error, and there doesn't appear to be a way to
+            // check beforehand that a controller supports rumble
+            let _ = joystick.set_rumble(rumble_intensity, rumble_intensity, 50);
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

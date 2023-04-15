@@ -153,6 +153,10 @@ struct CliArgs {
     /// Controller axis deadzone on a scale of 0 to 32767
     #[arg(long, default_value_t = 5000)]
     controller_deadzone: u16,
+
+    /// Disable controller rumble
+    #[arg(long = "no-controller-rumble", default_value_t = true, action = clap::ArgAction::SetFalse)]
+    controller_rumble: bool,
 }
 
 impl CliArgs {
@@ -196,6 +200,7 @@ impl CliArgs {
             start: parse_controller_input(self.controller_start.as_ref())?.or(default.start),
             select: parse_controller_input(self.controller_select.as_ref())?.or(default.select),
             axis_deadzone: self.controller_deadzone,
+            rumble_enabled: self.controller_rumble,
         };
         Ok(config)
     }

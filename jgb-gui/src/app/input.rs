@@ -301,6 +301,8 @@ impl<'a> ControllerSettingsWidget<'a> {
             );
         }
 
+        ui.checkbox(&mut self.controller_config.rumble_enabled, "Rumble enabled");
+
         thread
     }
 }

@@ -3,14 +3,12 @@ pub mod ioregisters;
 mod mapper;
 
 use crate::cpu::ExecutionMode;
-use crate::input::AccelerometerState;
 use crate::memory::ioregisters::IoRegisters;
 use crate::memory::mapper::{Mapper, MapperType, RamMapResult, RealTimeClock};
 use crate::ppu::{PpuMode, PpuState};
+use crate::startup::ControllerStates;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::{fs, io};
 use thiserror::Error;
 
@@ -149,7 +147,7 @@ impl Cartridge {
     pub fn new(
         rom: Vec<u8>,
         sav_path: Option<PathBuf>,
-        accelerometer_state: Rc<RefCell<AccelerometerState>>,
+        controller_states: ControllerStates,
     ) -> Result<Self, CartridgeLoadError> {
         log::info!("Initializing cartridge using {} bytes of data", rom.len());
 
@@ -241,7 +239,7 @@ impl Cartridge {
             rom.len() as u32,
             ram.len() as u32,
             loaded_ram.as_ref(),
-            accelerometer_state,
+            controller_states,
         );
 
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
@@ -259,12 +257,12 @@ impl Cartridge {
     pub fn new_cgb_test() -> Self {
         let mut rom = vec![0; 0x0150];
         rom[address::CGB_SUPPORT as usize] = 0x80;
-        Self::new(rom, None, Rc::default()).unwrap()
+        Self::new(rom, None, ControllerStates::default()).unwrap()
     }
 
     pub fn from_file(
         file_path: &str,
-        accelerometer_state: Rc<RefCell<AccelerometerState>>,
+        controller_states: ControllerStates,
     ) -> Result<Self, CartridgeLoadError> {
         log::info!("Loading cartridge from '{file_path}'");
 
@@ -276,7 +274,7 @@ impl Cartridge {
 
         let sav_file = Path::new(file_path).with_extension("sav");
 
-        Self::new(rom, Some(sav_file), accelerometer_state)
+        Self::new(rom, Some(sav_file), controller_states)
     }
 
     /// Read a value from the given ROM address.

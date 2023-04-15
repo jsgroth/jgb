@@ -9,7 +9,7 @@ use crate::memory::ioregisters::IoRegister;
 use crate::memory::AddressSpace;
 use crate::ppu::{PpuMode, PpuState};
 use crate::serialize::SaveStateError;
-use crate::startup::{EmulationState, SdlState};
+use crate::startup::{ControllerStates, EmulationState, SdlState};
 use crate::timer::TimerCounter;
 use crate::{apu, audio, cpu, font, graphics, input, ppu, serialize, timer, RunConfig};
 use sdl2::event::Event;
@@ -95,7 +95,11 @@ pub fn run(
         mut ppu_state,
         mut apu_state,
         mut execution_mode,
-        accelerometer_state,
+        controller_states:
+            ControllerStates {
+                rumble_motor_on,
+                accelerometer_state,
+            },
     } = emulation_state;
 
     // Don't need explicit handles to subsystems because they won't be dropped until the function
@@ -124,8 +128,9 @@ pub fn run(
     let mut joysticks = Joysticks::new(&joystick_subsystem, &controller_subsystem);
     let controller_map = ControllerMap::from_config(&run_config.controller_config)?;
 
-    // This is gross, but only enable the accelerometer if the cartridge mapper actually kept
-    // a reference to the accelerometer state
+    // This is gross, but only enable rumble and/or the accelerometer if the cartridge mapper
+    // actually kept a reference to the current state
+    let cartridge_rumble_enabled = Rc::strong_count(&rumble_motor_on) > 1;
     let accelerometer_enabled = Rc::strong_count(&accelerometer_state) > 1;
 
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
@@ -262,6 +267,10 @@ pub fn run(
 
             modals.retain(|modal| !modal.is_finished());
 
+            if cartridge_rumble_enabled && run_config.controller_config.rumble_enabled {
+                joysticks.set_rumble(*rumble_motor_on.borrow());
+            }
+
             // TODO better handle the unlikely scenario where a key is pressed *and released* between frames
             for event in event_pump.poll_iter() {
                 if matches!(event, Event::JoyAxisMotion { .. }) {
@@ -293,7 +302,7 @@ pub fn run(
                                     cpu_registers,
                                     ppu_state,
                                     apu_state,
-                                    accelerometer_state: Rc::default(),
+                                    controller_states: ControllerStates::default(),
                                 };
 
                                 serialize::save_state(&state, &save_state_path)?;

@@ -13,7 +13,6 @@ use crate::cpu::{instructions, CpuRegisters, ExecutionMode};
 use crate::memory::{AddressSpace, Cartridge};
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::rc::Rc;
 
 impl CpuRegister {
     pub fn to_opcode_bits(self) -> u8 {
@@ -179,7 +178,8 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
     let rom_len = rom.len() as u16;
 
     let mut address_space = AddressSpace::new(
-        Cartridge::new(rom, None, Rc::default()).expect("synthesized test ROM should be valid"),
+        Cartridge::new(rom, None, ControllerStates::default())
+            .expect("synthesized test ROM should be valid"),
         ExecutionMode::GameBoy,
     );
     let mut cpu_registers = CpuRegisters::new(ExecutionMode::GameBoy);
@@ -238,4 +238,5 @@ macro_rules! hash_map {
 }
 
 use crate::ppu::PpuState;
+use crate::startup::ControllerStates;
 use hash_map;

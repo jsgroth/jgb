@@ -65,6 +65,12 @@ impl From<String> for StartupError {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ControllerStates {
+    pub rumble_motor_on: Rc<RefCell<bool>>,
+    pub accelerometer_state: Rc<RefCell<AccelerometerState>>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct EmulationState {
     pub execution_mode: ExecutionMode,
@@ -73,7 +79,7 @@ pub struct EmulationState {
     pub ppu_state: PpuState,
     pub apu_state: ApuState,
     #[serde(skip)]
-    pub accelerometer_state: Rc<RefCell<AccelerometerState>>,
+    pub controller_states: ControllerStates,
 }
 
 pub struct SdlState {
@@ -90,18 +96,18 @@ pub struct SdlState {
 }
 
 pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, StartupError> {
-    let accelerometer_state = Rc::default();
+    let controller_states = ControllerStates::default();
 
-    let cartridge =
-        match Cartridge::from_file(&run_config.gb_file_path, Rc::clone(&accelerometer_state)) {
-            Ok(cartridge) => cartridge,
-            Err(err) => {
-                return Err(StartupError::FileRead {
-                    file_path: run_config.gb_file_path.clone(),
-                    source: err,
-                })
-            }
-        };
+    let cartridge = match Cartridge::from_file(&run_config.gb_file_path, controller_states.clone())
+    {
+        Ok(cartridge) => cartridge,
+        Err(err) => {
+            return Err(StartupError::FileRead {
+                file_path: run_config.gb_file_path.clone(),
+                source: err,
+            })
+        }
+    };
 
     let execution_mode = match run_config.hardware_mode {
         HardwareMode::GameBoy => ExecutionMode::GameBoy,
@@ -135,7 +141,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
         cpu_registers,
         ppu_state,
         apu_state,
-        accelerometer_state,
+        controller_states,
     })
 }
 
