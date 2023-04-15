@@ -312,7 +312,7 @@ pub fn run(
                                 match serialize::load_state(
                                     &save_state_path,
                                     apu_state,
-                                    &address_space,
+                                    address_space,
                                 ) {
                                     Ok(state) => {
                                         address_space = state.address_space;
@@ -326,7 +326,7 @@ pub fn run(
                                             Duration::from_secs(3),
                                         ));
                                     }
-                                    Err((err, old_apu_state)) => {
+                                    Err((err, old_address_space, old_apu_state)) => {
                                         log::error!("error loading save state: {err}");
 
                                         modals.push(Modal::new(
@@ -336,6 +336,7 @@ pub fn run(
                                             Duration::from_secs(3),
                                         ));
 
+                                        address_space = *old_address_space;
                                         apu_state = *old_apu_state;
                                     }
                                 }

@@ -193,27 +193,35 @@ where
 pub fn load_state<P>(
     path: P,
     existing_apu_state: ApuState,
-    existing_address_space: &AddressSpace,
-) -> Result<EmulationState, (SaveStateError, Box<ApuState>)>
+    existing_address_space: AddressSpace,
+) -> Result<EmulationState, (SaveStateError, Box<AddressSpace>, Box<ApuState>)>
 where
     P: AsRef<Path>,
 {
     let serialized_state = match fs::read(path.as_ref()) {
         Ok(serialized_state) => serialized_state,
         Err(err) => {
-            return Err((err.into(), Box::new(existing_apu_state)));
+            return Err((
+                err.into(),
+                Box::new(existing_address_space),
+                Box::new(existing_apu_state),
+            ));
         }
     };
     let mut state: EmulationState = match bincode::deserialize(&serialized_state) {
         Ok(state) => state,
         Err(err) => {
-            return Err((err.into(), Box::new(existing_apu_state)));
+            return Err((
+                err.into(),
+                Box::new(existing_address_space),
+                Box::new(existing_apu_state),
+            ));
         }
     };
 
     state
         .address_space
-        .copy_cartridge_rom_from(existing_address_space);
+        .move_unserializable_fields_from(existing_address_space);
     state
         .apu_state
         .move_unserializable_fields_from(existing_apu_state);

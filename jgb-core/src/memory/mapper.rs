@@ -540,6 +540,22 @@ impl Mapper {
             _ => None,
         }
     }
+
+    pub(crate) fn move_unserializable_fields_from(&mut self, other: Self) {
+        if let (
+            Self::MBC7 {
+                live_accelerometer_state,
+                ..
+            },
+            Self::MBC7 {
+                live_accelerometer_state: other_live_accelerometer_state,
+                ..
+            },
+        ) = (self, other)
+        {
+            *live_accelerometer_state = other_live_accelerometer_state;
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

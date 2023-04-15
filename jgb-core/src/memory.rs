@@ -360,6 +360,11 @@ impl Cartridge {
     pub fn supports_cgb_mode(&self) -> bool {
         self.rom[address::CGB_SUPPORT as usize] & 0x80 != 0
     }
+
+    pub fn move_unserializable_fields_from(&mut self, other: Self) {
+        self.rom = other.rom;
+        self.mapper.move_unserializable_fields_from(other.mapper);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -645,8 +650,9 @@ impl AddressSpace {
         self.cartridge.update_rtc();
     }
 
-    pub fn copy_cartridge_rom_from(&mut self, other: &Self) {
-        self.cartridge.rom = other.cartridge.rom.clone();
+    pub fn move_unserializable_fields_from(&mut self, other: Self) {
+        self.cartridge
+            .move_unserializable_fields_from(other.cartridge);
     }
 }
 
