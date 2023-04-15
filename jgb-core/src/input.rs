@@ -2,9 +2,12 @@ use crate::config::{ControllerConfig, ControllerInput, HatDirection, InputConfig
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
 use crate::HotkeyConfig;
+use sdl2::controller::GameController;
 use sdl2::joystick::{HatState, Joystick};
 use sdl2::keyboard::Keycode;
-use sdl2::{IntegerOrSdlError, JoystickSubsystem};
+use sdl2::sensor::SensorType;
+use sdl2::{GameControllerSubsystem, IntegerOrSdlError, JoystickSubsystem};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -40,6 +43,11 @@ pub enum JoystickError {
     DuplicateInput { input: ControllerInput },
     #[error("axis deadzone must be at most {}, was: {deadzone}", i16::MAX)]
     InvalidDeadzone { deadzone: u16 },
+    #[error("error enabling accelerometer: {source}")]
+    AccelerometerEnable {
+        #[source]
+        source: IntegerOrSdlError,
+    },
 }
 
 fn try_parse_keycode(s: &str) -> Result<Keycode, KeyMapError> {
@@ -177,26 +185,33 @@ impl ControllerMap {
 
 // This struct exists to keep connected Joystick values alive, as SDL will stop generating joystick
 // events once the corresponding Joystick value is dropped
-pub struct Joysticks<'a> {
-    joystick_subsystem: &'a JoystickSubsystem,
+pub struct Joysticks<'joy, 'gc> {
+    joystick_subsystem: &'joy JoystickSubsystem,
+    controller_subsystem: &'gc GameControllerSubsystem,
     joysticks: HashMap<u32, Joystick>,
+    controllers: HashMap<u32, GameController>,
 }
 
-impl<'a> Joysticks<'a> {
-    pub fn new(joystick_subsystem: &'a JoystickSubsystem) -> Self {
+impl<'joy, 'gc> Joysticks<'joy, 'gc> {
+    pub fn new(
+        joystick_subsystem: &'joy JoystickSubsystem,
+        controller_subsystem: &'gc GameControllerSubsystem,
+    ) -> Self {
         Self {
             joystick_subsystem,
+            controller_subsystem,
             joysticks: HashMap::new(),
+            controllers: HashMap::new(),
         }
     }
 
-    pub fn device_added(&mut self, which: u32) -> Result<(), JoystickError> {
+    pub fn joy_device_added(&mut self, which: u32) -> Result<(), JoystickError> {
         let joystick = self
             .joystick_subsystem
             .open(which)
             .map_err(|source| JoystickError::DeviceOpen { source })?;
         log::info!(
-            "Controller connected: {} ({})",
+            "Joystick connected: {} ({})",
             joystick.name(),
             joystick.guid()
         );
@@ -205,13 +220,52 @@ impl<'a> Joysticks<'a> {
         Ok(())
     }
 
-    pub fn device_removed(&mut self, which: u32) {
+    pub fn joy_device_removed(&mut self, which: u32) {
         if let Some(removed) = self.joysticks.remove(&which) {
             log::info!(
-                "Controller disconnected: {} ({})",
+                "Joystick disconnected: {} ({})",
                 removed.name(),
                 removed.guid()
             );
+        }
+    }
+
+    pub fn controller_device_added(
+        &mut self,
+        which: u32,
+        accelerometer_enabled: bool,
+    ) -> Result<(), JoystickError> {
+        if !accelerometer_enabled {
+            log::info!(
+                "Not opening game controller idx {which} because accelerometer is not enabled"
+            );
+            return Ok(());
+        }
+
+        let controller = self
+            .controller_subsystem
+            .open(which)
+            .map_err(|source| JoystickError::DeviceOpen { source })?;
+
+        log::info!("Game controller connected: {}", controller.name());
+
+        if controller.has_sensor(SensorType::Accelerometer) {
+            controller
+                .sensor_set_enabled(SensorType::Accelerometer, true)
+                .map_err(|err| JoystickError::AccelerometerEnable { source: err })?;
+            log::info!("Enabled accelerometer");
+        } else {
+            log::info!("Controller does not have an accelerometer");
+        }
+
+        self.controllers.insert(which, controller);
+
+        Ok(())
+    }
+
+    pub fn controller_device_removed(&mut self, which: u32) {
+        if let Some(removed) = self.controllers.remove(&which) {
+            log::info!("Game controller disconnected: {}", removed.name());
         }
     }
 }
@@ -355,6 +409,52 @@ impl JoypadState {
             if let Some(button) = self.get_field_mut(button) {
                 *button = state;
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct AccelerometerState {
+    pub x: u16,
+    pub y: u16,
+}
+
+impl Default for AccelerometerState {
+    fn default() -> Self {
+        Self {
+            x: 0x8000,
+            y: 0x8000,
+        }
+    }
+}
+
+impl AccelerometerState {
+    const ACCELEROMETER_CENTER: f32 = 0x81D0 as f32;
+    const ACCELEROMETER_GRAVITY: f32 = 0x70 as f32;
+    const GRAVITATIONAL_ACCELERATION_M_S2: f32 = 9.80665;
+
+    pub fn update_from_sdl_values(&mut self, values: [f32; 3]) {
+        // GBC accelerometer x and y axes correspond to x and z in SDL's accelerometer definition
+        let [x, _, z] = values;
+
+        self.x = Self::sdl_value_to_u16(x);
+        self.y = Self::sdl_value_to_u16(z);
+    }
+
+    fn sdl_value_to_u16(value: f32) -> u16 {
+        // SDL values are in m/s^2 with sign indicating direction.
+        // The GBC expects a u16 value centered at 0x81D0, in units where acceleration due to
+        // gravity is roughly 0x70.
+        let value = (Self::ACCELEROMETER_CENTER
+            + value * Self::ACCELEROMETER_GRAVITY / Self::GRAVITATIONAL_ACCELERATION_M_S2)
+            .round();
+
+        if value < 0.0 {
+            0
+        } else if value > u16::MAX as f32 {
+            u16::MAX
+        } else {
+            value as u16
         }
     }
 }

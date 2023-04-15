@@ -13,8 +13,10 @@ use crate::startup::{EmulationState, SdlState};
 use crate::timer::TimerCounter;
 use crate::{apu, audio, cpu, font, graphics, input, ppu, serialize, timer, RunConfig};
 use sdl2::event::Event;
+use sdl2::sensor::SensorType;
 use std::ffi::OsStr;
 use std::io;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -94,6 +96,7 @@ pub fn run(
         mut ppu_state,
         mut apu_state,
         mut execution_mode,
+        accelerometer_state,
     } = emulation_state;
 
     // Don't need explicit handles to subsystems because they won't be dropped until the function
@@ -101,6 +104,7 @@ pub fn run(
     let SdlState {
         audio_playback_queue,
         joystick_subsystem,
+        controller_subsystem,
         mut canvas,
         texture_creator,
         mut event_pump,
@@ -118,8 +122,12 @@ pub fn run(
 
     let key_map = KeyMap::from_config(&run_config.input_config)?;
     let hotkey_map = HotkeyMap::from_config(&run_config.hotkey_config)?;
-    let mut joysticks = Joysticks::new(&joystick_subsystem);
+    let mut joysticks = Joysticks::new(&joystick_subsystem, &controller_subsystem);
     let controller_map = ControllerMap::from_config(&run_config.controller_config)?;
+
+    // This is gross, but only enable the accelerometer if the cartridge mapper actually kept
+    // a reference to the accelerometer state
+    let accelerometer_enabled = Rc::strong_count(&accelerometer_state) > 1;
 
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
     let save_state_file_name = save_state_path
@@ -286,6 +294,7 @@ pub fn run(
                                     cpu_registers,
                                     ppu_state,
                                     apu_state,
+                                    accelerometer_state: Rc::default(),
                                 };
 
                                 serialize::save_state(&state, &save_state_path)?;
@@ -311,6 +320,7 @@ pub fn run(
                                         cpu_registers = state.cpu_registers;
                                         ppu_state = state.ppu_state;
                                         apu_state = state.apu_state;
+                                        execution_mode = state.execution_mode;
 
                                         modals.push(Modal::new(
                                             format!("Loaded state from {save_state_file_name}"),
@@ -350,10 +360,10 @@ pub fn run(
                         }
                     }
                     Event::JoyDeviceAdded { which, .. } => {
-                        joysticks.device_added(which)?;
+                        joysticks.joy_device_added(which)?;
                     }
                     Event::JoyDeviceRemoved { which, .. } => {
-                        joysticks.device_removed(which);
+                        joysticks.joy_device_removed(which);
                     }
                     Event::JoyButtonDown { button_idx, .. } => {
                         joypad_state.joy_button_down(button_idx, &controller_map);
@@ -368,6 +378,21 @@ pub fn run(
                         axis_idx, value, ..
                     } => {
                         joypad_state.joy_axis_motion(axis_idx, value, &controller_map);
+                    }
+                    Event::ControllerDeviceAdded { which, .. } => {
+                        joysticks.controller_device_added(which, accelerometer_enabled)?;
+                    }
+                    Event::ControllerDeviceRemoved { which, .. } => {
+                        joysticks.controller_device_removed(which);
+                    }
+                    Event::ControllerSensorUpdated {
+                        sensor: SensorType::Accelerometer,
+                        data,
+                        ..
+                    } => {
+                        accelerometer_state
+                            .borrow_mut()
+                            .update_from_sdl_values(data);
                     }
                     _ => {}
                 }

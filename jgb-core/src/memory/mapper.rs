@@ -4,9 +4,12 @@ mod mbc7;
 use crate::memory::address;
 use crate::memory::mapper::mbc7::Mbc7Eeprom;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fmt::Formatter;
+use std::rc::Rc;
 use std::time::SystemTime;
 
+use crate::input::AccelerometerState;
 pub(crate) use mbc3::RealTimeClock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +75,9 @@ pub(crate) enum Mapper {
         rom_bank_bit_mask: u16,
         ram_status: Mbc7RamStatus,
         rom_bank_number: u16,
+        #[serde(skip)]
+        live_accelerometer_state: Rc<RefCell<AccelerometerState>>,
+        latched_accelerometer_state: Option<AccelerometerState>,
     },
 }
 
@@ -83,6 +89,7 @@ impl Mapper {
         rom_size: u32,
         ram_size: u32,
         loaded_ram: Option<&Vec<u8>>,
+        accelerometer_state: Rc<RefCell<AccelerometerState>>,
     ) -> Self {
         let rom_bank_bit_mask = if rom_size >= 1 << 14 {
             ((rom_size >> 14) - 1) as u16
@@ -141,6 +148,8 @@ impl Mapper {
                 rom_bank_bit_mask,
                 ram_status: Mbc7RamStatus::Disabled,
                 rom_bank_number: 0x01,
+                live_accelerometer_state: accelerometer_state,
+                latched_accelerometer_state: None,
             },
         }
     }
@@ -430,15 +439,35 @@ impl Mapper {
                 real_time_clock: Some(real_time_clock),
                 ..
             } => real_time_clock.handle_ram_read(*ram_bank_number),
-            Self::MBC7 { eeprom, .. } if (0xA000..=0xAFFF).contains(&address) => {
+            Self::MBC7 {
+                eeprom,
+                latched_accelerometer_state,
+                ..
+            } if (0xA000..=0xAFFF).contains(&address) => {
                 match address & 0x00F0 {
-                    0x0020 | 0x0030 => {
-                        // TODO read accelerometer X
-                        None
+                    0x0020 => {
+                        let x = latched_accelerometer_state
+                            .unwrap_or(AccelerometerState::default())
+                            .x;
+                        Some((x & 0x00FF) as u8)
                     }
-                    0x0040 | 0x0050 => {
-                        // TODO read accelerometer Y
-                        None
+                    0x0030 => {
+                        let x = latched_accelerometer_state
+                            .unwrap_or(AccelerometerState::default())
+                            .x;
+                        Some((x >> 8) as u8)
+                    }
+                    0x0040 => {
+                        let y = latched_accelerometer_state
+                            .unwrap_or(AccelerometerState::default())
+                            .y;
+                        Some((y & 0x00FF) as u8)
+                    }
+                    0x0050 => {
+                        let y = latched_accelerometer_state
+                            .unwrap_or(AccelerometerState::default())
+                            .y;
+                        Some((y >> 8) as u8)
                     }
                     // Unused register that always reads out 0, possibly meant for accelerometer Z
                     0x0060 => Some(0x00),
@@ -464,18 +493,28 @@ impl Mapper {
             } => {
                 real_time_clock.handle_ram_write(*ram_bank_number, value);
             }
-            Self::MBC7 { eeprom, .. } if (0xA000..=0xAFFF).contains(&address) => {
-                match address & 0x00F0 {
-                    0x0000 | 0x0010 => {
-                        // TODO latch accelerometer
+            Self::MBC7 {
+                eeprom,
+                live_accelerometer_state,
+                latched_accelerometer_state,
+                ..
+            } if (0xA000..=0xAFFF).contains(&address) => match address & 0x00F0 {
+                0x0000 => {
+                    if value == 0x55 {
+                        *latched_accelerometer_state = None;
                     }
-                    0x0080 => {
-                        log::trace!("Writing to EEPROM, value={value:02X}");
-                        eeprom.handle_write(value);
-                    }
-                    _ => {}
                 }
-            }
+                0x0010 => {
+                    if latched_accelerometer_state.is_none() && value == 0xAA {
+                        *latched_accelerometer_state = Some(*live_accelerometer_state.borrow());
+                    }
+                }
+                0x0080 => {
+                    log::trace!("Writing to EEPROM, value={value:02X}");
+                    eeprom.handle_write(value);
+                }
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -568,7 +607,15 @@ mod tests {
     #[test]
     fn mbc1_mapper_rom_small() {
         // 256KB ROM
-        let mut mapper = Mapper::new(MapperType::MBC1, mapper_features(), None, 1 << 18, 0, None);
+        let mut mapper = Mapper::new(
+            MapperType::MBC1,
+            mapper_features(),
+            None,
+            1 << 18,
+            0,
+            None,
+            Rc::default(),
+        );
 
         assert_eq!(0x0000, mapper.map_rom_address(0x0000));
         assert_eq!(0x3FFF, mapper.map_rom_address(0x3FFF));
@@ -607,7 +654,15 @@ mod tests {
     #[test]
     fn mbc1_mapper_rom_large() {
         // 2MB ROM
-        let mut mapper = Mapper::new(MapperType::MBC1, mapper_features(), None, 1 << 21, 0, None);
+        let mut mapper = Mapper::new(
+            MapperType::MBC1,
+            mapper_features(),
+            None,
+            1 << 21,
+            0,
+            None,
+            Rc::default(),
+        );
 
         assert_eq!(0x0000, mapper.map_rom_address(0x0000));
         assert_eq!(0x3FFF, mapper.map_rom_address(0x3FFF));
@@ -645,6 +700,7 @@ mod tests {
             1 << 18,
             8192,
             None,
+            Rc::default(),
         );
 
         // Enable RAM
