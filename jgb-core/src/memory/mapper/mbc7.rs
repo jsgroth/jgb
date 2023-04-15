@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 struct ChipSelect(bool);
 
 impl ChipSelect {
-    fn from_byte(byte: u8) -> Self {
+    fn from_register_byte(byte: u8) -> Self {
         Self(byte & 0x80 != 0)
     }
 }
@@ -13,7 +13,7 @@ impl ChipSelect {
 struct Clock(bool);
 
 impl Clock {
-    fn from_byte(byte: u8) -> Self {
+    fn from_register_byte(byte: u8) -> Self {
         Self(byte & 0x40 != 0)
     }
 }
@@ -28,14 +28,8 @@ impl From<Clock> for u8 {
 struct DataIn(bool);
 
 impl DataIn {
-    fn from_byte(byte: u8) -> Self {
+    fn from_register_byte(byte: u8) -> Self {
         Self(byte & 0x02 != 0)
-    }
-}
-
-impl From<DataIn> for u8 {
-    fn from(value: DataIn) -> Self {
-        u8::from(value.0)
     }
 }
 
@@ -307,9 +301,9 @@ impl Mbc7Eeprom {
     }
 
     pub(crate) fn handle_write(&mut self, value: u8) {
-        let chip_select = ChipSelect::from_byte(value);
-        let clock = Clock::from_byte(value);
-        let data_in = DataIn::from_byte(value);
+        let chip_select = ChipSelect::from_register_byte(value);
+        let clock = Clock::from_register_byte(value);
+        let data_in = DataIn::from_register_byte(value);
 
         if !self.last_clock.0 && clock.0 {
             log::trace!("Clocking EEPROM, current state = {:?}", self.state);
