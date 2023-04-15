@@ -16,12 +16,14 @@ Features:
 * Option for integer scaling regardless of window/display size
 
 Not Currently Implemented:
-* Various less commonly used mappers: MBC6, MBC7, multi-game mappers (e.g. MBC1M and MMM01), HuC-1, HuC-3, custom third-party mappers
-  * Most notably prevents Kirby Tilt 'n' Tumble from running
 * MBC5 rumble support
 * Serial port and GBC IR functionality
 * Use of GBC palettes in games that don't support GBC enhancements
 * Cycle-based interrupt handling to make Pinball Deluxe not crash after a few seconds of gameplay
+* Various less commonly used mappers
+  * MBC6 and MBC7 (only used in 3 games, most notably Kirby Tilt 'n' Tumble)
+  * Multi-game mappers such as MBC1M and MMM01 (only used in compilation cartridges)
+  * Custom third-party mappers such as HuC-1, HuC-3, TAMA5, Wisdom Tree (used in unlicensed games and a small number of Japanese games)
 
 ## Requirements
 
