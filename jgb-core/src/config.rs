@@ -204,7 +204,7 @@ impl std::fmt::Display for ControllerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Up={}, Down={}, Left={}, Right={}, A={}, B={}, Start={}, Select={}, Deadzone={}",
+            "Up={}, Down={}, Left={}, Right={}, A={}, B={}, Start={}, Select={}, Deadzone={}, RumbleEnabled={}",
             fmt_option(self.up.as_ref()),
             fmt_option(self.down.as_ref()),
             fmt_option(self.left.as_ref()),
@@ -213,7 +213,8 @@ impl std::fmt::Display for ControllerConfig {
             fmt_option(self.b.as_ref()),
             fmt_option(self.start.as_ref()),
             fmt_option(self.select.as_ref()),
-            self.axis_deadzone
+            self.axis_deadzone,
+            self.rumble_enabled
         )
     }
 }
