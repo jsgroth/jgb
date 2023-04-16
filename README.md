@@ -93,3 +93,13 @@ To view all command-line options:
 ```shell
 target/release/jgb-cli -h
 ```
+
+## Screenshots
+
+![Screenshot from 2023-04-15 20-28-54](https://user-images.githubusercontent.com/1137683/232261864-cd2e8b94-ebe9-4d40-bf03-908a864befc3.png)
+
+![Screenshot from 2023-04-15 21-30-30](https://user-images.githubusercontent.com/1137683/232262957-55ee959a-ed83-4cd3-8195-113638c0a974.png)
+
+![Screenshot from 2023-04-15 20-43-05](https://user-images.githubusercontent.com/1137683/232261877-f718b570-3896-479f-b132-6324aed6efa5.png)
+
+![Screenshot from 2023-04-15 20-48-53](https://user-images.githubusercontent.com/1137683/232261879-72633a16-960d-4d40-bcf6-3eac1a677801.png)
