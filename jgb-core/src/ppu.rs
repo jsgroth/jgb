@@ -142,7 +142,7 @@ impl QueuedObjPixel {
 struct ScanningOAMStateData {
     scanline: u8,
     dot: u32,
-    window_internal_y: u8,
+    window_internal_y: Option<u8>,
     sprites: Vec<OamSpriteData>,
 }
 
@@ -156,7 +156,8 @@ struct RenderingScanlineStateData {
     bg_fetcher_x: u8,
     sprite_fetcher_x: u8,
     dot: u32,
-    window_internal_y: u8,
+    window_y: u8,
+    window_internal_y: Option<u8>,
     window_ends_line: bool,
     sprites: Vec<(OamSpriteData, TileData)>,
     bg_pixel_queue: VecDeque<QueuedBgPixel>,
@@ -168,7 +169,7 @@ enum State {
     HBlank {
         scanline: u8,
         dot: u32,
-        window_internal_y: u8,
+        window_internal_y: Option<u8>,
     },
     VBlank {
         scanline: u8,
@@ -329,7 +330,7 @@ impl PpuState {
             state: State::ScanningOAM(ScanningOAMStateData {
                 scanline: 0,
                 dot: 0,
-                window_internal_y: 0,
+                window_internal_y: None,
                 sprites: Vec::new(),
             }),
             oam_dma_status: None,
@@ -554,7 +555,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         ppu_state.state = State::ScanningOAM(ScanningOAMStateData {
             scanline: 0,
             dot: 0,
-            window_internal_y: 0,
+            window_internal_y: None,
             sprites: Vec::new(),
         });
         ppu_state.last_stat_interrupt_line = false;
@@ -685,7 +686,7 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
             State::ScanningOAM(ScanningOAMStateData {
                 scanline: 0,
                 dot: 0,
-                window_internal_y: 0,
+                window_internal_y: None,
                 sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
             })
         } else {
@@ -702,7 +703,7 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
     }
 }
 
-fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: u8) -> State {
+fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: Option<u8>) -> State {
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == DOTS_PER_SCANLINE {
         if scanline == SCREEN_HEIGHT - 1 {
@@ -756,12 +757,18 @@ fn process_scanning_oam_state(
         let sorted_sprites = SortedOamData::from_vec(sprites, execution_mode, opri_value);
         let sprites_with_tiles =
             lookup_sprite_tiles(execution_mode, &sorted_sprites, address_space, scanline);
+
+        // Read WY only once per scanline
+        let window_y = address_space
+            .get_io_registers()
+            .read_register(IoRegister::WY);
         State::RenderingScanline(RenderingScanlineStateData {
             scanline,
             pixel: 0,
             bg_fetcher_x: 0,
             sprite_fetcher_x: 0,
             dot: new_dot,
+            window_y,
             window_internal_y,
             window_ends_line: false,
             sprites: sprites_with_tiles,
@@ -840,10 +847,9 @@ fn process_render_state(
             return State::HBlank {
                 scanline,
                 dot: dot + DOTS_PER_M_CYCLE,
-                window_internal_y: if window_ends_line {
-                    window_internal_y + 1
-                } else {
-                    window_internal_y
+                window_internal_y: match (window_internal_y, window_ends_line) {
+                    (Some(window_internal_y), true) => Some(window_internal_y + 1),
+                    _ => window_internal_y,
                 },
             };
         }
@@ -887,6 +893,7 @@ fn render_to_frame_buffer(
         bg_fetcher_x,
         sprite_fetcher_x,
         dot,
+        window_y,
         window_internal_y,
         window_ends_line,
         sprites,
@@ -972,6 +979,7 @@ fn render_to_frame_buffer(
         bg_fetcher_x,
         sprite_fetcher_x,
         dot: dot + DOTS_PER_M_CYCLE,
+        window_y,
         window_internal_y,
         window_ends_line,
         sprites,
@@ -991,7 +999,8 @@ fn populate_bg_pixel_queue(
         mut bg_fetcher_x,
         sprite_fetcher_x,
         dot,
-        window_internal_y,
+        window_y,
+        mut window_internal_y,
         mut window_ends_line,
         sprites,
         mut bg_pixel_queue,
@@ -1000,7 +1009,6 @@ fn populate_bg_pixel_queue(
 
     let io_registers = address_space.get_io_registers();
 
-    let window_y = io_registers.read_register(IoRegister::WY);
     let window_x_plus_7 = io_registers.read_register(IoRegister::WX);
 
     let viewport_y = io_registers.read_register(IoRegister::SCY);
@@ -1016,6 +1024,18 @@ fn populate_bg_pixel_queue(
         // If the window is enabled and we're inside it, populate the BG pixel queue with window pixels
         if window_enabled && scanline >= window_y && bg_fetcher_x + 7 >= window_x_plus_7 {
             window_ends_line = true;
+
+            let window_internal_y = match window_internal_y {
+                Some(window_internal_y) => window_internal_y,
+                None => {
+                    // Initialize window internal Y counter to the current line if this is the first
+                    // time we've entered the window this frame
+                    let current_window_y = scanline - window_y;
+                    window_internal_y = Some(current_window_y);
+
+                    current_window_y
+                }
+            };
 
             log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}, WY={window_y}, WX={window_x_plus_7}");
 
@@ -1124,6 +1144,7 @@ fn populate_bg_pixel_queue(
         bg_fetcher_x,
         sprite_fetcher_x,
         dot,
+        window_y,
         window_internal_y,
         window_ends_line,
         sprites,
@@ -1150,6 +1171,7 @@ fn populate_sprite_pixel_queue(
         bg_fetcher_x,
         mut sprite_fetcher_x,
         dot,
+        window_y,
         window_internal_y,
         window_ends_line,
         sprites,
@@ -1208,6 +1230,7 @@ fn populate_sprite_pixel_queue(
         bg_fetcher_x,
         sprite_fetcher_x,
         dot,
+        window_y,
         window_internal_y,
         window_ends_line,
         sprites,
