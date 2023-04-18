@@ -22,8 +22,8 @@ use thiserror::Error;
 use crate::eventloop::RunError;
 use crate::startup::StartupError;
 pub use config::{
-    ColorScheme, ControllerConfig, ControllerInput, HardwareMode, HatDirection, HotkeyConfig,
-    InputConfig, RunConfig,
+    ControllerConfig, ControllerInput, GbColorScheme, GbcColorCorrection, HardwareMode,
+    HatDirection, HotkeyConfig, InputConfig, RunConfig,
 };
 
 #[derive(Error, Debug)]

@@ -4,8 +4,8 @@ use anyhow::Context;
 use clap::Parser;
 use env_logger::Env;
 use jgb_core::{
-    ColorScheme, ControllerConfig, ControllerInput, HardwareMode, HotkeyConfig, InputConfig,
-    RunConfig,
+    ControllerConfig, ControllerInput, GbColorScheme, GbcColorCorrection, HardwareMode,
+    HotkeyConfig, InputConfig, RunConfig,
 };
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -64,7 +64,11 @@ struct CliArgs {
 
     /// GB color palette (BlackAndWhite / GreenTint / LimeGreen)
     #[arg(long = "color-scheme", default_value_t)]
-    color_scheme: ColorScheme,
+    color_scheme: GbColorScheme,
+
+    /// GBC color correction mode (None / GbcLcd)
+    #[arg(long, default_value_t)]
+    gbc_color_correction: GbcColorCorrection,
 
     /// Up input key (default Up)
     #[arg(long)]
@@ -244,6 +248,7 @@ fn main() -> anyhow::Result<()> {
         audio_debugging_enabled: args.audio_debugging_enabled,
         audio_60hz: args.audio_60hz,
         color_scheme: args.color_scheme,
+        gbc_color_correction: args.gbc_color_correction,
         input_config,
         hotkey_config,
         controller_config,

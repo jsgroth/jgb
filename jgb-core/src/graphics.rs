@@ -1,7 +1,8 @@
-use crate::config::ColorScheme;
+use crate::config::GbColorScheme;
 use crate::cpu::ExecutionMode;
 use crate::ppu::{FrameBuffer, PpuState};
-use crate::{ppu, HardwareMode, RunConfig};
+use crate::{ppu, GbcColorCorrection, HardwareMode, RunConfig};
+use once_cell::sync::Lazy;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, TextureValueError, WindowCanvas};
@@ -58,11 +59,11 @@ const GB_COLOR_TO_RGB_LIME_GREEN: [[u8; 3]; 4] = [
     [0x00, 0x32, 0x00],
 ];
 
-fn palette_for(color_scheme: ColorScheme) -> [[u8; 3]; 4] {
+fn palette_for(color_scheme: GbColorScheme) -> [[u8; 3]; 4] {
     match color_scheme {
-        ColorScheme::BlackAndWhite => GB_COLOR_TO_RGB_BW,
-        ColorScheme::GreenTint => GB_COLOR_TO_RGB_GREEN_TINT,
-        ColorScheme::LimeGreen => GB_COLOR_TO_RGB_LIME_GREEN,
+        GbColorScheme::BlackAndWhite => GB_COLOR_TO_RGB_BW,
+        GbColorScheme::GreenTint => GB_COLOR_TO_RGB_GREEN_TINT,
+        GbColorScheme::LimeGreen => GB_COLOR_TO_RGB_LIME_GREEN,
     }
 }
 
@@ -120,7 +121,7 @@ impl<'a> GbFrameTexture<'a> {
 fn gb_texture_updater(
     frame_buffer: &FrameBuffer,
     palette: [[u8; 3]; 4],
-) -> impl FnOnce(&mut [u8], usize) + '_ {
+) -> impl Fn(&mut [u8], usize) + '_ {
     move |pixels, pitch| {
         for (i, scanline) in frame_buffer.iter().enumerate() {
             for (j, gb_color) in scanline.iter().copied().enumerate() {
@@ -138,22 +139,80 @@ const GBC_COLOR_TO_8_BIT: [u8; 32] = [
     181, 189, 197, 206, 214, 222, 230, 239, 247, 255,
 ];
 
+fn parse_gbc_color(gbc_color: u16) -> [u16; 3] {
+    // R = lowest 5 bits, G = next 5 bits, B = next 5 bits; highest bit unused
+    [
+        gbc_color & 0x001F,
+        (gbc_color & 0x03E0) >> 5,
+        (gbc_color & 0x7C00) >> 10,
+    ]
+}
+
 fn normalize_gbc_color(value: u16) -> u8 {
     GBC_COLOR_TO_8_BIT[value as usize]
 }
 
-fn gbc_texture_updater(frame_buffer: &FrameBuffer) -> impl FnOnce(&mut [u8], usize) + '_ {
+fn gbc_texture_updater_raw_colors(frame_buffer: &FrameBuffer) -> impl Fn(&mut [u8], usize) + '_ {
     move |pixels, pitch| {
         for (i, scanline) in frame_buffer.iter().enumerate() {
             for (j, gbc_color) in scanline.iter().copied().enumerate() {
-                // R = lowest 5 bits, G = next 5 bits, B = next 5 bits; highest bit unused
-                let r = normalize_gbc_color(gbc_color & 0x001F);
-                let g = normalize_gbc_color((gbc_color & 0x03E0) >> 5);
-                let b = normalize_gbc_color((gbc_color & 0x7C00) >> 10);
+                let [r, g, b] = parse_gbc_color(gbc_color).map(normalize_gbc_color);
 
                 pixels[i * pitch + 3 * j] = r;
                 pixels[i * pitch + 3 * j + 1] = g;
                 pixels[i * pitch + 3 * j + 2] = b;
+            }
+        }
+    }
+}
+
+// Indexed by R then G then B
+struct ColorCorrectionTable([[[[u8; 3]; 32]; 32]; 32]);
+
+impl ColorCorrectionTable {
+    fn create() -> Self {
+        let mut table = [[[[0; 3]; 32]; 32]; 32];
+
+        for (r, r_row) in table.iter_mut().enumerate() {
+            for (g, g_row) in r_row.iter_mut().enumerate() {
+                for (b, value) in g_row.iter_mut().enumerate() {
+                    let rf = r as f64;
+                    let gf = g as f64;
+                    let bf = b as f64;
+
+                    // Based on this public domain shader:
+                    // https://github.com/libretro/common-shaders/blob/master/handheld/shaders/color/gbc-color.cg
+                    let corrected_r = ((0.78824 * rf + 0.12157 * gf) * 255.0 / 31.0).round() as u8;
+                    let corrected_g =
+                        ((0.025 * rf + 0.72941 * gf + 0.275 * bf) * 255.0 / 31.0).round() as u8;
+                    let corrected_b =
+                        ((0.12039 * rf + 0.12157 * gf + 0.82 * bf) * 255.0 / 31.0).round() as u8;
+
+                    value.copy_from_slice(&[corrected_r, corrected_g, corrected_b]);
+                }
+            }
+        }
+
+        Self(table)
+    }
+}
+
+static COLOR_CORRECTION_TABLE: Lazy<ColorCorrectionTable> = Lazy::new(ColorCorrectionTable::create);
+
+fn gbc_texture_updater_corrected_colors(
+    frame_buffer: &FrameBuffer,
+) -> impl Fn(&mut [u8], usize) + '_ {
+    move |pixels, pitch| {
+        let color_correction_table = &*COLOR_CORRECTION_TABLE;
+
+        for (i, scanline) in frame_buffer.iter().enumerate() {
+            for (j, gbc_color) in scanline.iter().copied().enumerate() {
+                let [r, g, b] = parse_gbc_color(gbc_color);
+
+                let corrected_colors = color_correction_table.0[r as usize][g as usize][b as usize];
+
+                let start = i * pitch + 3 * j;
+                pixels[start..start + 3].copy_from_slice(&corrected_colors);
             }
         }
     }
@@ -196,19 +255,33 @@ pub fn render_frame<T>(
 ) -> Result<(), GraphicsError> {
     let frame_buffer = ppu_state.frame_buffer();
 
-    match execution_mode {
-        ExecutionMode::GameBoy => texture
-            .0
-            .with_lock(
-                None,
-                gb_texture_updater(frame_buffer, palette_for(run_config.color_scheme)),
-            )
-            .map_err(|msg| GraphicsError::Texture { msg })?,
-        ExecutionMode::GameBoyColor => texture
-            .0
-            .with_lock(None, gbc_texture_updater(frame_buffer))
-            .map_err(|msg| GraphicsError::Texture { msg })?,
-    }
+    // Cludge to avoid a pointless heap allocation via Box. Trying to use `&dyn` without doing this
+    // will result in "does not live long enough" errors
+    let gb_updater;
+    let gbc_raw_updater;
+    let gbc_corrected_updater;
+
+    let texture_updater: &dyn Fn(&mut [u8], usize) = match execution_mode {
+        ExecutionMode::GameBoy => {
+            gb_updater = gb_texture_updater(frame_buffer, palette_for(run_config.color_scheme));
+            &gb_updater
+        }
+        ExecutionMode::GameBoyColor => match run_config.gbc_color_correction {
+            GbcColorCorrection::None => {
+                gbc_raw_updater = gbc_texture_updater_raw_colors(frame_buffer);
+                &gbc_raw_updater
+            }
+            GbcColorCorrection::GbcLcd => {
+                gbc_corrected_updater = gbc_texture_updater_corrected_colors(frame_buffer);
+                &gbc_corrected_updater
+            }
+        },
+    };
+
+    texture
+        .0
+        .with_lock(None, texture_updater)
+        .map_err(|msg| GraphicsError::Texture { msg })?;
 
     let dst_rect = if run_config.force_integer_scaling {
         let (w, h) = canvas.window().size();

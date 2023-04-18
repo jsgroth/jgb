@@ -220,15 +220,27 @@ impl std::fmt::Display for ControllerConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumDisplay, EnumFromStr, Serialize, Deserialize)]
-pub enum ColorScheme {
+pub enum GbColorScheme {
     BlackAndWhite,
     GreenTint,
     LimeGreen,
 }
 
-impl Default for ColorScheme {
+impl Default for GbColorScheme {
     fn default() -> Self {
         Self::BlackAndWhite
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumDisplay, EnumFromStr, Serialize, Deserialize)]
+pub enum GbcColorCorrection {
+    None,
+    GbcLcd,
+}
+
+impl Default for GbcColorCorrection {
+    fn default() -> Self {
+        Self::GbcLcd
     }
 }
 
@@ -246,7 +258,8 @@ pub struct RunConfig {
     pub window_height: u32,
     pub audio_debugging_enabled: bool,
     pub audio_60hz: bool,
-    pub color_scheme: ColorScheme,
+    pub color_scheme: GbColorScheme,
+    pub gbc_color_correction: GbcColorCorrection,
     pub input_config: InputConfig,
     pub hotkey_config: HotkeyConfig,
     pub controller_config: ControllerConfig,
@@ -271,6 +284,7 @@ impl std::fmt::Display for RunConfig {
         )?;
         writeln!(f, "audio_60hz: {}", self.audio_60hz)?;
         writeln!(f, "color_scheme: {}", self.color_scheme)?;
+        writeln!(f, "gbc_color_correction: {}", self.gbc_color_correction)?;
         writeln!(f, "input_config: {}", self.input_config)?;
         writeln!(f, "hotkey_config: {}", self.hotkey_config)?;
         writeln!(f, "controller_config: {}", self.controller_config)?;

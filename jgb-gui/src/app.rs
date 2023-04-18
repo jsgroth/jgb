@@ -9,7 +9,7 @@ use egui::{
     TextEdit, TopBottomPanel, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
-use jgb_core::{ColorScheme, EmulationError, HardwareMode, RunConfig};
+use jgb_core::{EmulationError, GbColorScheme, GbcColorCorrection, HardwareMode, RunConfig};
 use rfd::FileDialog;
 use std::ffi::OsStr;
 use std::fs::File;
@@ -351,9 +351,19 @@ impl JgbApp {
                 ui.group(|ui| {
                     ui.label("GB color palette");
                     ui.horizontal(|ui| {
-                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::BlackAndWhite, "Black & white");
-                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::GreenTint, "Green tint");
-                        ui.radio_value(&mut self.config.color_scheme, ColorScheme::LimeGreen, "Lime-green");
+                        ui.radio_value(&mut self.config.color_scheme, GbColorScheme::BlackAndWhite, "Black & white");
+                        ui.radio_value(&mut self.config.color_scheme, GbColorScheme::GreenTint, "Green tint");
+                        ui.radio_value(&mut self.config.color_scheme, GbColorScheme::LimeGreen, "Lime-green");
+                    });
+                });
+
+                ui.group(|ui| {
+                    ui.label("GBC color correction");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut self.config.gbc_color_correction, GbcColorCorrection::None, "None")
+                            .on_hover_text("Render raw RGB color values, similar to the backlit Game Boy Advance SP LCD");
+                        ui.radio_value(&mut self.config.gbc_color_correction, GbcColorCorrection::GbcLcd, "GBC LCD")
+                            .on_hover_text("Mangle color values to create a somewhat desaturated look, similar to the Game Boy Color LCD");
                     });
                 });
 
@@ -668,6 +678,7 @@ fn launch_emulator(
         audio_debugging_enabled: false,
         audio_60hz: app_config.audio_60hz_hack_enabled,
         color_scheme: app_config.color_scheme,
+        gbc_color_correction: app_config.gbc_color_correction,
         input_config: app_config.input.clone(),
         hotkey_config: app_config.hotkeys.clone(),
         controller_config: app_config.controller.clone(),

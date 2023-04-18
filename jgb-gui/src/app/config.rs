@@ -1,5 +1,5 @@
 use anyhow::Context;
-use jgb_core::{ColorScheme, ControllerConfig, HotkeyConfig, InputConfig};
+use jgb_core::{ControllerConfig, GbColorScheme, GbcColorCorrection, HotkeyConfig, InputConfig};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -28,7 +28,10 @@ pub struct AppConfig {
     pub fullscreen_mode: FullscreenMode,
 
     #[serde(default)]
-    pub color_scheme: ColorScheme,
+    pub color_scheme: GbColorScheme,
+
+    #[serde(default)]
+    pub gbc_color_correction: GbcColorCorrection,
 
     #[serde(default = "true_fn")]
     pub force_integer_scaling: bool,
