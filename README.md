@@ -15,6 +15,7 @@ Features:
 * 2x fast-forward toggle
 * Save & load state
 * Three different color palette options for GB mode (black & white, light green tint, intense lime green)
+* Option for GBC color correction to more closely mimic how games looked on the Game Boy Color LCD
 * Option for integer scaling regardless of window/display size
 
 Not Currently Implemented:
@@ -100,6 +101,6 @@ target/release/jgb-cli -h
 
 ![Screenshot from 2023-04-15 21-30-30](https://user-images.githubusercontent.com/1137683/232262957-55ee959a-ed83-4cd3-8195-113638c0a974.png)
 
-![Screenshot from 2023-04-15 20-43-05](https://user-images.githubusercontent.com/1137683/232261877-f718b570-3896-479f-b132-6324aed6efa5.png)
+![Screenshot from 2023-04-18 16-28-40](https://user-images.githubusercontent.com/1137683/232910372-a0db555a-3a04-4bdd-9b43-18dfec88bba1.png)
 
-![Screenshot from 2023-04-15 20-48-53](https://user-images.githubusercontent.com/1137683/232261879-72633a16-960d-4d40-bcf6-3eac1a677801.png)
+![Screenshot from 2023-04-18 16-30-47](https://user-images.githubusercontent.com/1137683/232910381-8c904636-baca-4bba-a5cc-f4feaa7e481a.png)
