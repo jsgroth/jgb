@@ -449,7 +449,7 @@ fn tick_cpu(
         log::trace!("Executing instruction {instruction:04X?}, will take {cycles_required} cycles");
         log::trace!("CPU registers before instruction execution: {cpu_registers:04X?}");
         log::trace!(
-            "Other registers before execution: IE={:02X}, IF={:02X}, LCDC={:02X}, LY={:02X}, LYC={:02X}, STAT={:02X}",
+            "Other registers before execution: IE={:02X}, IF={:02X}, LCDC={:02X}, LY={:02X}, LYC={:02X}, STAT={:02X}, SCX={:02X}, SCY={:02X}, WX={:02X}, WY={:02X}",
             address_space.get_ie_register(),
             address_space
                 .get_io_registers()
@@ -462,6 +462,10 @@ fn tick_cpu(
                 .read_register(IoRegister::LY),
             address_space.get_io_registers().read_register(IoRegister::LYC),
             address_space.get_io_registers().read_register(IoRegister::STAT),
+            address_space.get_io_registers().read_register(IoRegister::SCX),
+            address_space.get_io_registers().read_register(IoRegister::SCY),
+            address_space.get_io_registers().read_register(IoRegister::WX),
+            address_space.get_io_registers().read_register(IoRegister::WY)
         );
         log::trace!(
             "IE register before instruction execution: {:02X}",
