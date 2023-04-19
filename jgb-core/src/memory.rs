@@ -132,6 +132,7 @@ pub struct Cartridge {
     rom: Vec<u8>,
     mapper: Mapper,
     ram: Vec<u8>,
+    #[serde(skip)]
     ram_battery: Option<FsRamBattery>,
 }
 
@@ -361,6 +362,7 @@ impl Cartridge {
 
     pub fn move_unserializable_fields_from(&mut self, other: Self) {
         self.rom = other.rom;
+        self.ram_battery = other.ram_battery;
         self.mapper.move_unserializable_fields_from(other.mapper);
     }
 }
