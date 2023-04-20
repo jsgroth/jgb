@@ -129,13 +129,6 @@ impl CgbSpeedMode {
             Self::Double => Self::Normal,
         }
     }
-
-    pub fn key1_bit(self) -> u8 {
-        match self {
-            Self::Normal => 0x00,
-            Self::Double => 0x80,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

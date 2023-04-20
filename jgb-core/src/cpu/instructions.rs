@@ -7,7 +7,7 @@ use crate::memory::AddressSpace;
 use std::num::TryFromIntError;
 use thiserror::Error;
 
-use crate::cpu::ExecutionMode;
+use crate::cpu::{CgbSpeedMode, ExecutionMode};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::PpuState;
 pub use parse::{parse_next_instruction, ParseError};
@@ -856,21 +856,14 @@ impl Instruction {
                 cpu_registers.halted = true;
             }
             Self::Stop => {
+                let key1_value = address_space
+                    .get_io_registers()
+                    .read_register(IoRegister::KEY1);
                 if matches!(cpu_registers.execution_mode, ExecutionMode::GameBoyColor)
-                    && address_space
-                        .get_io_registers()
-                        .read_register(IoRegister::KEY1)
-                        & 0x01
-                        != 0
+                    && key1_value & 0x01 != 0
                 {
                     // In CGB mode, STOP when KEY1 bit 0 is set means speed switch
-                    let new_speed_mode = cpu_registers.cgb_speed_mode.toggle();
-                    cpu_registers.cgb_speed_mode = new_speed_mode;
-                    cpu_registers.speed_switch_wait_cycles_remaining = Some(2050);
-
-                    address_space
-                        .get_io_registers_mut()
-                        .write_register(IoRegister::KEY1, new_speed_mode.key1_bit());
+                    toggle_cgb_speed_mode(address_space, cpu_registers, key1_value);
                 } else {
                     todo!("STOP is not implemented")
                 }
@@ -1156,4 +1149,24 @@ fn add_sp_offset(sp: u16, offset: i8) -> (u16, CFlag, HFlag) {
 
         (sp.wrapping_sub(offset), CFlag(carry_flag), HFlag(h_flag))
     }
+}
+
+fn toggle_cgb_speed_mode(
+    address_space: &mut AddressSpace,
+    cpu_registers: &mut CpuRegisters,
+    key1_value: u8,
+) {
+    let new_speed_mode = cpu_registers.cgb_speed_mode.toggle();
+    cpu_registers.cgb_speed_mode = new_speed_mode;
+    cpu_registers.speed_switch_wait_cycles_remaining = Some(2050);
+
+    // Clear bit 0, and conditionally set/clear bit 7 based on new speed mode
+    let new_key1 = match new_speed_mode {
+        CgbSpeedMode::Normal => key1_value & 0x7E,
+        CgbSpeedMode::Double => (key1_value & 0x7E) | 0x80,
+    };
+
+    address_space
+        .get_io_registers_mut()
+        .privileged_set_key1(new_key1);
 }

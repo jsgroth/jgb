@@ -520,6 +520,11 @@ impl IoRegisters {
                 // Only bit 7 is CPU-writable and bits 4-6 are unused
                 self.contents[relative_addr] = (existing_value & 0x0F) | (value & 0x80);
             }
+            IoRegister::KEY1 => {
+                let existing_value = self.contents[relative_addr];
+                // Only bit 0 is CPU-writable
+                self.contents[relative_addr] = (existing_value & 0xFE) | (value & 0x01);
+            }
             IoRegister::BCPD => {
                 let bg_palette_address = self.current_bg_palette_address();
                 if !matches!(self.current_ppu_mode, PpuMode::RenderingScanline) {
@@ -596,6 +601,12 @@ impl IoRegisters {
     /// when the CPU writes to it. Should only be used by the timer code.
     pub fn privileged_set_div(&mut self, value: u8) {
         self.contents[IoRegister::DIV.to_relative_address()] = value;
+    }
+
+    /// Assign a value to the KEY1 register, which normally only allows the CPU to write to bit 0.
+    /// Meant to be used by the code that toggles CGB double speed mode on and off.
+    pub fn privileged_set_key1(&mut self, value: u8) {
+        self.contents[IoRegister::KEY1.to_relative_address()] = value;
     }
 
     /// Read an audio register from the perspective of the APU, bypassing CPU access checks (both
