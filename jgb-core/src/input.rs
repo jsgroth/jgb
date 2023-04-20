@@ -275,7 +275,8 @@ impl<'joy, 'gc> Joysticks<'joy, 'gc> {
             // Ignore errors because attempting to toggle rumble on a controller that doesn't
             // support rumble will result in an error, and there doesn't appear to be a way to
             // check beforehand that a controller supports rumble
-            let _ = joystick.set_rumble(rumble_intensity, rumble_intensity, 50);
+            let _: Result<(), IntegerOrSdlError> =
+                joystick.set_rumble(rumble_intensity, rumble_intensity, 50);
         }
     }
 }
