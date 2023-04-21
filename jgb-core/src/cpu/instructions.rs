@@ -41,45 +41,204 @@ pub enum ExecutionError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadTarget {
+    Register(CpuRegister),
+    Immediate(u8),
+    IndirectHL,
+    IndirectHLInc,
+    IndirectHLDec,
+    IndirectBC,
+    IndirectDE,
+    Accumulator,
+    FFIndirectC,
+    FFDirect(u8),
+    Direct(u16),
+}
+
+impl ReadTarget {
+    fn read_value(
+        self,
+        cpu_registers: &mut CpuRegisters,
+        address_space: &AddressSpace,
+        ppu_state: &PpuState,
+    ) -> u8 {
+        match self {
+            Self::Register(register) => cpu_registers.read_register(register),
+            Self::Immediate(n) => n,
+            Self::IndirectHL => address_space.read_address_u8(cpu_registers.hl(), ppu_state),
+            Self::IndirectHLInc => {
+                let hl = cpu_registers.hl();
+                let value = address_space.read_address_u8(hl, ppu_state);
+                cpu_registers.set_hl(hl.wrapping_add(1));
+                value
+            }
+            Self::IndirectHLDec => {
+                let hl = cpu_registers.hl();
+                let value = address_space.read_address_u8(hl, ppu_state);
+                cpu_registers.set_hl(hl.wrapping_sub(1));
+                value
+            }
+            Self::IndirectBC => address_space.read_address_u8(cpu_registers.bc(), ppu_state),
+            Self::IndirectDE => address_space.read_address_u8(cpu_registers.de(), ppu_state),
+            Self::Accumulator => cpu_registers.accumulator,
+            Self::FFIndirectC => {
+                let address = 0xFF00 | u16::from(cpu_registers.c);
+                address_space.read_address_u8(address, ppu_state)
+            }
+            Self::FFDirect(n) => {
+                let address = 0xFF00 | u16::from(n);
+                address_space.read_address_u8(address, ppu_state)
+            }
+            Self::Direct(nn) => address_space.read_address_u8(nn, ppu_state),
+        }
+    }
+
+    fn cycles_required(self) -> u32 {
+        match self {
+            Self::Register(..) | Self::Accumulator => 0,
+            Self::Immediate(..)
+            | Self::IndirectHL
+            | Self::IndirectHLInc
+            | Self::IndirectHLDec
+            | Self::IndirectBC
+            | Self::IndirectDE
+            | Self::FFIndirectC => 4,
+            Self::FFDirect(..) => 8,
+            Self::Direct(..) => 12,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteTarget {
+    Register(CpuRegister),
+    IndirectHL,
+    IndirectHLInc,
+    IndirectHLDec,
+    IndirectBC,
+    IndirectDE,
+    Accumulator,
+    FFIndirectC,
+    FFDirect(u8),
+    Direct(u16),
+}
+
+impl WriteTarget {
+    fn write_value(
+        self,
+        value: u8,
+        cpu_registers: &mut CpuRegisters,
+        address_space: &mut AddressSpace,
+        ppu_state: &PpuState,
+    ) {
+        match self {
+            Self::Register(register) => {
+                cpu_registers.set_register(register, value);
+            }
+            Self::IndirectHL => {
+                address_space.write_address_u8(cpu_registers.hl(), value, ppu_state);
+            }
+            Self::IndirectHLInc => {
+                let hl = cpu_registers.hl();
+                address_space.write_address_u8(hl, value, ppu_state);
+                cpu_registers.set_hl(hl.wrapping_add(1));
+            }
+            Self::IndirectHLDec => {
+                let hl = cpu_registers.hl();
+                address_space.write_address_u8(hl, value, ppu_state);
+                cpu_registers.set_hl(hl.wrapping_sub(1));
+            }
+            Self::IndirectBC => {
+                address_space.write_address_u8(cpu_registers.bc(), value, ppu_state);
+            }
+            Self::IndirectDE => {
+                address_space.write_address_u8(cpu_registers.de(), value, ppu_state);
+            }
+            Self::Accumulator => {
+                cpu_registers.accumulator = value;
+            }
+            Self::FFIndirectC => {
+                let address = 0xFF00 | u16::from(cpu_registers.c);
+                address_space.write_address_u8(address, value, ppu_state);
+            }
+            Self::FFDirect(n) => {
+                let address = 0xFF00 | u16::from(n);
+                address_space.write_address_u8(address, value, ppu_state);
+            }
+            Self::Direct(nn) => {
+                address_space.write_address_u8(nn, value, ppu_state);
+            }
+        }
+    }
+
+    fn cycles_required(self) -> u32 {
+        match self {
+            Self::Register(..) | Self::Accumulator => 0,
+            Self::IndirectHL
+            | Self::IndirectHLInc
+            | Self::IndirectHLDec
+            | Self::IndirectBC
+            | Self::IndirectDE
+            | Self::FFIndirectC => 4,
+            Self::FFDirect(..) => 8,
+            Self::Direct(..) => 12,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModifyTarget {
+    Register(CpuRegister),
+    IndirectHL,
+    Accumulator,
+}
+
+impl ModifyTarget {
+    fn read_value(
+        self,
+        cpu_registers: &CpuRegisters,
+        address_space: &AddressSpace,
+        ppu_state: &PpuState,
+    ) -> u8 {
+        match self {
+            Self::Register(register) => cpu_registers.read_register(register),
+            Self::IndirectHL => address_space.read_address_u8(cpu_registers.hl(), ppu_state),
+            Self::Accumulator => cpu_registers.accumulator,
+        }
+    }
+
+    fn write_value(
+        self,
+        value: u8,
+        cpu_registers: &mut CpuRegisters,
+        address_space: &mut AddressSpace,
+        ppu_state: &PpuState,
+    ) {
+        match self {
+            Self::Register(register) => {
+                cpu_registers.set_register(register, value);
+            }
+            Self::IndirectHL => {
+                address_space.write_address_u8(cpu_registers.hl(), value, ppu_state);
+            }
+            Self::Accumulator => {
+                cpu_registers.accumulator = value;
+            }
+        }
+    }
+
+    fn cycles_required(self) -> u32 {
+        match self {
+            Self::Register(..) | Self::Accumulator => 0,
+            Self::IndirectHL => 4,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
-    // LD r, r'
-    LoadRegisterRegister(CpuRegister, CpuRegister),
-    // LD r, n
-    LoadRegisterImmediate(CpuRegister, u8),
-    // LD r, (HL)
-    LoadRegisterIndirectHL(CpuRegister),
-    // LD (HL), r
-    LoadIndirectHLRegister(CpuRegister),
-    // LD (HL), n
-    LoadIndirectHLImmediate(u8),
-    // LD A, (BC)
-    LoadAccumulatorIndirectBC,
-    // LD A, (DE)
-    LoadAccumulatorIndirectDE,
-    // LD (BC), A
-    LoadIndirectBCAccumulator,
-    // LD (DE), A
-    LoadIndirectDEAccumulator,
-    // LD A, (nn)
-    LoadAccumulatorDirect16(u16),
-    // LD (nn), A
-    LoadDirect16Accumulator(u16),
-    // LDH A, (C)
-    LoadAccumulatorIndirectC,
-    // LDH (C), A
-    LoadIndirectCAccumulator,
-    // LDH A, (n)
-    LoadAccumulatorDirect8(u8),
-    // LDH (n), A
-    LoadDirect8Accumulator(u8),
-    // LD A, (HL-)
-    LoadAccumulatorIndirectHLDec,
-    // LD (HL-), A
-    LoadIndirectHLDecAccumulator,
-    // LD A, (HL+)
-    LoadAccumulatorIndirectHLInc,
-    // LD (HL+), A
-    LoadIndirectHLIncAccumulator,
+    // All 8-bit LD/LDH instructions
+    Load(WriteTarget, ReadTarget),
     // LD rr, nn
     LoadRegisterPairImmediate(CpuRegisterPair, u16),
     // LD (nn), SP
@@ -92,62 +251,26 @@ pub enum Instruction {
     PushStack(CpuRegisterPair),
     // POP rr
     PopStack(CpuRegisterPair),
-    // ADD r
-    AddRegister(CpuRegister),
-    // ADD (HL)
-    AddIndirectHL,
-    // ADD n
-    AddImmediate(u8),
-    // ADC r
-    AddCarryRegister(CpuRegister),
-    // ADC (HL)
-    AddCarryIndirectHL,
-    // ADC n
-    AddCarryImmediate(u8),
-    // SUB r
-    SubtractRegister(CpuRegister),
-    // SUB (HL)
-    SubtractIndirectHL,
-    // SUB n
-    SubtractImmediate(u8),
-    // SBC r
-    SubtractCarryRegister(CpuRegister),
-    // SBC (HL)
-    SubtractCarryIndirectHL,
-    // SBC n
-    SubtractCarryImmediate(u8),
-    // CP r
-    CompareRegister(CpuRegister),
-    // CP (HL)
-    CompareIndirectHL,
-    // CP n
-    CompareImmediate(u8),
-    // INC r
-    IncRegister(CpuRegister),
-    // INC (HL)
-    IncIndirectHL,
-    // DEC r
-    DecRegister(CpuRegister),
-    // DEC (HL)
-    DecIndirectHL,
-    // AND r
-    AndRegister(CpuRegister),
-    // AND (HL)
-    AndIndirectHL,
-    // AND n
-    AndImmediate(u8),
-    // OR r
-    OrRegister(CpuRegister),
-    // OR (HL)
-    OrIndirectHL,
-    // OR n
-    OrImmediate(u8),
-    // XOR r
-    XorRegister(CpuRegister),
-    // XOR (HL)
-    XorIndirectHL,
-    // XOR n
-    XorImmediate(u8),
+    // ADD r / (HL) / n
+    Add(ReadTarget),
+    // ADC r / (HL) / n
+    AddWithCarry(ReadTarget),
+    // SUB r / (HL) / n
+    Subtract(ReadTarget),
+    // SBC r / (HL) / n
+    SubtractWithCarry(ReadTarget),
+    // CP r / (HL) / n
+    Compare(ReadTarget),
+    // INC r / (HL)
+    Increment(ModifyTarget),
+    // DEC r / (HL)
+    Decrement(ModifyTarget),
+    // AND r / (HL) / n
+    And(ReadTarget),
+    // OR r / (HL) / n
+    Or(ReadTarget),
+    // XOR r / (HL) / n
+    Xor(ReadTarget),
     // ADD HL, rr
     AddHLRegister(CpuRegisterPair),
     // INC rr,
@@ -156,58 +279,28 @@ pub enum Instruction {
     DecRegisterPair(CpuRegisterPair),
     // ADD SP, e
     AddSPImmediate(i8),
-    // RLCA
-    RotateLeftAccumulator,
-    // RLA
-    RotateLeftAccumulatorThruCarry,
-    // RRCA
-    RotateRightAccumulator,
-    // RRA
-    RotateRightAccumulatorThruCarry,
-    // RLC r
-    RotateLeft(CpuRegister),
-    // RLC (HL)
-    RotateLeftIndirectHL,
-    // RL r
-    RotateLeftThruCarry(CpuRegister),
-    // RL (HL)
-    RotateLeftIndirectHLThruCarry,
-    // RRC r
-    RotateRight(CpuRegister),
-    // RRC (HL)
-    RotateRightIndirectHL,
-    // RR r
-    RotateRightThruCarry(CpuRegister),
-    // RR (HL)
-    RotateRightIndirectHLThruCarry,
-    // SLA r
-    ShiftLeft(CpuRegister),
-    // SLA (HL)
-    ShiftLeftIndirectHL,
-    // SWAP r
-    Swap(CpuRegister),
-    // SWAP (HL)
-    SwapIndirectHL,
-    // SRA r
-    ShiftRight(CpuRegister),
-    // SRA (HL)
-    ShiftRightIndirectHL,
-    // SRL r
-    ShiftRightLogical(CpuRegister),
-    // SRL (HL)
-    ShiftRightLogicalIndirectHL,
-    // BIT n, r
-    TestBit(u8, CpuRegister),
-    // BIT n, (HL)
-    TestBitIndirectHL(u8),
-    // SET n, r
-    SetBit(u8, CpuRegister),
-    // SET n, (HL)
-    SetBitIndirectHL(u8),
-    // RES n, r
-    ResetBit(u8, CpuRegister),
-    // RES n, (HL)
-    ResetBitIndirectHL(u8),
+    // RLCA / RLC r / RLC (HL)
+    RotateLeft(ModifyTarget),
+    // RLA / RL r / RL (HL)
+    RotateLeftThruCarry(ModifyTarget),
+    // RRCA / RRC r / RRC (HL)
+    RotateRight(ModifyTarget),
+    // RRA / RR r / RR (HL)
+    RotateRightThruCarry(ModifyTarget),
+    // SLA r / (HL)
+    ShiftLeft(ModifyTarget),
+    // SWAP r / (HL)
+    Swap(ModifyTarget),
+    // SRA r / (HL)
+    ArithmeticShiftRight(ModifyTarget),
+    // SRL r / (HL)
+    LogicalShiftRight(ModifyTarget),
+    // BIT n, r / (HL)
+    TestBit(u8, ReadTarget),
+    // RES n, r / (HL)
+    ResetBit(u8, ModifyTarget),
+    // SET n, r / (HL)
+    SetBit(u8, ModifyTarget),
     // CCF
     ComplementCarryFlag,
     // SCF
@@ -262,86 +355,9 @@ impl Instruction {
         ppu_state: &PpuState,
     ) -> Result<(), ExecutionError> {
         match self {
-            Self::LoadRegisterRegister(r, r_p) => {
-                cpu_registers.set_register(r, cpu_registers.read_register(r_p));
-            }
-            Self::LoadRegisterImmediate(r, n) => {
-                cpu_registers.set_register(r, n);
-            }
-            Self::LoadRegisterIndirectHL(r) => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                cpu_registers.set_register(r, value);
-            }
-            Self::LoadIndirectHLRegister(r) => {
-                let value = cpu_registers.read_register(r);
-                address_space.write_address_u8(cpu_registers.hl(), value, ppu_state);
-            }
-            Self::LoadIndirectHLImmediate(n) => {
-                address_space.write_address_u8(cpu_registers.hl(), n, ppu_state);
-            }
-            Self::LoadAccumulatorIndirectBC => {
-                cpu_registers.accumulator =
-                    address_space.read_address_u8(cpu_registers.bc(), ppu_state);
-            }
-            Self::LoadAccumulatorIndirectDE => {
-                cpu_registers.accumulator =
-                    address_space.read_address_u8(cpu_registers.de(), ppu_state);
-            }
-            Self::LoadIndirectBCAccumulator => {
-                address_space.write_address_u8(
-                    cpu_registers.bc(),
-                    cpu_registers.accumulator,
-                    ppu_state,
-                );
-            }
-            Self::LoadIndirectDEAccumulator => {
-                address_space.write_address_u8(
-                    cpu_registers.de(),
-                    cpu_registers.accumulator,
-                    ppu_state,
-                );
-            }
-            Self::LoadAccumulatorDirect16(nn) => {
-                cpu_registers.accumulator = address_space.read_address_u8(nn, ppu_state);
-            }
-            Self::LoadDirect16Accumulator(nn) => {
-                address_space.write_address_u8(nn, cpu_registers.accumulator, ppu_state);
-            }
-            Self::LoadAccumulatorIndirectC => {
-                let address = u16::from_be_bytes([0xFF, cpu_registers.c]);
-                cpu_registers.accumulator = address_space.read_address_u8(address, ppu_state);
-            }
-            Self::LoadIndirectCAccumulator => {
-                let address = u16::from_be_bytes([0xFF, cpu_registers.c]);
-                address_space.write_address_u8(address, cpu_registers.accumulator, ppu_state);
-            }
-            Self::LoadAccumulatorDirect8(n) => {
-                let address = u16::from_be_bytes([0xFF, n]);
-                cpu_registers.accumulator = address_space.read_address_u8(address, ppu_state);
-            }
-            Self::LoadDirect8Accumulator(n) => {
-                let address = u16::from_be_bytes([0xFF, n]);
-                address_space.write_address_u8(address, cpu_registers.accumulator, ppu_state);
-            }
-            Self::LoadAccumulatorIndirectHLDec => {
-                let hl = cpu_registers.hl();
-                cpu_registers.accumulator = address_space.read_address_u8(hl, ppu_state);
-                cpu_registers.set_hl(hl.wrapping_sub(1));
-            }
-            Self::LoadIndirectHLDecAccumulator => {
-                let hl = cpu_registers.hl();
-                address_space.write_address_u8(hl, cpu_registers.accumulator, ppu_state);
-                cpu_registers.set_hl(hl.wrapping_sub(1));
-            }
-            Self::LoadAccumulatorIndirectHLInc => {
-                let hl = cpu_registers.hl();
-                cpu_registers.accumulator = address_space.read_address_u8(hl, ppu_state);
-                cpu_registers.set_hl(hl.wrapping_add(1));
-            }
-            Self::LoadIndirectHLIncAccumulator => {
-                let hl = cpu_registers.hl();
-                address_space.write_address_u8(hl, cpu_registers.accumulator, ppu_state);
-                cpu_registers.set_hl(hl.wrapping_add(1));
+            Self::Load(write_target, read_target) => {
+                let value = read_target.read_value(cpu_registers, address_space, ppu_state);
+                write_target.write_value(value, cpu_registers, address_space, ppu_state);
             }
             Self::LoadRegisterPairImmediate(rr, nn) => {
                 cpu_registers.set_register_pair(rr, nn);
@@ -367,122 +383,54 @@ impl Instruction {
                 );
                 cpu_registers.sp += 2;
             }
-            Self::AddRegister(r) => {
+            Self::Add(read_target) => {
                 let (sum, c_flag, h_flag) = add(
                     cpu_registers.accumulator,
-                    cpu_registers.read_register(r),
+                    read_target.read_value(cpu_registers, address_space, ppu_state),
                     false,
                 );
                 cpu_registers.accumulator = sum;
                 cpu_registers.set_flags(ZFlag(sum == 0), NFlag(false), h_flag, c_flag);
             }
-            Self::AddIndirectHL => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                let (sum, c_flag, h_flag) = add(cpu_registers.accumulator, value, false);
-                cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(ZFlag(sum == 0), NFlag(false), h_flag, c_flag);
-            }
-            Self::AddImmediate(n) => {
-                let (sum, c_flag, h_flag) = add(cpu_registers.accumulator, n, false);
-                cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(ZFlag(sum == 0), NFlag(false), h_flag, c_flag);
-            }
-            Self::AddCarryRegister(r) => {
+            Self::AddWithCarry(read_target) => {
                 let (sum, c_flag, h_flag) = add(
                     cpu_registers.accumulator,
-                    cpu_registers.read_register(r),
+                    read_target.read_value(cpu_registers, address_space, ppu_state),
                     cpu_registers.c_flag(),
                 );
                 cpu_registers.accumulator = sum;
                 cpu_registers.set_flags(ZFlag(sum == 0), NFlag(false), h_flag, c_flag);
             }
-            Self::AddCarryIndirectHL => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                let (sum, c_flag, h_flag) =
-                    add(cpu_registers.accumulator, value, cpu_registers.c_flag());
-                cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(ZFlag(sum == 0), NFlag(false), h_flag, c_flag);
-            }
-            Self::AddCarryImmediate(n) => {
-                let (sum, c_flag, h_flag) =
-                    add(cpu_registers.accumulator, n, cpu_registers.c_flag());
-                cpu_registers.accumulator = sum;
-                cpu_registers.set_flags(ZFlag(sum == 0), NFlag(false), h_flag, c_flag);
-            }
-            Self::SubtractRegister(r) => {
+            Self::Subtract(read_target) => {
                 let (difference, c_flag, h_flag) = sub(
                     cpu_registers.accumulator,
-                    cpu_registers.read_register(r),
+                    read_target.read_value(cpu_registers, address_space, ppu_state),
                     false,
                 );
                 cpu_registers.accumulator = difference;
                 cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
             }
-            Self::SubtractIndirectHL => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                let (difference, c_flag, h_flag) = sub(cpu_registers.accumulator, value, false);
-                cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
-            }
-            Self::SubtractImmediate(n) => {
-                let (difference, c_flag, h_flag) = sub(cpu_registers.accumulator, n, false);
-                cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
-            }
-            Self::SubtractCarryRegister(r) => {
+            Self::SubtractWithCarry(read_target) => {
                 let (difference, c_flag, h_flag) = sub(
                     cpu_registers.accumulator,
-                    cpu_registers.read_register(r),
+                    read_target.read_value(cpu_registers, address_space, ppu_state),
                     cpu_registers.c_flag(),
                 );
                 cpu_registers.accumulator = difference;
                 cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
             }
-            Self::SubtractCarryIndirectHL => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                let (difference, c_flag, h_flag) =
-                    sub(cpu_registers.accumulator, value, cpu_registers.c_flag());
-                cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
-            }
-            Self::SubtractCarryImmediate(n) => {
-                let (difference, c_flag, h_flag) =
-                    sub(cpu_registers.accumulator, n, cpu_registers.c_flag());
-                cpu_registers.accumulator = difference;
-                cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
-            }
-            Self::CompareRegister(r) => {
+            Self::Compare(read_target) => {
                 let (difference, c_flag, h_flag) = sub(
                     cpu_registers.accumulator,
-                    cpu_registers.read_register(r),
+                    read_target.read_value(cpu_registers, address_space, ppu_state),
                     false,
                 );
                 cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
             }
-            Self::CompareIndirectHL => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                let (difference, c_flag, h_flag) = sub(cpu_registers.accumulator, value, false);
-                cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
-            }
-            Self::CompareImmediate(n) => {
-                let (difference, c_flag, h_flag) = sub(cpu_registers.accumulator, n, false);
-                cpu_registers.set_flags(ZFlag(difference == 0), NFlag(true), h_flag, c_flag);
-            }
-            Self::IncRegister(r) => {
-                let (sum, _, h_flag) = add(cpu_registers.read_register(r), 1, false);
-                cpu_registers.set_register(r, sum);
-                cpu_registers.set_some_flags(
-                    Some(ZFlag(sum == 0)),
-                    Some(NFlag(false)),
-                    Some(h_flag),
-                    None,
-                );
-            }
-            Self::IncIndirectHL => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state);
+            Self::Increment(modify_target) => {
+                let value = modify_target.read_value(cpu_registers, address_space, ppu_state);
                 let (sum, _, h_flag) = add(value, 1, false);
-                address_space.write_address_u8(address, sum, ppu_state);
+                modify_target.write_value(sum, cpu_registers, address_space, ppu_state);
                 cpu_registers.set_some_flags(
                     Some(ZFlag(sum == 0)),
                     Some(NFlag(false)),
@@ -490,21 +438,10 @@ impl Instruction {
                     None,
                 );
             }
-            Self::DecRegister(r) => {
-                let (difference, _, h_flag) = sub(cpu_registers.read_register(r), 1, false);
-                cpu_registers.set_register(r, difference);
-                cpu_registers.set_some_flags(
-                    Some(ZFlag(difference == 0)),
-                    Some(NFlag(true)),
-                    Some(h_flag),
-                    None,
-                );
-            }
-            Self::DecIndirectHL => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state);
+            Self::Decrement(modify_target) => {
+                let value = modify_target.read_value(cpu_registers, address_space, ppu_state);
                 let (difference, _, h_flag) = sub(value, 1, false);
-                address_space.write_address_u8(address, difference, ppu_state);
+                modify_target.write_value(difference, cpu_registers, address_space, ppu_state);
                 cpu_registers.set_some_flags(
                     Some(ZFlag(difference == 0)),
                     Some(NFlag(true)),
@@ -512,24 +449,15 @@ impl Instruction {
                     None,
                 );
             }
-            Self::AndRegister(r) => {
-                let value = cpu_registers.accumulator & cpu_registers.read_register(r);
+            Self::And(read_target) => {
+                let value = cpu_registers.accumulator
+                    & read_target.read_value(cpu_registers, address_space, ppu_state);
                 cpu_registers.accumulator = value;
                 cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(true), CFlag(false));
             }
-            Self::AndIndirectHL => {
+            Self::Or(read_target) => {
                 let value = cpu_registers.accumulator
-                    & address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(true), CFlag(false));
-            }
-            Self::AndImmediate(n) => {
-                let value = cpu_registers.accumulator & n;
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(true), CFlag(false));
-            }
-            Self::OrRegister(r) => {
-                let value = cpu_registers.accumulator | cpu_registers.read_register(r);
+                    | read_target.read_value(cpu_registers, address_space, ppu_state);
                 cpu_registers.accumulator = value;
                 cpu_registers.set_flags(
                     ZFlag(value == 0),
@@ -538,50 +466,9 @@ impl Instruction {
                     CFlag(false),
                 );
             }
-            Self::OrIndirectHL => {
+            Self::Xor(read_target) => {
                 let value = cpu_registers.accumulator
-                    | address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(
-                    ZFlag(value == 0),
-                    NFlag(false),
-                    HFlag(false),
-                    CFlag(false),
-                );
-            }
-            Self::OrImmediate(n) => {
-                let value = cpu_registers.accumulator | n;
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(
-                    ZFlag(value == 0),
-                    NFlag(false),
-                    HFlag(false),
-                    CFlag(false),
-                );
-            }
-            Self::XorRegister(r) => {
-                let value = cpu_registers.accumulator ^ cpu_registers.read_register(r);
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(
-                    ZFlag(value == 0),
-                    NFlag(false),
-                    HFlag(false),
-                    CFlag(false),
-                );
-            }
-            Self::XorIndirectHL => {
-                let value = cpu_registers.accumulator
-                    ^ address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(
-                    ZFlag(value == 0),
-                    NFlag(false),
-                    HFlag(false),
-                    CFlag(false),
-                );
-            }
-            Self::XorImmediate(n) => {
-                let value = cpu_registers.accumulator ^ n;
+                    ^ read_target.read_value(cpu_registers, address_space, ppu_state);
                 cpu_registers.accumulator = value;
                 cpu_registers.set_flags(
                     ZFlag(value == 0),
@@ -614,99 +501,48 @@ impl Instruction {
                 cpu_registers.set_hl(sp);
                 cpu_registers.set_flags(ZFlag(false), NFlag(false), h_flag, c_flag);
             }
-            Self::RotateLeftAccumulator => {
-                let (value, c_flag) = rotate_left(cpu_registers.accumulator);
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(ZFlag(false), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::RotateLeftAccumulatorThruCarry => {
+            Self::RotateLeft(modify_target) => {
                 let (value, c_flag) =
-                    rotate_left_thru_carry(cpu_registers.accumulator, cpu_registers.c_flag());
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(ZFlag(false), NFlag(false), HFlag(false), c_flag);
+                    rotate_left(modify_target.read_value(cpu_registers, address_space, ppu_state));
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
+                let z_flag = ZFlag(modify_target != ModifyTarget::Accumulator && value == 0);
+                cpu_registers.set_flags(z_flag, NFlag(false), HFlag(false), c_flag);
             }
-            Self::RotateRightAccumulator => {
-                let (value, c_flag) = rotate_right(cpu_registers.accumulator);
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(ZFlag(false), NFlag(false), HFlag(false), c_flag);
+            Self::RotateLeftThruCarry(modify_target) => {
+                let (value, c_flag) = rotate_left_thru_carry(
+                    modify_target.read_value(cpu_registers, address_space, ppu_state),
+                    cpu_registers.c_flag(),
+                );
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
+                let z_flag = ZFlag(modify_target != ModifyTarget::Accumulator && value == 0);
+                cpu_registers.set_flags(z_flag, NFlag(false), HFlag(false), c_flag);
             }
-            Self::RotateRightAccumulatorThruCarry => {
+            Self::RotateRight(modify_target) => {
                 let (value, c_flag) =
-                    rotate_right_thru_carry(cpu_registers.accumulator, cpu_registers.c_flag());
-                cpu_registers.accumulator = value;
-                cpu_registers.set_flags(ZFlag(false), NFlag(false), HFlag(false), c_flag);
+                    rotate_right(modify_target.read_value(cpu_registers, address_space, ppu_state));
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
+                let z_flag = ZFlag(modify_target != ModifyTarget::Accumulator && value == 0);
+                cpu_registers.set_flags(z_flag, NFlag(false), HFlag(false), c_flag);
             }
-            Self::RotateLeft(r) => {
-                let (value, c_flag) = rotate_left(cpu_registers.read_register(r));
-                cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
+            Self::RotateRightThruCarry(modify_target) => {
+                let (value, c_flag) = rotate_right_thru_carry(
+                    modify_target.read_value(cpu_registers, address_space, ppu_state),
+                    cpu_registers.c_flag(),
+                );
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
+                let z_flag = ZFlag(modify_target != ModifyTarget::Accumulator && value == 0);
+                cpu_registers.set_flags(z_flag, NFlag(false), HFlag(false), c_flag);
             }
-            Self::RotateLeftIndirectHL => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state);
-                let (value, c_flag) = rotate_left(value);
-                address_space.write_address_u8(address, value, ppu_state);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::RotateLeftThruCarry(r) => {
+            Self::ShiftLeft(modify_target) => {
                 let (value, c_flag) =
-                    rotate_left_thru_carry(cpu_registers.read_register(r), cpu_registers.c_flag());
-                cpu_registers.set_register(r, value);
+                    shift_left(modify_target.read_value(cpu_registers, address_space, ppu_state));
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
                 cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
             }
-            Self::RotateLeftIndirectHLThruCarry => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state);
-                let (value, c_flag) = rotate_left_thru_carry(value, cpu_registers.c_flag());
-                address_space.write_address_u8(address, value, ppu_state);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::RotateRight(r) => {
-                let (value, c_flag) = rotate_right(cpu_registers.read_register(r));
-                cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::RotateRightIndirectHL => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state);
-                let (value, c_flag) = rotate_right(value);
-                address_space.write_address_u8(address, value, ppu_state);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::RotateRightThruCarry(r) => {
-                let (value, c_flag) =
-                    rotate_right_thru_carry(cpu_registers.read_register(r), cpu_registers.c_flag());
-                cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::RotateRightIndirectHLThruCarry => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state);
-                let (value, c_flag) = rotate_right_thru_carry(value, cpu_registers.c_flag());
-                address_space.write_address_u8(address, value, ppu_state);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::ShiftLeft(r) => {
-                let (value, c_flag) = shift_left(cpu_registers.read_register(r));
-                cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::ShiftLeftIndirectHL => {
-                let address = cpu_registers.hl();
-                let (value, c_flag) = shift_left(address_space.read_address_u8(address, ppu_state));
-                address_space.write_address_u8(address, value, ppu_state);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::Swap(r) => {
-                let register = cpu_registers.get_register_mut(r);
-                *register = swap_bits(*register);
-                let z_flag = ZFlag(*register == 0);
-                cpu_registers.set_flags(z_flag, NFlag(false), HFlag(false), CFlag(false));
-            }
-            Self::SwapIndirectHL => {
-                let address = cpu_registers.hl();
-                let value = swap_bits(address_space.read_address_u8(address, ppu_state));
-                address_space.write_address_u8(address, value, ppu_state);
+            Self::Swap(modify_target) => {
+                let value =
+                    swap_bits(modify_target.read_value(cpu_registers, address_space, ppu_state));
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
                 cpu_registers.set_flags(
                     ZFlag(value == 0),
                     NFlag(false),
@@ -714,32 +550,26 @@ impl Instruction {
                     CFlag(false),
                 );
             }
-            Self::ShiftRight(r) => {
-                let (value, c_flag) = shift_right_arithmetic(cpu_registers.read_register(r));
-                cpu_registers.set_register(r, value);
+            Self::ArithmeticShiftRight(modify_target) => {
+                let (value, c_flag) = shift_right_arithmetic(modify_target.read_value(
+                    cpu_registers,
+                    address_space,
+                    ppu_state,
+                ));
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
                 cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
             }
-            Self::ShiftRightIndirectHL => {
-                let address = cpu_registers.hl();
-                let (value, c_flag) =
-                    shift_right_arithmetic(address_space.read_address_u8(address, ppu_state));
-                address_space.write_address_u8(address, value, ppu_state);
+            Self::LogicalShiftRight(modify_target) => {
+                let (value, c_flag) = shift_right_logical(modify_target.read_value(
+                    cpu_registers,
+                    address_space,
+                    ppu_state,
+                ));
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
                 cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
             }
-            Self::ShiftRightLogical(r) => {
-                let (value, c_flag) = shift_right_logical(cpu_registers.read_register(r));
-                cpu_registers.set_register(r, value);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::ShiftRightLogicalIndirectHL => {
-                let address = cpu_registers.hl();
-                let (value, c_flag) =
-                    shift_right_logical(address_space.read_address_u8(address, ppu_state));
-                address_space.write_address_u8(address, value, ppu_state);
-                cpu_registers.set_flags(ZFlag(value == 0), NFlag(false), HFlag(false), c_flag);
-            }
-            Self::TestBit(n, r) => {
-                let r_value = cpu_registers.read_register(r);
+            Self::TestBit(n, read_target) => {
+                let r_value = read_target.read_value(cpu_registers, address_space, ppu_state);
                 let z_flag = ZFlag(r_value & (1 << n) == 0);
                 cpu_registers.set_some_flags(
                     Some(z_flag),
@@ -748,33 +578,15 @@ impl Instruction {
                     None,
                 );
             }
-            Self::TestBitIndirectHL(n) => {
-                let value = address_space.read_address_u8(cpu_registers.hl(), ppu_state);
-                let z_flag = ZFlag(value & (1 << n) == 0);
-                cpu_registers.set_some_flags(
-                    Some(z_flag),
-                    Some(NFlag(false)),
-                    Some(HFlag(true)),
-                    None,
-                );
+            Self::SetBit(n, modify_target) => {
+                let value =
+                    (1 << n) | modify_target.read_value(cpu_registers, address_space, ppu_state);
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
             }
-            Self::SetBit(n, r) => {
-                let register = cpu_registers.get_register_mut(r);
-                *register |= 1 << n;
-            }
-            Self::SetBitIndirectHL(n) => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state) | (1 << n);
-                address_space.write_address_u8(address, value, ppu_state);
-            }
-            Self::ResetBit(n, r) => {
-                let register = cpu_registers.get_register_mut(r);
-                *register &= !(1 << n);
-            }
-            Self::ResetBitIndirectHL(n) => {
-                let address = cpu_registers.hl();
-                let value = address_space.read_address_u8(address, ppu_state) & !(1 << n);
-                address_space.write_address_u8(address, value, ppu_state);
+            Self::ResetBit(n, modify_target) => {
+                let value =
+                    !(1 << n) & modify_target.read_value(cpu_registers, address_space, ppu_state);
+                modify_target.write_value(value, cpu_registers, address_space, ppu_state);
             }
             Self::ComplementCarryFlag => {
                 cpu_registers.set_some_flags(
@@ -893,23 +705,12 @@ impl Instruction {
     /// take different numbers of cycles depending on whether the condition is true or false.
     pub fn cycles_required(self, cpu_registers: &CpuRegisters) -> u32 {
         match self {
-            Self::LoadRegisterRegister(..)
-            | Self::AddRegister(..)
-            | Self::AddCarryRegister(..)
-            | Self::SubtractRegister(..)
-            | Self::SubtractCarryRegister(..)
-            | Self::AndRegister(..)
-            | Self::OrRegister(..)
-            | Self::XorRegister(..)
-            | Self::CompareRegister(..)
-            | Self::IncRegister(..)
-            | Self::DecRegister(..)
-            | Self::DecimalAdjustAccumulator
+            Self::DecimalAdjustAccumulator
             | Self::ComplementAccumulator
-            | Self::RotateLeftAccumulator
-            | Self::RotateLeftAccumulatorThruCarry
-            | Self::RotateRightAccumulator
-            | Self::RotateRightAccumulatorThruCarry
+            | Self::RotateLeft(ModifyTarget::Accumulator)
+            | Self::RotateLeftThruCarry(ModifyTarget::Accumulator)
+            | Self::RotateRight(ModifyTarget::Accumulator)
+            | Self::RotateRightThruCarry(ModifyTarget::Accumulator)
             | Self::SetCarryFlag
             | Self::ComplementCarryFlag
             | Self::NoOp
@@ -918,74 +719,17 @@ impl Instruction {
             | Self::JumpHL
             | Self::Halt
             | Self::Stop => 4,
-            Self::LoadRegisterImmediate(..)
-            | Self::LoadRegisterIndirectHL(..)
-            | Self::LoadIndirectHLRegister(..)
-            | Self::LoadAccumulatorIndirectBC
-            | Self::LoadAccumulatorIndirectDE
-            | Self::LoadIndirectBCAccumulator
-            | Self::LoadIndirectDEAccumulator
-            | Self::LoadAccumulatorIndirectC
-            | Self::LoadIndirectCAccumulator
-            | Self::LoadAccumulatorIndirectHLInc
-            | Self::LoadAccumulatorIndirectHLDec
-            | Self::LoadIndirectHLIncAccumulator
-            | Self::LoadIndirectHLDecAccumulator
-            | Self::LoadStackPointerHL
-            | Self::AddImmediate(..)
-            | Self::AddIndirectHL
-            | Self::AddCarryImmediate(..)
-            | Self::AddCarryIndirectHL
-            | Self::SubtractImmediate(..)
-            | Self::SubtractIndirectHL
-            | Self::SubtractCarryImmediate(..)
-            | Self::SubtractCarryIndirectHL
-            | Self::AndImmediate(..)
-            | Self::AndIndirectHL
-            | Self::OrImmediate(..)
-            | Self::OrIndirectHL
-            | Self::XorImmediate(..)
-            | Self::XorIndirectHL
-            | Self::CompareImmediate(..)
-            | Self::CompareIndirectHL
+
+            Self::LoadStackPointerHL
             | Self::AddHLRegister(..)
             | Self::IncRegisterPair(..)
-            | Self::DecRegisterPair(..)
-            | Self::RotateLeft(..)
-            | Self::RotateLeftThruCarry(..)
-            | Self::RotateRight(..)
-            | Self::RotateRightThruCarry(..)
-            | Self::ShiftLeft(..)
-            | Self::ShiftRight(..)
-            | Self::ShiftRightLogical(..)
-            | Self::Swap(..)
-            | Self::TestBit(..)
-            | Self::SetBit(..)
-            | Self::ResetBit(..) => 8,
-            Self::LoadIndirectHLImmediate(..)
-            | Self::LoadAccumulatorDirect8(..)
-            | Self::LoadDirect8Accumulator(..)
-            | Self::LoadRegisterPairImmediate(..)
+            | Self::DecRegisterPair(..) => 8,
+            Self::LoadRegisterPairImmediate(..)
             | Self::PopStack(..)
-            | Self::IncIndirectHL
-            | Self::DecIndirectHL
             | Self::LoadHLStackPointerOffset(..)
-            | Self::TestBitIndirectHL(..)
             | Self::RelativeJump(..) => 12,
-            Self::LoadAccumulatorDirect16(..)
-            | Self::LoadDirect16Accumulator(..)
-            | Self::PushStack(..)
+            Self::PushStack(..)
             | Self::AddSPImmediate(..)
-            | Self::RotateLeftIndirectHL
-            | Self::RotateLeftIndirectHLThruCarry
-            | Self::RotateRightIndirectHL
-            | Self::RotateRightIndirectHLThruCarry
-            | Self::ShiftLeftIndirectHL
-            | Self::ShiftRightIndirectHL
-            | Self::ShiftRightLogicalIndirectHL
-            | Self::SwapIndirectHL
-            | Self::SetBitIndirectHL(..)
-            | Self::ResetBitIndirectHL(..)
             | Self::Jump(..)
             | Self::Return
             | Self::ReturnFromInterruptHandler
@@ -1020,6 +764,31 @@ impl Instruction {
                     8
                 }
             }
+            Self::Load(write_target, read_target) => {
+                4 + read_target.cycles_required() + write_target.cycles_required()
+            }
+            Self::Add(read_target)
+            | Self::AddWithCarry(read_target)
+            | Self::Subtract(read_target)
+            | Self::SubtractWithCarry(read_target)
+            | Self::And(read_target)
+            | Self::Or(read_target)
+            | Self::Xor(read_target)
+            | Self::Compare(read_target) => 4 + read_target.cycles_required(),
+            Self::TestBit(_, read_target) => 8 + read_target.cycles_required(),
+            Self::Increment(modify_target) | Self::Decrement(modify_target) => {
+                4 + 2 * modify_target.cycles_required()
+            }
+            Self::RotateLeft(modify_target)
+            | Self::RotateRight(modify_target)
+            | Self::RotateLeftThruCarry(modify_target)
+            | Self::RotateRightThruCarry(modify_target)
+            | Self::ShiftLeft(modify_target)
+            | Self::ArithmeticShiftRight(modify_target)
+            | Self::LogicalShiftRight(modify_target)
+            | Self::Swap(modify_target)
+            | Self::ResetBit(_, modify_target)
+            | Self::SetBit(_, modify_target) => 8 + 2 * modify_target.cycles_required(),
         }
     }
 }

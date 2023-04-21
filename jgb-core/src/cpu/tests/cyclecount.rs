@@ -1,4 +1,4 @@
-use crate::cpu::instructions::JumpCondition;
+use crate::cpu::instructions::{JumpCondition, ModifyTarget, ReadTarget, WriteTarget};
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair};
 use crate::cpu::{CpuRegisters, ExecutionMode};
 
@@ -11,35 +11,96 @@ fn validate_cycles_required() {
     // 8-bit load instructions
     assert_eq!(
         4,
-        I::LoadRegisterRegister(CpuRegister::A, CpuRegister::B).cycles_required(&cr)
+        I::Load(
+            WriteTarget::Register(CpuRegister::A),
+            ReadTarget::Register(CpuRegister::B)
+        )
+        .cycles_required(&cr)
     );
     assert_eq!(
         8,
-        I::LoadRegisterImmediate(CpuRegister::A, 0).cycles_required(&cr)
+        I::Load(
+            WriteTarget::Register(CpuRegister::A),
+            ReadTarget::Immediate(0)
+        )
+        .cycles_required(&cr)
     );
     assert_eq!(
         8,
-        I::LoadRegisterIndirectHL(CpuRegister::A).cycles_required(&cr)
+        I::Load(
+            WriteTarget::Register(CpuRegister::A),
+            ReadTarget::IndirectHL
+        )
+        .cycles_required(&cr)
     );
     assert_eq!(
         8,
-        I::LoadIndirectHLRegister(CpuRegister::A).cycles_required(&cr)
+        I::Load(
+            WriteTarget::IndirectHL,
+            ReadTarget::Register(CpuRegister::A)
+        )
+        .cycles_required(&cr)
     );
-    assert_eq!(12, I::LoadIndirectHLImmediate(0).cycles_required(&cr));
-    assert_eq!(8, I::LoadAccumulatorIndirectBC.cycles_required(&cr));
-    assert_eq!(8, I::LoadAccumulatorIndirectDE.cycles_required(&cr));
-    assert_eq!(8, I::LoadIndirectBCAccumulator.cycles_required(&cr));
-    assert_eq!(8, I::LoadIndirectDEAccumulator.cycles_required(&cr));
-    assert_eq!(16, I::LoadAccumulatorDirect16(0).cycles_required(&cr));
-    assert_eq!(16, I::LoadDirect16Accumulator(0).cycles_required(&cr));
-    assert_eq!(8, I::LoadAccumulatorIndirectC.cycles_required(&cr));
-    assert_eq!(8, I::LoadIndirectCAccumulator.cycles_required(&cr));
-    assert_eq!(12, I::LoadAccumulatorDirect8(0).cycles_required(&cr));
-    assert_eq!(12, I::LoadDirect8Accumulator(0).cycles_required(&cr));
-    assert_eq!(8, I::LoadAccumulatorIndirectHLDec.cycles_required(&cr));
-    assert_eq!(8, I::LoadIndirectHLDecAccumulator.cycles_required(&cr));
-    assert_eq!(8, I::LoadAccumulatorIndirectHLInc.cycles_required(&cr));
-    assert_eq!(8, I::LoadIndirectHLIncAccumulator.cycles_required(&cr));
+    assert_eq!(
+        12,
+        I::Load(WriteTarget::IndirectHL, ReadTarget::Immediate(0)).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::Accumulator, ReadTarget::IndirectBC).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::Accumulator, ReadTarget::IndirectDE).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::IndirectBC, ReadTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::IndirectDE, ReadTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::Load(WriteTarget::Accumulator, ReadTarget::Direct(0)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::Load(WriteTarget::Direct(0), ReadTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::Accumulator, ReadTarget::FFIndirectC).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::FFIndirectC, ReadTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        12,
+        I::Load(WriteTarget::Accumulator, ReadTarget::FFDirect(0)).cycles_required(&cr)
+    );
+    assert_eq!(
+        12,
+        I::Load(WriteTarget::FFDirect(0), ReadTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::Accumulator, ReadTarget::IndirectHLDec).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::IndirectHLDec, ReadTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::Accumulator, ReadTarget::IndirectHLInc).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Load(WriteTarget::IndirectHLInc, ReadTarget::Accumulator).cycles_required(&cr)
+    );
 
     // 16-bit load instructions
     assert_eq!(
@@ -52,37 +113,85 @@ fn validate_cycles_required() {
     assert_eq!(12, I::PopStack(CpuRegisterPair::BC).cycles_required(&cr));
 
     // 8-bit arithmetic/logical instructions
-    assert_eq!(4, I::AddRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::AddIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::AddImmediate(0).cycles_required(&cr));
-    assert_eq!(4, I::AddCarryRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::AddCarryIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::AddCarryImmediate(0).cycles_required(&cr));
-    assert_eq!(4, I::SubtractRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::SubtractIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::SubtractImmediate(0).cycles_required(&cr));
     assert_eq!(
         4,
-        I::SubtractCarryRegister(CpuRegister::B).cycles_required(&cr)
+        I::Add(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
     );
-    assert_eq!(8, I::SubtractCarryIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::SubtractCarryImmediate(0).cycles_required(&cr));
-    assert_eq!(4, I::CompareRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::CompareIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::CompareImmediate(0).cycles_required(&cr));
-    assert_eq!(4, I::IncRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(12, I::IncIndirectHL.cycles_required(&cr));
-    assert_eq!(4, I::DecRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(12, I::DecIndirectHL.cycles_required(&cr));
-    assert_eq!(4, I::AndRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::AndIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::AndImmediate(0).cycles_required(&cr));
-    assert_eq!(4, I::OrRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::OrIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::OrImmediate(0).cycles_required(&cr));
-    assert_eq!(4, I::XorRegister(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(8, I::XorIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::XorImmediate(0).cycles_required(&cr));
+    assert_eq!(8, I::Add(ReadTarget::IndirectHL).cycles_required(&cr));
+    assert_eq!(8, I::Add(ReadTarget::Immediate(0)).cycles_required(&cr));
+    assert_eq!(
+        4,
+        I::AddWithCarry(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::AddWithCarry(ReadTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::AddWithCarry(ReadTarget::Immediate(0)).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::Subtract(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(8, I::Subtract(ReadTarget::IndirectHL).cycles_required(&cr));
+    assert_eq!(
+        8,
+        I::Subtract(ReadTarget::Immediate(0)).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::SubtractWithCarry(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::SubtractWithCarry(ReadTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::SubtractWithCarry(ReadTarget::Immediate(0)).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::Compare(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(8, I::Compare(ReadTarget::IndirectHL).cycles_required(&cr));
+    assert_eq!(8, I::Compare(ReadTarget::Immediate(0)).cycles_required(&cr));
+    assert_eq!(
+        4,
+        I::Increment(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        12,
+        I::Increment(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::Decrement(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        12,
+        I::Decrement(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::And(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(8, I::And(ReadTarget::IndirectHL).cycles_required(&cr));
+    assert_eq!(8, I::And(ReadTarget::Immediate(0)).cycles_required(&cr));
+    assert_eq!(
+        4,
+        I::Or(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(8, I::Or(ReadTarget::IndirectHL).cycles_required(&cr));
+    assert_eq!(8, I::Or(ReadTarget::Immediate(0)).cycles_required(&cr));
+    assert_eq!(
+        4,
+        I::Xor(ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(8, I::Xor(ReadTarget::IndirectHL).cycles_required(&cr));
+    assert_eq!(8, I::Xor(ReadTarget::Immediate(0)).cycles_required(&cr));
     assert_eq!(4, I::ComplementCarryFlag.cycles_required(&cr));
     assert_eq!(4, I::SetCarryFlag.cycles_required(&cr));
     assert_eq!(4, I::DecimalAdjustAccumulator.cycles_required(&cr));
@@ -105,40 +214,109 @@ fn validate_cycles_required() {
     assert_eq!(12, I::LoadHLStackPointerOffset(0).cycles_required(&cr));
 
     // Bit rotate/shift instructions
-    assert_eq!(4, I::RotateLeftAccumulator.cycles_required(&cr));
-    assert_eq!(4, I::RotateLeftAccumulatorThruCarry.cycles_required(&cr));
-    assert_eq!(4, I::RotateRightAccumulator.cycles_required(&cr));
-    assert_eq!(4, I::RotateRightAccumulatorThruCarry.cycles_required(&cr));
-    assert_eq!(8, I::RotateLeft(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::RotateLeftIndirectHL.cycles_required(&cr));
+    assert_eq!(
+        4,
+        I::RotateLeft(ModifyTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::RotateLeftThruCarry(ModifyTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::RotateRight(ModifyTarget::Accumulator).cycles_required(&cr)
+    );
+    assert_eq!(
+        4,
+        I::RotateRightThruCarry(ModifyTarget::Accumulator).cycles_required(&cr)
+    );
     assert_eq!(
         8,
-        I::RotateLeftThruCarry(CpuRegister::B).cycles_required(&cr)
+        I::RotateLeft(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
     );
-    assert_eq!(16, I::RotateLeftIndirectHLThruCarry.cycles_required(&cr));
-    assert_eq!(8, I::RotateRight(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::RotateRightIndirectHL.cycles_required(&cr));
+    assert_eq!(
+        16,
+        I::RotateLeft(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
     assert_eq!(
         8,
-        I::RotateRightThruCarry(CpuRegister::B).cycles_required(&cr)
+        I::RotateLeftThruCarry(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
     );
-    assert_eq!(16, I::RotateRightIndirectHLThruCarry.cycles_required(&cr));
-    assert_eq!(8, I::ShiftLeft(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::ShiftLeftIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::ShiftRight(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::ShiftRightIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::ShiftRightLogical(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::ShiftRightLogicalIndirectHL.cycles_required(&cr));
-    assert_eq!(8, I::Swap(CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::SwapIndirectHL.cycles_required(&cr));
+    assert_eq!(
+        16,
+        I::RotateLeftThruCarry(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::RotateRight(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::RotateRight(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::RotateRightThruCarry(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::RotateRightThruCarry(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::ShiftLeft(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::ShiftLeft(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::ArithmeticShiftRight(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::ArithmeticShiftRight(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::LogicalShiftRight(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::LogicalShiftRight(ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::Swap(ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(16, I::Swap(ModifyTarget::IndirectHL).cycles_required(&cr));
 
     // Single bit instructions
-    assert_eq!(8, I::TestBit(0, CpuRegister::B).cycles_required(&cr));
-    assert_eq!(12, I::TestBitIndirectHL(0).cycles_required(&cr));
-    assert_eq!(8, I::SetBit(0, CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::SetBitIndirectHL(0).cycles_required(&cr));
-    assert_eq!(8, I::ResetBit(0, CpuRegister::B).cycles_required(&cr));
-    assert_eq!(16, I::ResetBitIndirectHL(0).cycles_required(&cr));
+    assert_eq!(
+        8,
+        I::TestBit(0, ReadTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        12,
+        I::TestBit(0, ReadTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::SetBit(0, ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::SetBit(0, ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
+    assert_eq!(
+        8,
+        I::ResetBit(0, ModifyTarget::Register(CpuRegister::B)).cycles_required(&cr)
+    );
+    assert_eq!(
+        16,
+        I::ResetBit(0, ModifyTarget::IndirectHL).cycles_required(&cr)
+    );
 
     // Unconditional control flow instructions
     assert_eq!(16, I::Jump(0).cycles_required(&cr));

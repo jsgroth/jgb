@@ -261,19 +261,6 @@ impl CpuRegisters {
         }
     }
 
-    /// Obtain a mutable reference to the given register's value.
-    pub fn get_register_mut(&mut self, register: CpuRegister) -> &mut u8 {
-        match register {
-            CpuRegister::A => &mut self.accumulator,
-            CpuRegister::B => &mut self.b,
-            CpuRegister::C => &mut self.c,
-            CpuRegister::D => &mut self.d,
-            CpuRegister::E => &mut self.e,
-            CpuRegister::H => &mut self.h,
-            CpuRegister::L => &mut self.l,
-        }
-    }
-
     /// Read the given pair of registers as a 16-bit value, except for SP which is a 16-bit
     /// register and is read directly.
     pub fn read_register_pair(&self, register_pair: CpuRegisterPair) -> u16 {
