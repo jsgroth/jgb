@@ -82,11 +82,11 @@ impl ReadTarget {
             Self::IndirectDE => address_space.read_address_u8(cpu_registers.de(), ppu_state),
             Self::Accumulator => cpu_registers.accumulator,
             Self::FFIndirectC => {
-                let address = 0xFF00 | u16::from(cpu_registers.c);
+                let address = u16::from_be_bytes([0xFF, cpu_registers.c]);
                 address_space.read_address_u8(address, ppu_state)
             }
             Self::FFDirect(n) => {
-                let address = 0xFF00 | u16::from(n);
+                let address = u16::from_be_bytes([0xFF, n]);
                 address_space.read_address_u8(address, ppu_state)
             }
             Self::Direct(nn) => address_space.read_address_u8(nn, ppu_state),
@@ -158,11 +158,11 @@ impl WriteTarget {
                 cpu_registers.accumulator = value;
             }
             Self::FFIndirectC => {
-                let address = 0xFF00 | u16::from(cpu_registers.c);
+                let address = u16::from_be_bytes([0xFF, cpu_registers.c]);
                 address_space.write_address_u8(address, value, ppu_state);
             }
             Self::FFDirect(n) => {
-                let address = 0xFF00 | u16::from(n);
+                let address = u16::from_be_bytes([0xFF, n]);
                 address_space.write_address_u8(address, value, ppu_state);
             }
             Self::Direct(nn) => {
