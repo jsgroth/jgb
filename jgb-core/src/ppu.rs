@@ -453,6 +453,14 @@ pub fn progress_vram_dma_transfer(
                 // VRAM DMA transfer has been started
                 ppu_state.vram_dma_status =
                     VramDmaStatus::from_hdma_registers(address_space.get_io_registers());
+
+                // Immediately clear HDMA5 bit 7 because an HBlank VRAM DMA transfer will not start
+                // immediately, and some game programs poll this bit to see when the transfer has
+                // completed
+                address_space
+                    .get_io_registers_mut()
+                    .privileged_set_hdma5(hdma5 & 0x7F);
+
                 log::trace!(
                     "initialized new VRAM DMA transfer: {:04X?}",
                     ppu_state.vram_dma_status
