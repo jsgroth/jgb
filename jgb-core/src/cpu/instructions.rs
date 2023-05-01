@@ -4,8 +4,6 @@ use crate::cpu::registers::{
     CFlag, CpuRegister, CpuRegisterPair, CpuRegisters, HFlag, NFlag, ZFlag,
 };
 use crate::memory::AddressSpace;
-use std::num::TryFromIntError;
-use thiserror::Error;
 
 use crate::cpu::{CgbSpeedMode, ExecutionMode};
 use crate::memory::ioregisters::IoRegister;
@@ -29,15 +27,6 @@ impl JumpCondition {
             Self::C => cpu_registers.c_flag(),
         }
     }
-}
-
-#[derive(Error, Debug)]
-pub enum ExecutionError {
-    #[error("error adding relative offset to SP or PC register: {source}")]
-    RegisterOverflow {
-        #[from]
-        source: TryFromIntError,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,7 +342,7 @@ impl Instruction {
         address_space: &mut AddressSpace,
         cpu_registers: &mut CpuRegisters,
         ppu_state: &PpuState,
-    ) -> Result<(), ExecutionError> {
+    ) {
         match self {
             Self::Load(write_target, read_target) => {
                 let value = read_target.read_value(cpu_registers, address_space, ppu_state);
@@ -623,12 +612,12 @@ impl Instruction {
                 }
             }
             Self::RelativeJump(e) => {
-                let pc = (i32::from(cpu_registers.pc) + i32::from(e)).try_into()?;
+                let pc = (i32::from(cpu_registers.pc) + i32::from(e)) as u16;
                 cpu_registers.pc = pc;
             }
             Self::RelativeJumpCond(cc, e) => {
                 if cc.check(cpu_registers) {
-                    let pc = (i32::from(cpu_registers.pc) + i32::from(e)).try_into()?;
+                    let pc = (i32::from(cpu_registers.pc) + i32::from(e)) as u16;
                     cpu_registers.pc = pc;
                 }
             }
@@ -689,14 +678,12 @@ impl Instruction {
                 cpu_registers.interrupt_delay = true;
                 // Return early because this is the only instruction that should not unset interrupt
                 // delay
-                return Ok(());
+                return;
             }
             Self::NoOp => {}
         }
 
         cpu_registers.interrupt_delay = false;
-
-        Ok(())
     }
 
     /// Return the number of clock cycles that are required to execute this instruction.

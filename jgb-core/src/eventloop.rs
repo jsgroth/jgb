@@ -1,5 +1,5 @@
 use crate::audio::AudioError;
-use crate::cpu::instructions::{ExecutionError, ParseError};
+use crate::cpu::instructions::ParseError;
 use crate::cpu::{instructions, CgbSpeedMode, CpuRegisters};
 use crate::graphics::{GbFrameTexture, GraphicsError, Modal};
 use crate::input::{
@@ -28,11 +28,6 @@ pub enum RunError {
     InstructionParse {
         #[from]
         source: ParseError,
-    },
-    #[error("error executing CPU instruction: {source}")]
-    InstructionExecute {
-        #[from]
-        source: ExecutionError,
     },
     #[error("rendering error: {source}")]
     Rendering {
@@ -477,7 +472,7 @@ fn tick_cpu(
                 .get_io_registers()
                 .read_register(IoRegister::IF)
         );
-        instruction.execute(address_space, cpu_registers, ppu_state)?;
+        instruction.execute(address_space, cpu_registers, ppu_state);
 
         cycles_required
     } else {
