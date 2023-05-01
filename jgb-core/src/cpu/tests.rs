@@ -193,9 +193,7 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
                 .expect("all instructions in program should be valid");
         cpu_registers.pc = pc;
 
-        instruction
-            .execute(&mut address_space, &mut cpu_registers, &ppu_state)
-            .expect("all instructions in program should successfully execute");
+        instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state);
     }
 
     expected_state.assert_matches(&cpu_registers, &address_space, &ppu_state);
