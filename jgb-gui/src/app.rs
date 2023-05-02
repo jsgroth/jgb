@@ -27,11 +27,12 @@ use crate::app::input::{
 pub use config::AppConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OpenSettingsWindow {
+enum OpenWindow {
     General,
     Keyboard,
     Controller,
     Hotkey,
+    About,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +71,7 @@ struct RomSearchResult {
 #[derive(Debug, Default)]
 struct AppState {
     running_emulator: Option<EmulatorInstance>,
-    open_settings_window: Option<OpenSettingsWindow>,
+    open_window: Option<OpenWindow>,
     input_thread: Option<InputThread>,
     emulation_error: Option<EmulationError>,
     window_width_text: String,
@@ -273,7 +274,7 @@ impl JgbApp {
 
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.set_enabled(
-                self.state.open_settings_window.is_none()
+                self.state.open_window.is_none()
                     && self.state.input_thread.is_none()
                     && self.state.emulation_error.is_none(),
             );
@@ -306,22 +307,29 @@ impl JgbApp {
                 ui.set_enabled(!self.state.is_emulator_running());
                 ui.menu_button("Options", |ui| {
                     if ui.button("General Settings").clicked() {
-                        self.state.open_settings_window = Some(OpenSettingsWindow::General);
+                        self.state.open_window = Some(OpenWindow::General);
                         ui.close_menu();
                     }
 
                     if ui.button("Keyboard Settings").clicked() {
-                        self.state.open_settings_window = Some(OpenSettingsWindow::Keyboard);
+                        self.state.open_window = Some(OpenWindow::Keyboard);
                         ui.close_menu();
                     }
 
                     if ui.button("Controller Settings").clicked() {
-                        self.state.open_settings_window = Some(OpenSettingsWindow::Controller);
+                        self.state.open_window = Some(OpenWindow::Controller);
                         ui.close_menu();
                     }
 
                     if ui.button("Hotkey Settings").clicked() {
-                        self.state.open_settings_window = Some(OpenSettingsWindow::Hotkey);
+                        self.state.open_window = Some(OpenWindow::Hotkey);
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Help", |ui| {
+                    if ui.button("About").clicked() {
+                        self.state.open_window = Some(OpenWindow::About);
                         ui.close_menu();
                     }
                 });
@@ -447,12 +455,12 @@ impl JgbApp {
 
                 ui.with_layout(Layout::top_down(Align::Center), |ui| {
                     if ui.button("Close").clicked() {
-                        self.state.open_settings_window = None;
+                        self.state.open_window = None;
                     }
                 });
             });
         if !settings_open {
-            self.state.open_settings_window = None;
+            self.state.open_window = None;
         };
     }
 
@@ -470,7 +478,7 @@ impl JgbApp {
                 }
             });
         if !settings_open {
-            self.state.open_settings_window = None;
+            self.state.open_window = None;
         }
     }
 
@@ -493,7 +501,7 @@ impl JgbApp {
                 }
             });
         if !settings_open {
-            self.state.open_settings_window = None;
+            self.state.open_window = None;
         }
     }
 
@@ -511,15 +519,39 @@ impl JgbApp {
                 }
             });
         if !settings_open {
-            self.state.open_settings_window = None;
+            self.state.open_window = None;
+        }
+    }
+
+    fn render_about_window(&mut self, ctx: &egui::Context) {
+        let mut about_open = true;
+        Window::new("About")
+            .id("about".into())
+            .resizable(false)
+            .open(&mut about_open)
+            .show(ctx, |ui| {
+                ui.heading("jgb");
+
+                ui.add_space(10.0);
+                ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+
+                ui.add_space(15.0);
+                ui.label("Copyright © 2022-2023 James Groth");
+
+                ui.add_space(15.0);
+                ui.horizontal(|ui| {
+                    ui.label("Source code:");
+                    ui.hyperlink("https://www.github.com/jsgroth/jgb");
+                });
+            });
+        if !about_open {
+            self.state.open_window = None;
         }
     }
 
     fn render_rom_list(&mut self, ctx: &egui::Context) {
         CentralPanel::default().show(ctx, |ui| {
-            ui.set_enabled(
-                self.state.open_settings_window.is_none() && self.state.input_thread.is_none(),
-            );
+            ui.set_enabled(self.state.open_window.is_none() && self.state.input_thread.is_none());
 
             if self.state.rom_search_results.is_empty() {
                 ui.with_layout(
@@ -616,18 +648,21 @@ impl eframe::App for JgbApp {
 
         self.render_rom_list(ctx);
 
-        match self.state.open_settings_window {
-            Some(OpenSettingsWindow::General) => {
+        match self.state.open_window {
+            Some(OpenWindow::General) => {
                 self.render_general_settings_window(ctx);
             }
-            Some(OpenSettingsWindow::Keyboard) => {
+            Some(OpenWindow::Keyboard) => {
                 self.render_keyboard_settings_window(ctx);
             }
-            Some(OpenSettingsWindow::Controller) => {
+            Some(OpenWindow::Controller) => {
                 self.render_controller_settings_window(ctx);
             }
-            Some(OpenSettingsWindow::Hotkey) => {
+            Some(OpenWindow::Hotkey) => {
                 self.render_hotkey_settings_window(ctx);
+            }
+            Some(OpenWindow::About) => {
+                self.render_about_window(ctx);
             }
             None => {}
         }
