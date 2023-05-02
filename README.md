@@ -63,36 +63,26 @@ sudo apt install libgtk-3-dev
 
 ## Build & Run GUI
 
-To build the GUI:
+To build and run the GUI:
 ```shell
-cargo build --release --bin jgb-gui
-```
-
-To run the GUI:
-```shell
-target/release/jgb-gui
+cargo run --release --bin jgb-gui
 ```
 
 By default the GUI app will read and save its config using the file `jgb-config.toml` in the current working directory. To override this and use a custom path, use the `--config` command-line arg:
 ```shell
-target/release/jgb-gui --config /path/to/my/config.toml
+cargo run --release --bin jgb-gui -- --config /path/to/my/config.toml
 ```
 
 ## Build & Run CLI
 
-To build the CLI:
+To build the CLI and run on a ROM file with audio enabled:
 ```shell
-cargo build --release --bin jgb-cli
-```
-
-To run a ROM file with audio enabled:
-```shell
-target/release/jgb-cli -a -f <gb_file>
+cargo run --release --bin jgb-cli -- -a -f <gb_file>
 ```
 
 To view all command-line options:
 ```shell
-target/release/jgb-cli -h
+cargo run --release --bin jgb-cli -- -h
 ```
 
 ## Screenshots
