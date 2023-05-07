@@ -433,8 +433,14 @@ fn tick_cpu(
     } else if !cpu_registers.halted || cpu::interrupt_triggered_no_ime_check(address_space) {
         cpu_registers.halted = false;
 
-        let (instruction, pc) =
-            instructions::parse_next_instruction(address_space, cpu_registers.pc, ppu_state)?;
+        let (instruction, pc) = instructions::parse_next_instruction(
+            address_space,
+            cpu_registers.pc,
+            ppu_state,
+            cpu_registers.halt_bug_triggered,
+        )?;
+
+        cpu_registers.halt_bug_triggered = false;
 
         log::trace!("Updating PC from 0x{:04X} to {:04X}", cpu_registers.pc, pc);
         cpu_registers.pc = pc;

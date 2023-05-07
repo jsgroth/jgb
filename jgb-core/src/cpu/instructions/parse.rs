@@ -12,10 +12,17 @@ pub enum ParseError {
 
 pub fn parse_next_instruction(
     address_space: &AddressSpace,
-    pc: u16,
+    mut pc: u16,
     ppu_state: &PpuState,
+    halt_bug_triggered: bool,
 ) -> Result<(Instruction, u16), ParseError> {
     let opcode = address_space.read_address_u8(pc, ppu_state);
+
+    // If HALT bug triggered, act as if the opcode read did not advance the PC
+    if halt_bug_triggered {
+        pc -= 1;
+    }
+
     match opcode {
         0x00 => Ok((Instruction::NoOp, pc + 1)),
         0x01 | 0x11 | 0x21 | 0x31 => {

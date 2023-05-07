@@ -188,9 +188,13 @@ fn run_test(program_hex: &str, expected_state: &ExpectedState) {
     let ppu_state = PpuState::new(ExecutionMode::GameBoy);
 
     while cpu_registers.pc >= 0x0100 && cpu_registers.pc < rom_len {
-        let (instruction, pc) =
-            instructions::parse_next_instruction(&address_space, cpu_registers.pc, &ppu_state)
-                .expect("all instructions in program should be valid");
+        let (instruction, pc) = instructions::parse_next_instruction(
+            &address_space,
+            cpu_registers.pc,
+            &ppu_state,
+            false,
+        )
+        .expect("all instructions in program should be valid");
         cpu_registers.pc = pc;
 
         instruction.execute(&mut address_space, &mut cpu_registers, &ppu_state);

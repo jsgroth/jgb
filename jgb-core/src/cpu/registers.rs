@@ -148,6 +148,7 @@ pub struct CpuRegisters {
     // Tracks whether the previous instruction was EI
     pub interrupt_delay: bool,
     pub halted: bool,
+    pub halt_bug_triggered: bool,
     pub cgb_speed_mode: CgbSpeedMode,
     pub speed_switch_wait_cycles_remaining: Option<u32>,
 }
@@ -188,6 +189,7 @@ impl CpuRegisters {
             ime: false,
             interrupt_delay: false,
             halted: false,
+            halt_bug_triggered: false,
             cgb_speed_mode: CgbSpeedMode::Normal,
             speed_switch_wait_cycles_remaining: None,
         }

@@ -655,6 +655,16 @@ impl Instruction {
             }
             Self::Halt => {
                 cpu_registers.halted = true;
+
+                // The HALT bug: If HALT is executed while IME=0 and (IE & IF) != 0, the PC is not
+                // incremented after the next opcode read
+                let ie_value = address_space.get_ie_register();
+                let if_value = address_space
+                    .get_io_registers()
+                    .read_register(IoRegister::IF);
+                if !cpu_registers.ime && ie_value & if_value != 0 {
+                    cpu_registers.halt_bug_triggered = true;
+                }
             }
             Self::Stop => {
                 let key1_value = address_space
