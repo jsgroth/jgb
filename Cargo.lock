@@ -1360,7 +1360,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-cli"
-version = "0.11.0"
+version = "0.10.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -1371,7 +1371,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-core"
-version = "0.11.0"
+version = "0.10.6"
 dependencies = [
  "bincode",
  "jgb-proc-macros",
@@ -1386,7 +1386,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-gui"
-version = "0.11.0"
+version = "0.10.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -1404,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "jgb-proc-macros"
-version = "0.11.0"
+version = "0.10.6"
 dependencies = [
  "quote",
  "syn 1.0.109",
