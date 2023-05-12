@@ -111,12 +111,12 @@ jobs:
       - name: Build release
         run: |
           RUSTFLAGS="-Clink-args=-Wl,-rpath=." \
-          cargo build --release
+          cargo build --profile release-lto
 
       - name: Compress binaries
         run: |
           cp /lib/x86_64-linux-gnu/libSDL2_ttf-2.0.so.0 ./ && \
-          tar -czvf jgb-linux.tar.gz LICENSE libSDL2_ttf-2.0.so.0 -C target/release jgb-cli jgb-gui
+          tar -czvf jgb-linux.tar.gz LICENSE libSDL2_ttf-2.0.so.0 -C target/release-lto jgb-cli jgb-gui
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
@@ -161,11 +161,11 @@ jobs:
       - name: Build release
         run: |
           RUSTFLAGS="-Clink-arg=-ISDL2-$SDL_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2-$SDL_VERSION/x86_64-w64-mingw32/lib -Clink-arg=-ISDL2_ttf-$SDL_TTF_VERSION/x86_64-w64-mingw32/include -Clink-arg=-LSDL2_ttf-$SDL_TTF_VERSION/x86_64-w64-mingw32/lib" \
-          cargo build --release --target x86_64-pc-windows-gnu
+          cargo build --profile release-lto --target x86_64-pc-windows-gnu
 
       - name: Compress binaries
         run: |
-          mv target/x86_64-pc-windows-gnu/release/*.exe ./ && \
+          mv target/x86_64-pc-windows-gnu/release-lto/*.exe ./ && \
           zip -r jgb-windows.zip LICENSE README-SDL.txt SDL2.dll SDL2_ttf.dll jgb-cli.exe jgb-gui.exe
 
       - name: Upload binaries

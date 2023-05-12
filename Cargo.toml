@@ -6,6 +6,10 @@ members = [
     "jgb-gui",
 ]
 
-[profile.release-with-debug]
+[profile.release-lto]
+inherits = "release"
+lto = true
+
+[profile.profiling]
 inherits = "release"
 debug = true
