@@ -623,7 +623,7 @@ impl eframe::App for JgbApp {
             .state
             .running_emulator
             .as_ref()
-            .map_or(false, |emulator_instance| {
+            .is_some_and(|emulator_instance| {
                 emulator_instance.thread.is_finished()
             })
         {
@@ -635,7 +635,7 @@ impl eframe::App for JgbApp {
             .state
             .input_thread
             .as_ref()
-            .map_or(false, InputThread::is_finished)
+            .is_some_and(InputThread::is_finished)
         {
             let thread = self.state.input_thread.take().unwrap();
 

@@ -5,9 +5,9 @@ use crate::apu::channels::{Channel, NoiseChannel, PulseChannel, WaveChannel};
 use crate::apu::filter::LowPassFilter;
 use crate::cpu::CgbSpeedMode;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::sync::OnceLock;
 
 // Output sample frequency in Hz
 pub const OUTPUT_FREQUENCY: u64 = 48000;
@@ -351,17 +351,17 @@ fn high_pass_filter(sample: f64, capacitor: &mut f64) -> f64 {
     filtered_sample
 }
 
-static SAMPLE_RATE: Lazy<f64> = Lazy::new(|| OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64);
-static SAMPLE_RATE_60HZ: Lazy<f64> =
-    Lazy::new(|| OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64 * 59.7 / 60.0);
-
 // Return whether the APU emulator should output audio samples during the current M-cycle tick.
 // This is currently just a naive "output every 4.194304 MHz / <output_frequency> clock cycles"
 fn should_output_sample(apu_state: &ApuState, prev_clock_ticks: u64, audio_60hz: bool) -> bool {
+    static SAMPLE_RATE: OnceLock<f64> = OnceLock::new();
+    static SAMPLE_RATE_60HZ: OnceLock<f64> = OnceLock::new();
+
     let sample_rate = if audio_60hz {
         *SAMPLE_RATE_60HZ
+            .get_or_init(|| OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64 * 59.7 / 60.0)
     } else {
-        *SAMPLE_RATE
+        *SAMPLE_RATE.get_or_init(|| OUTPUT_FREQUENCY as f64 / APU_CLOCK_SPEED as f64)
     };
 
     let prev_period = (prev_clock_ticks as f64 * sample_rate).round() as u64;

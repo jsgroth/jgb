@@ -2,13 +2,13 @@ use crate::config::GbColorScheme;
 use crate::cpu::ExecutionMode;
 use crate::ppu::{FrameBuffer, PpuState};
 use crate::{ppu, GbcColorCorrection, HardwareMode, RunConfig};
-use once_cell::sync::Lazy;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, TextureValueError, WindowCanvas};
 use sdl2::ttf::{Font, FontError};
 use sdl2::video::{FullscreenType, Window};
 use sdl2::IntegerOrSdlError;
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 use thiserror::Error;
 
@@ -197,14 +197,13 @@ impl ColorCorrectionTable {
     }
 }
 
-static COLOR_CORRECTION_TABLE: Lazy<ColorCorrectionTable> = Lazy::new(ColorCorrectionTable::create);
-
 fn gbc_texture_updater_corrected_colors(
     frame_buffer: &FrameBuffer,
 ) -> impl Fn(&mut [u8], usize) + '_ {
-    move |pixels, pitch| {
-        let color_correction_table = &*COLOR_CORRECTION_TABLE;
+    static COLOR_CORRECTION_TABLE: OnceLock<ColorCorrectionTable> = OnceLock::new();
+    let color_correction_table = COLOR_CORRECTION_TABLE.get_or_init(ColorCorrectionTable::create);
 
+    move |pixels, pitch| {
         for (i, scanline) in frame_buffer.iter().enumerate() {
             for (j, gbc_color) in scanline.iter().copied().enumerate() {
                 let [r, g, b] = parse_gbc_color(gbc_color);

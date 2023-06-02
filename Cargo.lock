@@ -1376,7 +1376,6 @@ dependencies = [
  "bincode",
  "jgb-proc-macros",
  "log",
- "once_cell",
  "rand",
  "sdl2",
  "serde",
