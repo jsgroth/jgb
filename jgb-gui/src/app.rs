@@ -623,9 +623,7 @@ impl eframe::App for JgbApp {
             .state
             .running_emulator
             .as_ref()
-            .is_some_and(|emulator_instance| {
-                emulator_instance.thread.is_finished()
-            })
+            .is_some_and(|emulator_instance| emulator_instance.thread.is_finished())
         {
             let thread = self.state.running_emulator.take().unwrap().thread;
             self.state.emulation_error = thread.join().unwrap().err();

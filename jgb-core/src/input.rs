@@ -54,38 +54,29 @@ fn try_parse_keycode(s: &str) -> Result<Keycode, KeyMapError> {
     Keycode::from_name(s).ok_or_else(|| KeyMapError::InvalidKeycode { keycode: s.into() })
 }
 
-macro_rules! build_key_map {
-    ($($config_field:expr => $button:expr),+$(,)?) => {
-        {
-            let mut map = HashMap::new();
-
-            $(
-                let keycode = try_parse_keycode(&$config_field)?;
-                if let Some(_) = map.insert(keycode, $button) {
-                    return Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() });
-                }
-            )*
-
-            map
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct KeyMap(HashMap<Keycode, Button>);
 
 impl KeyMap {
     pub fn from_config(input_config: &InputConfig) -> Result<Self, KeyMapError> {
-        let map = build_key_map!(
-            input_config.up => Button::Up,
-            input_config.down => Button::Down,
-            input_config.left => Button::Left,
-            input_config.right => Button::Right,
-            input_config.a => Button::A,
-            input_config.b => Button::B,
-            input_config.start => Button::Start,
-            input_config.select => Button::Select,
-        );
+        let mut map = HashMap::new();
+        for (button, config_input) in [
+            (Button::Up, &input_config.up),
+            (Button::Down, &input_config.down),
+            (Button::Left, &input_config.left),
+            (Button::Right, &input_config.right),
+            (Button::A, &input_config.a),
+            (Button::B, &input_config.b),
+            (Button::Start, &input_config.start),
+            (Button::Select, &input_config.select),
+        ] {
+            let keycode = try_parse_keycode(config_input)?;
+            if map.insert(keycode, button).is_some() {
+                return Err(KeyMapError::DuplicateKeycode {
+                    keycode: keycode.name(),
+                });
+            }
+        }
 
         Ok(Self(map))
     }
@@ -100,57 +91,33 @@ pub enum Hotkey {
     FastForward,
 }
 
-macro_rules! build_hotkey_map {
-    ($($config_field:expr => $hotkey:expr),+$(,)?) => {
-        {
-            let mut map = HashMap::new();
-
-            $(
-                if let Some(keycode) = $config_field.as_ref() {
-                    let keycode = try_parse_keycode(keycode)?;
-                    if map.insert(keycode, $hotkey).is_some() {
-                        return Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() });
-                    }
-                }
-            )*
-
-            map
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct HotkeyMap(HashMap<Keycode, Hotkey>);
 
 impl HotkeyMap {
     pub fn from_config(hotkey_config: &HotkeyConfig) -> Result<Self, KeyMapError> {
-        let map = build_hotkey_map!(
-            hotkey_config.exit => Hotkey::Exit,
-            hotkey_config.toggle_fullscreen => Hotkey::ToggleFullscreen,
-            hotkey_config.save_state => Hotkey::SaveState,
-            hotkey_config.load_state => Hotkey::LoadState,
-            hotkey_config.fast_forward => Hotkey::FastForward,
-        );
+        let mut map = HashMap::new();
+        for (hotkey, config_input) in [
+            (Hotkey::Exit, hotkey_config.exit.as_ref()),
+            (
+                Hotkey::ToggleFullscreen,
+                hotkey_config.toggle_fullscreen.as_ref(),
+            ),
+            (Hotkey::SaveState, hotkey_config.save_state.as_ref()),
+            (Hotkey::LoadState, hotkey_config.load_state.as_ref()),
+            (Hotkey::FastForward, hotkey_config.fast_forward.as_ref()),
+        ] {
+            if let Some(keycode) = config_input {
+                let keycode = try_parse_keycode(keycode)?;
+                if map.insert(keycode, hotkey).is_some() {
+                    return Err(KeyMapError::DuplicateKeycode {
+                        keycode: keycode.name(),
+                    });
+                }
+            }
+        }
 
         Ok(Self(map))
-    }
-}
-
-macro_rules! build_controller_map {
-    ($($config_field:expr => $button:expr),+$(,)?) => {
-        {
-            let mut map = HashMap::new();
-
-            $(
-                if let Some(input) = $config_field {
-                    if map.insert(input, $button).is_some() {
-                        return Err(JoystickError::DuplicateInput { input });
-                    }
-                }
-            )*
-
-            map
-        }
     }
 }
 
@@ -168,16 +135,23 @@ impl ControllerMap {
             }
         })?;
 
-        let map = build_controller_map!(
-            controller_config.up => Button::Up,
-            controller_config.down => Button::Down,
-            controller_config.left => Button::Left,
-            controller_config.right => Button::Right,
-            controller_config.a => Button::A,
-            controller_config.b => Button::B,
-            controller_config.start => Button::Start,
-            controller_config.select => Button::Select,
-        );
+        let mut map = HashMap::new();
+        for (button, config_input) in [
+            (Button::Up, controller_config.up),
+            (Button::Down, controller_config.down),
+            (Button::Left, controller_config.left),
+            (Button::Right, controller_config.right),
+            (Button::A, controller_config.a),
+            (Button::B, controller_config.b),
+            (Button::Start, controller_config.start),
+            (Button::Select, controller_config.select),
+        ] {
+            if let Some(input) = config_input {
+                if map.insert(input, button).is_some() {
+                    return Err(JoystickError::DuplicateInput { input });
+                }
+            }
+        }
 
         Ok(Self { map, axis_deadzone })
     }
