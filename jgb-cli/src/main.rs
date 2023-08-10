@@ -20,8 +20,8 @@ struct CliArgs {
     #[arg(long = "hardware-mode", default_value_t)]
     hardware_mode: HardwareMode,
 
-    /// Enable audio
-    #[arg(short = 'a', long = "audio-enabled", default_value_t)]
+    /// Disable audio
+    #[arg(long = "no-audio", default_value_t = true)]
     audio_enabled: bool,
 
     /// Disable audio sync; can reduce video choppiness but may cause audio skips
