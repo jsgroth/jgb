@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 jgb-core = { path = "../jgb-core" }
 
-anyhow = "1.0"
-clap = { version = "4.1", features = ["derive"] }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
 eframe = "0.21"
 egui = "0.21"
 egui_extras = "0.21"
@@ -17,5 +17,5 @@ env_logger = "0.10"
 log = "0.4"
 rfd = "0.11"
 sdl2 = { version = "0.35", features = ["ttf"] }
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 toml = "0.7"

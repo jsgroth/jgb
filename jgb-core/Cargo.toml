@@ -10,7 +10,7 @@ jgb-proc-macros = { path = "../jgb-proc-macros" }
 
 bincode = "1"
 log = "0.4"
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true }
 sdl2 = { version = "0.35", features = ["hidapi", "ttf"] }
 thiserror = "1"
 tinyvec = "1"
