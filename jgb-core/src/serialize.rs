@@ -140,8 +140,8 @@ where
     {
         let mut array = [[T::default(); M]; N];
 
-        for row in array.iter_mut() {
-            for value in row.iter_mut() {
+        for row in &mut array {
+            for value in row {
                 let Some(elem) = seq.next_element()? else {
                     return Err(de::Error::custom(format!(
                         "array has fewer than {M}*{N} elements"

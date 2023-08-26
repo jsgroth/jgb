@@ -5,6 +5,7 @@ members = [
     "jgb-cli",
     "jgb-gui",
 ]
+resolver = "2"
 
 [workspace.dependencies]
 # Pin serde to <= 1.0.171 until/unless serde_derive stops including precompiled binaries

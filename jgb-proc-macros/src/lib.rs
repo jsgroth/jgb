@@ -97,6 +97,10 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
 
 /// Implement the `serde::Serialize` trait for the given type, serializing values as strings. This
 /// requires that the type implements the `std::fmt::Display` trait.
+///
+/// # Panics
+///
+/// This macro will panic only if it cannot parse its input.
 #[proc_macro_derive(StrSerialize)]
 pub fn str_serialize(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).expect("unable to parse input");
@@ -119,6 +123,10 @@ pub fn str_serialize(input: TokenStream) -> TokenStream {
 
 /// Implement the `serde::Deserialize` trait for the given type, deserializing values from strings.
 /// This requires that the type implements the `std::str::FromStr` trait.
+///
+/// # Panics
+///
+/// This macro will panic only if it cannot parse its input.
 #[proc_macro_derive(StrDeserialize)]
 pub fn str_deserialize(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).expect("unable to parse input");
