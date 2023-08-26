@@ -105,8 +105,7 @@ impl AppState {
 
     #[allow(clippy::if_then_some_else_none)]
     fn refresh_rom_search_results(&mut self, rom_search_dir: Option<&String>) {
-        let Some(rom_search_dir) = rom_search_dir
-        else {
+        let Some(rom_search_dir) = rom_search_dir else {
             self.rom_search_results = Vec::new();
             return;
         };
@@ -117,8 +116,11 @@ impl AppState {
                 .filter_map(|dir_entry| {
                     let path = dir_entry.path();
                     let extension = path.extension();
-                    let is_gb_file = extension == Some(OsStr::new("gb")) || extension == Some(OsStr::new("gbc"));
-                    let Ok(metadata) = dir_entry.metadata() else { return None };
+                    let is_gb_file =
+                        extension == Some(OsStr::new("gb")) || extension == Some(OsStr::new("gbc"));
+                    let Ok(metadata) = dir_entry.metadata() else {
+                        return None;
+                    };
 
                     if is_gb_file && metadata.is_file() {
                         let cgb_support_type = match determine_cgb_support_type(&path) {
@@ -130,11 +132,8 @@ impl AppState {
                         };
 
                         let full_path = path.to_str()?.into();
-                        let file_name_no_ext = path
-                            .with_extension("")
-                            .file_name()?
-                            .to_str()?
-                            .into();
+                        let file_name_no_ext =
+                            path.with_extension("").file_name()?.to_str()?.into();
                         let file_size_kb = metadata.len() / 1024;
 
                         Some(RomSearchResult {

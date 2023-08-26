@@ -409,7 +409,9 @@ impl IoRegisters {
             return self.contents[(address - address::IO_REGISTERS_START) as usize];
         }
 
-        let Some(register) = IoRegister::from_address(address) else { return 0xFF };
+        let Some(register) = IoRegister::from_address(address) else {
+            return 0xFF;
+        };
 
         self.read_register(register)
     }
@@ -422,7 +424,9 @@ impl IoRegisters {
             return;
         }
 
-        let Some(register) = IoRegister::from_address(address) else { return };
+        let Some(register) = IoRegister::from_address(address) else {
+            return;
+        };
 
         self.write_register(register, value);
     }
@@ -669,8 +673,7 @@ impl IoRegisters {
     /// Dirty bits are only tracked for the DMA register and specific audio registers. This method
     /// will panic if called for a register for which the dirty bit is not tracked.
     pub fn clear_dirty_bit(&mut self, register: IoRegister) {
-        let Some(bit) = dirty_bit_for_register(register)
-        else {
+        let Some(bit) = dirty_bit_for_register(register) else {
             panic!("dirty bit not tracked for register: {register:?}");
         };
 

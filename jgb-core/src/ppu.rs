@@ -399,7 +399,9 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
         }
     }
 
-    let Some(oam_dma_status) = ppu_state.oam_dma_status else { return };
+    let Some(oam_dma_status) = ppu_state.oam_dma_status else {
+        return;
+    };
 
     address_space.copy_byte(
         oam_dma_status.current_source_address(),
@@ -469,7 +471,9 @@ pub fn progress_vram_dma_transfer(
         }
     }
 
-    let Some(mut vram_dma_status) = ppu_state.vram_dma_status else { return };
+    let Some(mut vram_dma_status) = ppu_state.vram_dma_status else {
+        return;
+    };
 
     let ppu_mode = ppu_state.state.mode();
     if let VramDmaMode::HBlank {

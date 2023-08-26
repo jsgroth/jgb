@@ -15,8 +15,7 @@ pub fn enum_display(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
 
-    let Data::Enum(data) = &ast.data
-    else {
+    let Data::Enum(data) = &ast.data else {
         panic!("EnumDisplay derive macro can only be applied to enums; {name} is not an enum");
     };
 
@@ -61,8 +60,7 @@ pub fn enum_from_str(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
 
-    let Data::Enum(data) = &ast.data
-    else {
+    let Data::Enum(data) = &ast.data else {
         panic!("EnumFromStr derive macro can only be applied to enums; {name} is not an enum");
     };
 

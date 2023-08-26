@@ -531,7 +531,13 @@ impl Mapper {
     }
 
     pub(crate) fn update_rtc(&mut self) {
-        let Self::MBC3 { real_time_clock: Some(real_time_clock), .. } = self else { return };
+        let Self::MBC3 {
+            real_time_clock: Some(real_time_clock),
+            ..
+        } = self
+        else {
+            return;
+        };
         real_time_clock.update(SystemTime::now());
     }
 

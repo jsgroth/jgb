@@ -68,8 +68,7 @@ where
         let mut array = [T::default(); N];
 
         for (i, value) in array.iter_mut().enumerate() {
-            let Some(elem) = seq.next_element()?
-            else {
+            let Some(elem) = seq.next_element()? else {
                 return Err(de::Error::custom(format!(
                     "expected array to have {N} elements, only got {i}",
                 )));
@@ -143,9 +142,10 @@ where
 
         for row in array.iter_mut() {
             for value in row.iter_mut() {
-                let Some(elem) = seq.next_element()?
-                else {
-                    return Err(de::Error::custom(format!("array has fewer than {M}*{N} elements")));
+                let Some(elem) = seq.next_element()? else {
+                    return Err(de::Error::custom(format!(
+                        "array has fewer than {M}*{N} elements"
+                    )));
                 };
                 *value = elem;
             }

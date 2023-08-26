@@ -159,8 +159,7 @@ impl Cartridge {
         }
 
         let mapper_byte = rom[address::MAPPER as usize];
-        let Some((mapper_type, mapper_features)) = mapper::parse_byte(mapper_byte)
-        else {
+        let Some((mapper_type, mapper_features)) = mapper::parse_byte(mapper_byte) else {
             return Err(CartridgeLoadError::InvalidMapper { mapper_byte });
         };
 

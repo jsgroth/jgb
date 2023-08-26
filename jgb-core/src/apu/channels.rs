@@ -19,7 +19,9 @@ pub(crate) trait Channel {
 
     // "Analog" sample in the range [-1, 1]
     fn sample_analog(&self) -> f64 {
-        let Some(digital_sample) = self.sample_digital() else { return 0.0 };
+        let Some(digital_sample) = self.sample_digital() else {
+            return 0.0;
+        };
 
         (f64::from(digital_sample) - 7.5) / 7.5
     }
