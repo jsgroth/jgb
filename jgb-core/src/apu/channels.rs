@@ -35,10 +35,7 @@ struct LengthTimer {
 
 impl LengthTimer {
     fn new() -> Self {
-        Self {
-            enabled: false,
-            timer: 0,
-        }
+        Self { enabled: false, timer: 0 }
     }
 
     fn tick(&mut self) -> bool {
@@ -142,11 +139,7 @@ struct FrequencyTimer {
 
 impl FrequencyTimer {
     fn new(period_multiplier: u16) -> Self {
-        Self {
-            frequency: 0,
-            timer: period_multiplier * 2048,
-            period_multiplier,
-        }
+        Self { frequency: 0, timer: period_multiplier * 2048, period_multiplier }
     }
 
     // Reset the timer based on the current frequency.

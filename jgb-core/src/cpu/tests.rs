@@ -45,11 +45,7 @@ impl std::fmt::Display for HexFormattableBool {
 
 impl std::fmt::UpperHex for HexFormattableBool {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.0 {
-            write!(f, "01")
-        } else {
-            write!(f, "00")
-        }
+        if self.0 { write!(f, "01") } else { write!(f, "00") }
     }
 }
 
@@ -130,11 +126,7 @@ impl ExpectedState {
             ["SP", self.sp, cpu_registers.sp],
             ["PC", self.pc, cpu_registers.pc],
             ["IME", self.ime, cpu_registers.ime.into()],
-            [
-                "INTERRUPT_DELAY",
-                self.interrupt_delay,
-                cpu_registers.interrupt_delay.into()
-            ],
+            ["INTERRUPT_DELAY", self.interrupt_delay, cpu_registers.interrupt_delay.into()],
         );
 
         for (&address, &expected) in &self.memory {
@@ -154,10 +146,7 @@ impl ExpectedState {
 
 fn run_test(program_hex: &str, expected_state: &ExpectedState) {
     if program_hex.len() % 2 != 0 {
-        panic!(
-            "program length is {}, must be a multiple of 2",
-            program_hex.len()
-        );
+        panic!("program length is {}, must be a multiple of 2", program_hex.len());
     }
 
     if program_hex.chars().any(|c| !c.is_digit(16)) {

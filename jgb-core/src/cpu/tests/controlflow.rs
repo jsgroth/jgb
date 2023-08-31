@@ -9,11 +9,7 @@ fn jump() {
             "3E33",   // 0x0155: LD A, 0x33
             "0677",   // 0x0157: LD B, 0x77
         ),
-        &ExpectedState {
-            a: Some(0x55),
-            b: Some(0x77),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { a: Some(0x55), b: Some(0x77), ..ExpectedState::empty() },
     );
 
     run_test(
@@ -26,12 +22,7 @@ fn jump() {
             "C35501", // 0x015C: JP 0x0155
             "0E88",   // 0x015F: LD C, 0x88
         ),
-        &ExpectedState {
-            a: Some(0x77),
-            b: Some(0x55),
-            c: Some(0x88),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { a: Some(0x77), b: Some(0x55), c: Some(0x88), ..ExpectedState::empty() },
     );
 }
 
@@ -45,11 +36,7 @@ fn jump_hl() {
             "3ECC",   // 0x0156: LD A, 0xCC
             "06DD",   // 0x0158: LD B, 0xDD
         ),
-        &ExpectedState {
-            a: Some(0xAA),
-            b: Some(0xDD),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { a: Some(0xAA), b: Some(0xDD), ..ExpectedState::empty() },
     );
 }
 
@@ -142,12 +129,7 @@ fn conditional_jump_nc() {
             "06BB",   // 0x0157: LD B, 0xBB
             "0ECC",   // 0x0159: LD C, 0xCC
         ),
-        &ExpectedState {
-            b: Some(0xAA),
-            c: Some(0xCC),
-            f: Some(0x00),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { b: Some(0xAA), c: Some(0xCC), f: Some(0x00), ..ExpectedState::empty() },
     );
 
     run_test(
@@ -158,12 +140,7 @@ fn conditional_jump_nc() {
             "06BB",   // 0x0156: LD B, 0xBB
             "0ECC",   // 0x0158: LD C, 0xCC
         ),
-        &ExpectedState {
-            b: Some(0xBB),
-            c: Some(0xCC),
-            f: Some(0x10),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { b: Some(0xBB), c: Some(0xCC), f: Some(0x10), ..ExpectedState::empty() },
     );
 }
 
@@ -178,12 +155,7 @@ fn conditional_jump_c() {
             "06BB",   // 0x0157: LD B, 0xBB
             "0ECC",   // 0x0159: LD C, 0xCC
         ),
-        &ExpectedState {
-            b: Some(0xBB),
-            c: Some(0xCC),
-            f: Some(0x00),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { b: Some(0xBB), c: Some(0xCC), f: Some(0x00), ..ExpectedState::empty() },
     );
 
     run_test(
@@ -194,12 +166,7 @@ fn conditional_jump_c() {
             "06BB",   // 0x0156: LD B, 0xBB
             "0ECC",   // 0x0158: LD C, 0xCC
         ),
-        &ExpectedState {
-            b: Some(0xAA),
-            c: Some(0xCC),
-            f: Some(0x10),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { b: Some(0xAA), c: Some(0xCC), f: Some(0x10), ..ExpectedState::empty() },
     );
 }
 
@@ -212,11 +179,7 @@ fn relative_jump() {
             "06BB", // 0x0154: LD B, 0xBB
             "0ECC", // 0x0156: LD C, 0xCC
         ),
-        &ExpectedState {
-            b: Some(0xAA),
-            c: Some(0xCC),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { b: Some(0xAA), c: Some(0xCC), ..ExpectedState::empty() },
     );
 
     run_test(
@@ -229,12 +192,7 @@ fn relative_jump() {
             "18FA", // 0x015A: JR -6
             "0ECC", // 0x015C: LD C, 0xCC
         ),
-        &ExpectedState {
-            a: Some(0x99),
-            b: Some(0xAA),
-            c: Some(0xCC),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { a: Some(0x99), b: Some(0xAA), c: Some(0xCC), ..ExpectedState::empty() },
     );
 }
 
@@ -690,19 +648,13 @@ fn disable_interrupts() {
     run_test(
         // DI
         "F3",
-        &ExpectedState {
-            ime: Some(false.into()),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { ime: Some(false.into()), ..ExpectedState::empty() },
     );
 
     run_test(
         // EI; DI
         "FBF3",
-        &ExpectedState {
-            ime: Some(false.into()),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { ime: Some(false.into()), ..ExpectedState::empty() },
     );
 }
 

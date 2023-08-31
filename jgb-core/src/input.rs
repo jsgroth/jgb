@@ -72,9 +72,7 @@ impl KeyMap {
         ] {
             let keycode = try_parse_keycode(config_input)?;
             if map.insert(keycode, button).is_some() {
-                return Err(KeyMapError::DuplicateKeycode {
-                    keycode: keycode.name(),
-                });
+                return Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() });
             }
         }
 
@@ -99,10 +97,7 @@ impl HotkeyMap {
         let mut map = HashMap::new();
         for (hotkey, config_input) in [
             (Hotkey::Exit, hotkey_config.exit.as_ref()),
-            (
-                Hotkey::ToggleFullscreen,
-                hotkey_config.toggle_fullscreen.as_ref(),
-            ),
+            (Hotkey::ToggleFullscreen, hotkey_config.toggle_fullscreen.as_ref()),
             (Hotkey::SaveState, hotkey_config.save_state.as_ref()),
             (Hotkey::LoadState, hotkey_config.load_state.as_ref()),
             (Hotkey::FastForward, hotkey_config.fast_forward.as_ref()),
@@ -110,9 +105,7 @@ impl HotkeyMap {
             if let Some(keycode) = config_input {
                 let keycode = try_parse_keycode(keycode)?;
                 if map.insert(keycode, hotkey).is_some() {
-                    return Err(KeyMapError::DuplicateKeycode {
-                        keycode: keycode.name(),
-                    });
+                    return Err(KeyMapError::DuplicateKeycode { keycode: keycode.name() });
                 }
             }
         }
@@ -130,9 +123,7 @@ pub struct ControllerMap {
 impl ControllerMap {
     pub fn from_config(controller_config: &ControllerConfig) -> Result<Self, JoystickError> {
         let axis_deadzone: i16 = controller_config.axis_deadzone.try_into().map_err(|_err| {
-            JoystickError::InvalidDeadzone {
-                deadzone: controller_config.axis_deadzone,
-            }
+            JoystickError::InvalidDeadzone { deadzone: controller_config.axis_deadzone }
         })?;
 
         let mut map = HashMap::new();
@@ -184,11 +175,7 @@ impl<'joy, 'gc> Joysticks<'joy, 'gc> {
             .joystick_subsystem
             .open(which)
             .map_err(|source| JoystickError::DeviceOpen { source })?;
-        log::info!(
-            "Joystick connected: {} ({})",
-            joystick.name(),
-            joystick.guid()
-        );
+        log::info!("Joystick connected: {} ({})", joystick.name(), joystick.guid());
         self.joysticks.insert(which, joystick);
 
         Ok(())
@@ -196,11 +183,7 @@ impl<'joy, 'gc> Joysticks<'joy, 'gc> {
 
     pub fn joy_device_removed(&mut self, which: u32) {
         if let Some(removed) = self.joysticks.remove(&which) {
-            log::info!(
-                "Joystick disconnected: {} ({})",
-                removed.name(),
-                removed.guid()
-            );
+            log::info!("Joystick disconnected: {} ({})", removed.name(), removed.guid());
         }
     }
 
@@ -330,11 +313,7 @@ impl JoypadState {
 
     pub fn joy_axis_motion(&mut self, axis: u8, value: i16, controller_map: &ControllerMap) {
         // Apply deadzone, use saturating_abs so as not to leave i16::MIN as a negative number
-        let value = if value.saturating_abs() < controller_map.axis_deadzone {
-            0
-        } else {
-            value
-        };
+        let value = if value.saturating_abs() < controller_map.axis_deadzone { 0 } else { value };
 
         // Don't bother checking anything if the value hasn't changed; JoyAxisMotion events are
         // very frequent on any controller with analog sticks
@@ -349,14 +328,8 @@ impl JoypadState {
             Ordering::Equal => (false, false),
         };
 
-        let pos_button = controller_map
-            .map
-            .get(&ControllerInput::AxisPositive(axis))
-            .copied();
-        let neg_button = controller_map
-            .map
-            .get(&ControllerInput::AxisNegative(axis))
-            .copied();
+        let pos_button = controller_map.map.get(&ControllerInput::AxisPositive(axis)).copied();
+        let neg_button = controller_map.map.get(&ControllerInput::AxisNegative(axis)).copied();
         if let Some(field) = self.get_field_mut(pos_button) {
             *field = pos_state;
         }
@@ -368,18 +341,9 @@ impl JoypadState {
 
     pub fn hat_motion(&mut self, hat: u8, state: HatState, controller_map: &ControllerMap) {
         let hat_up = matches!(state, HatState::Up | HatState::LeftUp | HatState::RightUp);
-        let hat_down = matches!(
-            state,
-            HatState::Down | HatState::LeftDown | HatState::RightDown
-        );
-        let hat_left = matches!(
-            state,
-            HatState::Left | HatState::LeftUp | HatState::LeftDown
-        );
-        let hat_right = matches!(
-            state,
-            HatState::Right | HatState::RightUp | HatState::RightDown
-        );
+        let hat_down = matches!(state, HatState::Down | HatState::LeftDown | HatState::RightDown);
+        let hat_left = matches!(state, HatState::Left | HatState::LeftUp | HatState::LeftDown);
+        let hat_right = matches!(state, HatState::Right | HatState::RightUp | HatState::RightDown);
 
         for (state, direction) in [
             (hat_up, HatDirection::Up),
@@ -387,10 +351,7 @@ impl JoypadState {
             (hat_left, HatDirection::Left),
             (hat_right, HatDirection::Right),
         ] {
-            let button = controller_map
-                .map
-                .get(&ControllerInput::Hat(hat, direction))
-                .copied();
+            let button = controller_map.map.get(&ControllerInput::Hat(hat, direction)).copied();
             if let Some(button) = self.get_field_mut(button) {
                 *button = state;
             }
@@ -406,10 +367,7 @@ pub struct AccelerometerState {
 
 impl Default for AccelerometerState {
     fn default() -> Self {
-        Self {
-            x: 0x8000,
-            y: 0x8000,
-        }
+        Self { x: 0x8000, y: 0x8000 }
     }
 }
 

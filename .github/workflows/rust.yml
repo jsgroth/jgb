@@ -21,11 +21,18 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Install latest nightly Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        components: rustfmt
+
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
         command: fmt
-        args: --check --verbose
+        toolchain: nightly
+        args: --check
 
     - name: Install libsdl2 and libgtk-3
       run: |
@@ -35,7 +42,6 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --verbose
 
     - name: Get latest cranky version
       id: get-cranky-version
@@ -60,13 +66,12 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: cranky
-        args: -- -D warnings --verbose
+        args: -- -D warnings
 
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --verbose
 
     - name: Get latest tarpaulin version
       id: get-tarpaulin-version

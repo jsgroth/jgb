@@ -8,9 +8,7 @@ pub struct LowPassFilter {
 
 impl LowPassFilter {
     pub fn new() -> Self {
-        Self {
-            samples: VecDeque::new(),
-        }
+        Self { samples: VecDeque::new() }
     }
 
     pub fn collect_sample(&mut self, sample: f64) {

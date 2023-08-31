@@ -28,11 +28,7 @@ fn test_bit_register() {
     run_test(
         // LD A, 0x00; SUB 0x01; LD A, 0xF7; BIT 3, A
         "3E00D6013EF7CB5F",
-        &ExpectedState {
-            a: Some(0xF7),
-            f: Some(0xB0),
-            ..ExpectedState::empty()
-        },
+        &ExpectedState { a: Some(0xF7), f: Some(0xB0), ..ExpectedState::empty() },
     );
 }
 

@@ -130,27 +130,20 @@ impl FromStr for ControllerInput {
         let split: Vec<_> = s.split(' ').collect();
         match split.as_slice() {
             ["button", idx] => {
-                let idx: u8 = idx
-                    .parse()
-                    .map_err(|_err| format!("invalid button index: '{idx}'"))?;
+                let idx: u8 =
+                    idx.parse().map_err(|_err| format!("invalid button index: '{idx}'"))?;
                 Ok(Self::Button(idx))
             }
             ["axis", idx, "+"] => {
-                let idx: u8 = idx
-                    .parse()
-                    .map_err(|_err| format!("invalid axis index: '{idx}'"))?;
+                let idx: u8 = idx.parse().map_err(|_err| format!("invalid axis index: '{idx}'"))?;
                 Ok(Self::AxisPositive(idx))
             }
             ["axis", idx, "-"] => {
-                let idx: u8 = idx
-                    .parse()
-                    .map_err(|_err| format!("invalid axis index: '{idx}'"))?;
+                let idx: u8 = idx.parse().map_err(|_err| format!("invalid axis index: '{idx}'"))?;
                 Ok(Self::AxisNegative(idx))
             }
             ["hat", idx, direction] => {
-                let idx: u8 = idx
-                    .parse()
-                    .map_err(|_err| format!("invalid hat index: '{idx}"))?;
+                let idx: u8 = idx.parse().map_err(|_err| format!("invalid hat index: '{idx}"))?;
                 let direction: HatDirection = direction.parse()?;
                 Ok(Self::Hat(idx, direction))
             }
@@ -277,11 +270,7 @@ impl std::fmt::Display for RunConfig {
         writeln!(f, "force_integer_scaling: {}", self.force_integer_scaling)?;
         writeln!(f, "window_width: {}", self.window_width)?;
         writeln!(f, "window_height: {}", self.window_height)?;
-        writeln!(
-            f,
-            "audio_debugging_enabled: {}",
-            self.audio_debugging_enabled
-        )?;
+        writeln!(f, "audio_debugging_enabled: {}", self.audio_debugging_enabled)?;
         writeln!(f, "audio_60hz: {}", self.audio_60hz)?;
         writeln!(f, "color_scheme: {}", self.color_scheme)?;
         writeln!(f, "gbc_color_correction: {}", self.gbc_color_correction)?;

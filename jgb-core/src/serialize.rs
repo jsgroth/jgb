@@ -45,9 +45,7 @@ struct DeserializeArrayVisitor<T, const N: usize> {
 
 impl<T, const N: usize> DeserializeArrayVisitor<T, N> {
     fn new() -> Self {
-        Self {
-            marker: PhantomData,
-        }
+        Self { marker: PhantomData }
     }
 }
 
@@ -78,9 +76,7 @@ where
         }
 
         if seq.next_element::<T>()?.is_some() {
-            return Err(de::Error::custom(format!(
-                "array has more than {N} elements",
-            )));
+            return Err(de::Error::custom(format!("array has more than {N} elements",)));
         }
 
         Ok(array)
@@ -118,9 +114,7 @@ struct Deserialize2dArrayVisitor<T, const N: usize, const M: usize> {
 
 impl<T, const N: usize, const M: usize> Deserialize2dArrayVisitor<T, N, M> {
     fn new() -> Self {
-        Self {
-            marker: PhantomData,
-        }
+        Self { marker: PhantomData }
     }
 }
 
@@ -152,9 +146,7 @@ where
         }
 
         if seq.next_element::<T>()?.is_some() {
-            return Err(de::Error::custom(format!(
-                "array has more than {M}*{N} elements",
-            )));
+            return Err(de::Error::custom(format!("array has more than {M}*{N} elements",)));
         }
 
         Ok(array)
@@ -182,10 +174,7 @@ where
     let serialized_state = bincode::serialize(state)?;
     fs::write(path.as_ref(), serialized_state)?;
 
-    log::info!(
-        "Successfully wrote save state to '{}'",
-        path.as_ref().display()
-    );
+    log::info!("Successfully wrote save state to '{}'", path.as_ref().display());
 
     Ok(())
 }
@@ -219,17 +208,10 @@ where
         }
     };
 
-    state
-        .address_space
-        .move_unserializable_fields_from(existing_address_space);
-    state
-        .apu_state
-        .move_unserializable_fields_from(existing_apu_state);
+    state.address_space.move_unserializable_fields_from(existing_address_space);
+    state.apu_state.move_unserializable_fields_from(existing_apu_state);
 
-    log::info!(
-        "Successfully loaded save state from '{}'",
-        path.as_ref().display()
-    );
+    log::info!("Successfully loaded save state from '{}'", path.as_ref().display());
 
     Ok(state)
 }

@@ -13,14 +13,7 @@ struct RtcTime {
 
 impl RtcTime {
     fn new() -> Self {
-        Self {
-            nanos: 0,
-            seconds: 0,
-            minutes: 0,
-            hours: 0,
-            days: 0,
-            day_overflow_flag: false,
-        }
+        Self { nanos: 0, seconds: 0, minutes: 0, hours: 0, days: 0, day_overflow_flag: false }
     }
 }
 

@@ -90,11 +90,7 @@ pub fn run(
         mut ppu_state,
         mut apu_state,
         mut execution_mode,
-        controller_states:
-            ControllerStates {
-                rumble_motor_on,
-                accelerometer_state,
-            },
+        controller_states: ControllerStates { rumble_motor_on, accelerometer_state },
     } = emulation_state;
 
     // Don't need explicit handles to subsystems because they won't be dropped until the function
@@ -129,10 +125,8 @@ pub fn run(
     let accelerometer_enabled = Rc::strong_count(&accelerometer_state) > 1;
 
     let save_state_path = serialize::determine_save_state_path(&run_config.gb_file_path);
-    let save_state_file_name = save_state_path
-        .file_name()
-        .and_then(OsStr::to_str)
-        .unwrap_or("<Unknown>");
+    let save_state_file_name =
+        save_state_path.file_name().and_then(OsStr::to_str).unwrap_or("<Unknown>");
 
     let mut modals = Vec::new();
 
@@ -277,10 +271,7 @@ pub fn run(
                     Event::Quit { .. } => {
                         return Ok(());
                     }
-                    Event::KeyDown {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
+                    Event::KeyDown { keycode: Some(keycode), .. } => {
                         joypad_state.key_down(keycode, &key_map);
 
                         match input::check_for_hotkey(keycode, &hotkey_map) {
@@ -351,10 +342,7 @@ pub fn run(
                             None => {}
                         }
                     }
-                    Event::KeyUp {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
+                    Event::KeyUp { keycode: Some(keycode), .. } => {
                         joypad_state.key_up(keycode, &key_map);
 
                         if let Some(Hotkey::FastForward) =
@@ -378,9 +366,7 @@ pub fn run(
                     Event::JoyHatMotion { hat_idx, state, .. } => {
                         joypad_state.hat_motion(hat_idx, state, &controller_map);
                     }
-                    Event::JoyAxisMotion {
-                        axis_idx, value, ..
-                    } => {
+                    Event::JoyAxisMotion { axis_idx, value, .. } => {
                         joypad_state.joy_axis_motion(axis_idx, value, &controller_map);
                     }
                     Event::ControllerDeviceAdded { which, .. } => {
@@ -394,9 +380,7 @@ pub fn run(
                         data,
                         ..
                     } => {
-                        accelerometer_state
-                            .borrow_mut()
-                            .update_from_sdl_values(data);
+                        accelerometer_state.borrow_mut().update_from_sdl_values(data);
                     }
                     _ => {}
                 }
@@ -452,15 +436,9 @@ fn tick_cpu(
         log::trace!(
             "Other registers before execution: IE={:02X}, IF={:02X}, LCDC={:02X}, LY={:02X}, LYC={:02X}, STAT={:02X}, SCX={:02X}, SCY={:02X}, WX={:02X}, WY={:02X}",
             address_space.get_ie_register(),
-            address_space
-                .get_io_registers()
-                .read_register(IoRegister::IF),
-            address_space
-                .get_io_registers()
-                .read_register(IoRegister::LCDC),
-            address_space
-                .get_io_registers()
-                .read_register(IoRegister::LY),
+            address_space.get_io_registers().read_register(IoRegister::IF),
+            address_space.get_io_registers().read_register(IoRegister::LCDC),
+            address_space.get_io_registers().read_register(IoRegister::LY),
             address_space.get_io_registers().read_register(IoRegister::LYC),
             address_space.get_io_registers().read_register(IoRegister::STAT),
             address_space.get_io_registers().read_register(IoRegister::SCX),
@@ -474,9 +452,7 @@ fn tick_cpu(
         );
         log::trace!(
             "IF register before instruction execution: {:02X}",
-            address_space
-                .get_io_registers()
-                .read_register(IoRegister::IF)
+            address_space.get_io_registers().read_register(IoRegister::IF)
         );
         instruction.execute(address_space, cpu_registers, ppu_state);
 

@@ -697,11 +697,7 @@ impl IoRegisters {
     pub fn get_cgb_working_ram_bank(&self) -> usize {
         let svbk_value = self.contents[IoRegister::SVBK.to_relative_address()] & 0x07;
         // SVBK value of 0 is treated as RAM bank 1
-        if svbk_value == 0 {
-            1
-        } else {
-            svbk_value as usize
-        }
+        if svbk_value == 0 { 1 } else { svbk_value as usize }
     }
 
     /// Update the current PPU mode. This is necessary because the CPU cannot access CGB palette RAM

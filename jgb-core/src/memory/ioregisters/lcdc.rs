@@ -4,15 +4,9 @@ pub struct AddressRange {
     pub end_inclusive: u16,
 }
 
-const BG_TILE_MAP_AREA_0: AddressRange = AddressRange {
-    start: 0x9800,
-    end_inclusive: 0x9BFF,
-};
+const BG_TILE_MAP_AREA_0: AddressRange = AddressRange { start: 0x9800, end_inclusive: 0x9BFF };
 
-const BG_TILE_MAP_AREA_1: AddressRange = AddressRange {
-    start: 0x9C00,
-    end_inclusive: 0x9FFF,
-};
+const BG_TILE_MAP_AREA_1: AddressRange = AddressRange { start: 0x9C00, end_inclusive: 0x9FFF };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TileDataRange {
@@ -54,11 +48,7 @@ impl<'a> Lcdc<'a> {
     }
 
     pub fn window_tile_map_area(self) -> AddressRange {
-        if *self.0 & 0x40 != 0 {
-            BG_TILE_MAP_AREA_1
-        } else {
-            BG_TILE_MAP_AREA_0
-        }
+        if *self.0 & 0x40 != 0 { BG_TILE_MAP_AREA_1 } else { BG_TILE_MAP_AREA_0 }
     }
 
     pub fn window_enabled(self) -> bool {
@@ -66,27 +56,15 @@ impl<'a> Lcdc<'a> {
     }
 
     pub fn bg_tile_data_area(self) -> TileDataRange {
-        if *self.0 & 0x10 != 0 {
-            TileDataRange::Block1
-        } else {
-            TileDataRange::Block0
-        }
+        if *self.0 & 0x10 != 0 { TileDataRange::Block1 } else { TileDataRange::Block0 }
     }
 
     pub fn bg_tile_map_area(self) -> AddressRange {
-        if *self.0 & 0x08 != 0 {
-            BG_TILE_MAP_AREA_1
-        } else {
-            BG_TILE_MAP_AREA_0
-        }
+        if *self.0 & 0x08 != 0 { BG_TILE_MAP_AREA_1 } else { BG_TILE_MAP_AREA_0 }
     }
 
     pub fn sprite_mode(self) -> SpriteMode {
-        if *self.0 & 0x04 != 0 {
-            SpriteMode::Stacked
-        } else {
-            SpriteMode::Single
-        }
+        if *self.0 & 0x04 != 0 { SpriteMode::Stacked } else { SpriteMode::Single }
     }
 
     pub fn sprites_enabled(self) -> bool {

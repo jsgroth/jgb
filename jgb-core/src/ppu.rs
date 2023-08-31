@@ -48,11 +48,7 @@ struct OamSpriteData {
 
 impl OamSpriteData {
     fn cgb_vram_bank(self) -> VramBank {
-        if self.flags & 0x08 != 0 {
-            VramBank::Bank1
-        } else {
-            VramBank::Bank0
-        }
+        if self.flags & 0x08 != 0 { VramBank::Bank1 } else { VramBank::Bank0 }
     }
 
     fn cgb_palette_index(self) -> u8 {
@@ -96,11 +92,7 @@ impl BgTileAttributes {
     }
 
     fn vram_bank(self) -> VramBank {
-        if self.0 & 0x08 != 0 {
-            VramBank::Bank1
-        } else {
-            VramBank::Bank0
-        }
+        if self.0 & 0x08 != 0 { VramBank::Bank1 } else { VramBank::Bank0 }
     }
 
     fn palette_index(self) -> u8 {
@@ -166,15 +158,8 @@ struct RenderingScanlineStateData {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum State {
-    HBlank {
-        scanline: u8,
-        dot: u32,
-        window_internal_y: Option<u8>,
-    },
-    VBlank {
-        scanline: u8,
-        dot: u32,
-    },
+    HBlank { scanline: u8, dot: u32, window_internal_y: Option<u8> },
+    VBlank { scanline: u8, dot: u32 },
     ScanningOAM(ScanningOAMStateData),
     RenderingScanline(RenderingScanlineStateData),
 }
@@ -208,15 +193,9 @@ impl State {
     }
 }
 
-const DUMMY_STATE: State = State::VBlank {
-    scanline: 0,
-    dot: 0,
-};
+const DUMMY_STATE: State = State::VBlank { scanline: 0, dot: 0 };
 
-const VBLANK_START: State = State::VBlank {
-    scanline: SCREEN_HEIGHT,
-    dot: 0,
-};
+const VBLANK_START: State = State::VBlank { scanline: SCREEN_HEIGHT, dot: 0 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OamDmaStatus {
@@ -226,10 +205,7 @@ pub struct OamDmaStatus {
 
 impl OamDmaStatus {
     pub fn new(source_high_bits: u8) -> Self {
-        Self {
-            source_high_bits: u16::from(source_high_bits) << 8,
-            current_low_bits: 0x00,
-        }
+        Self { source_high_bits: u16::from(source_high_bits) << 8, current_low_bits: 0x00 }
     }
 
     pub fn current_source_address(self) -> u16 {
@@ -286,9 +262,7 @@ impl VramDmaStatus {
             address::VRAM_START + (((u16::from(hdma3) << 8) | u16::from(hdma4)) & 0x1FF0);
 
         let mode = if hdma5 & 0x80 != 0 {
-            VramDmaMode::HBlank {
-                period_bytes_remaining: 0x10,
-            }
+            VramDmaMode::HBlank { period_bytes_remaining: 0x10 }
         } else {
             VramDmaMode::AllAtOnce
         };
@@ -296,12 +270,7 @@ impl VramDmaStatus {
         // Written value should be interpreted as ((bytes / 16) - 1), so reverse that
         let bytes_to_transfer = (u32::from(hdma5 & 0x7F) + 1) * 16;
 
-        Some(Self {
-            source_address,
-            dest_address,
-            mode,
-            bytes_remaining: bytes_to_transfer,
-        })
+        Some(Self { source_address, dest_address, mode, bytes_remaining: bytes_to_transfer })
     }
 }
 
@@ -358,9 +327,9 @@ impl PpuState {
         match self.vram_dma_status {
             Some(vram_dma_status) => match vram_dma_status.mode {
                 VramDmaMode::AllAtOnce => true,
-                VramDmaMode::HBlank {
-                    period_bytes_remaining,
-                } => matches!(self.state, State::HBlank { .. }) && period_bytes_remaining > 0,
+                VramDmaMode::HBlank { period_bytes_remaining } => {
+                    matches!(self.state, State::HBlank { .. }) && period_bytes_remaining > 0
+                }
             },
             None => false,
         }
@@ -383,17 +352,11 @@ impl PpuState {
 /// initialized and the first byte will be copied.
 pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut AddressSpace) {
     if ppu_state.oam_dma_status.is_none()
-        && address_space
-            .get_io_registers()
-            .get_dirty_bit(IoRegister::DMA)
+        && address_space.get_io_registers().get_dirty_bit(IoRegister::DMA)
     {
-        address_space
-            .get_io_registers_mut()
-            .clear_dirty_bit(IoRegister::DMA);
+        address_space.get_io_registers_mut().clear_dirty_bit(IoRegister::DMA);
 
-        let source_high_bits = address_space
-            .get_io_registers()
-            .read_register(IoRegister::DMA);
+        let source_high_bits = address_space.get_io_registers().read_register(IoRegister::DMA);
         if source_high_bits <= 0xDF {
             ppu_state.oam_dma_status = Some(OamDmaStatus::new(source_high_bits));
         }
@@ -403,10 +366,8 @@ pub fn progress_oam_dma_transfer(ppu_state: &mut PpuState, address_space: &mut A
         return;
     };
 
-    address_space.copy_byte(
-        oam_dma_status.current_source_address(),
-        oam_dma_status.current_dest_address(),
-    );
+    address_space
+        .copy_byte(oam_dma_status.current_source_address(), oam_dma_status.current_dest_address());
     ppu_state.oam_dma_status = oam_dma_status.increment();
 }
 
@@ -422,17 +383,11 @@ pub fn progress_vram_dma_transfer(
     address_space: &mut AddressSpace,
     prev_ppu_mode: PpuMode,
 ) {
-    if address_space
-        .get_io_registers()
-        .get_dirty_bit(IoRegister::HDMA5)
-    {
-        address_space
-            .get_io_registers_mut()
-            .clear_dirty_bit(IoRegister::HDMA5);
+    if address_space.get_io_registers().get_dirty_bit(IoRegister::HDMA5) {
+        address_space.get_io_registers_mut().clear_dirty_bit(IoRegister::HDMA5);
 
-        let hdma5 = address_space
-            .get_io_registers()
-            .privileged_read_hdma_register(IoRegister::HDMA5);
+        let hdma5 =
+            address_space.get_io_registers().privileged_read_hdma_register(IoRegister::HDMA5);
 
         match ppu_state.vram_dma_status {
             Some(vram_dma_status) => {
@@ -459,9 +414,7 @@ pub fn progress_vram_dma_transfer(
                 // Immediately clear HDMA5 bit 7 because an HBlank VRAM DMA transfer will not start
                 // immediately, and some game programs poll this bit to see when the transfer has
                 // completed
-                address_space
-                    .get_io_registers_mut()
-                    .privileged_set_hdma5(hdma5 & 0x7F);
+                address_space.get_io_registers_mut().privileged_set_hdma5(hdma5 & 0x7F);
 
                 log::trace!(
                     "initialized new VRAM DMA transfer: {:04X?}",
@@ -476,10 +429,7 @@ pub fn progress_vram_dma_transfer(
     };
 
     let ppu_mode = ppu_state.state.mode();
-    if let VramDmaMode::HBlank {
-        period_bytes_remaining,
-    } = &mut vram_dma_status.mode
-    {
+    if let VramDmaMode::HBlank { period_bytes_remaining } = &mut vram_dma_status.mode {
         if prev_ppu_mode != PpuMode::HBlank && ppu_mode == PpuMode::HBlank {
             // Reset period counter when PPU changes to HBlank
             *period_bytes_remaining = 16;
@@ -493,9 +443,7 @@ pub fn progress_vram_dma_transfer(
 
     if vram_dma_status.dest_address == address::VRAM_END {
         // Dest address overflowed, cancel transfer
-        address_space
-            .get_io_registers_mut()
-            .privileged_set_hdma5(0xFF);
+        address_space.get_io_registers_mut().privileged_set_hdma5(0xFF);
         ppu_state.vram_dma_status = None;
         return;
     }
@@ -503,10 +451,7 @@ pub fn progress_vram_dma_transfer(
     vram_dma_status.source_address += 1;
     vram_dma_status.dest_address += 1;
     vram_dma_status.bytes_remaining -= 1;
-    if let VramDmaMode::HBlank {
-        period_bytes_remaining,
-    } = &mut vram_dma_status.mode
-    {
+    if let VramDmaMode::HBlank { period_bytes_remaining } = &mut vram_dma_status.mode {
         *period_bytes_remaining -= 1;
     }
 
@@ -515,15 +460,11 @@ pub fn progress_vram_dma_transfer(
     if vram_dma_status.bytes_remaining == 0 {
         // Transfer has completed
         log::trace!("VRAM DMA transfer has completed");
-        address_space
-            .get_io_registers_mut()
-            .privileged_set_hdma5(0xFF);
+        address_space.get_io_registers_mut().privileged_set_hdma5(0xFF);
         ppu_state.vram_dma_status = None;
     } else {
         let remaining_length = ((vram_dma_status.bytes_remaining / 16) as u8).wrapping_sub(1);
-        address_space
-            .get_io_registers_mut()
-            .privileged_set_hdma5(remaining_length & 0x7F);
+        address_space.get_io_registers_mut().privileged_set_hdma5(remaining_length & 0x7F);
         ppu_state.vram_dma_status = Some(vram_dma_status);
     }
 }
@@ -548,12 +489,8 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
             }
         };
 
-        let stat = address_space
-            .get_io_registers()
-            .read_register(IoRegister::STAT);
-        address_space
-            .get_io_registers_mut()
-            .ppu_set_stat(stat & 0xF8);
+        let stat = address_space.get_io_registers().read_register(IoRegister::STAT);
+        address_space.get_io_registers_mut().ppu_set_stat(stat & 0xF8);
         address_space.get_io_registers_mut().ppu_set_ly(0x00);
     }
 
@@ -579,19 +516,13 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     // Fire off VBlank interrupt when the *last* state was VBlank start so that VBlank interrupt
     // is delayed by 1 M-cycle
     if ppu_state.state == VBLANK_START {
-        address_space
-            .get_io_registers_mut()
-            .interrupt_flags()
-            .set(InterruptType::VBlank);
+        address_space.get_io_registers_mut().interrupt_flags().set(InterruptType::VBlank);
     }
 
     // Similarly, fire off STAT interrupt when the STAT interrupt line flipped from low to high
     // during the last tick
     if ppu_state.stat_interrupt_pending {
-        address_space
-            .get_io_registers_mut()
-            .interrupt_flags()
-            .set(InterruptType::LcdStatus);
+        address_space.get_io_registers_mut().interrupt_flags().set(InterruptType::LcdStatus);
         ppu_state.stat_interrupt_pending = false;
     }
 
@@ -624,10 +555,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     };
     address_space.get_io_registers_mut().ppu_set_ly(ly_value);
 
-    let lyc_match = ly_value
-        == address_space
-            .get_io_registers()
-            .read_register(IoRegister::LYC);
+    let lyc_match = ly_value == address_space.get_io_registers().read_register(IoRegister::LYC);
 
     update_stat_register(address_space.get_io_registers_mut(), lyc_match, new_mode);
 
@@ -637,9 +565,7 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
         ppu_state.stat_interrupt_pending = true;
     }
 
-    address_space
-        .get_io_registers_mut()
-        .update_ppu_mode(new_state.mode());
+    address_space.get_io_registers_mut().update_ppu_mode(new_state.mode());
 
     ppu_state.state = new_state;
     ppu_state.last_stat_interrupt_line = stat_interrupt_line;
@@ -677,11 +603,9 @@ fn process_state(
 ) -> State {
     match state {
         State::VBlank { scanline, dot } => vblank_next_state(scanline, dot),
-        State::HBlank {
-            scanline,
-            dot,
-            window_internal_y,
-        } => hblank_next_state(scanline, dot, window_internal_y),
+        State::HBlank { scanline, dot, window_internal_y } => {
+            hblank_next_state(scanline, dot, window_internal_y)
+        }
         State::ScanningOAM(data) => {
             process_scanning_oam_state(execution_mode, data, address_space, oam_dma_status)
         }
@@ -702,16 +626,10 @@ fn vblank_next_state(scanline: u8, dot: u32) -> State {
                 sprites: Vec::with_capacity(MAX_SPRITES_PER_SCANLINE),
             })
         } else {
-            State::VBlank {
-                scanline: scanline + 1,
-                dot: 0,
-            }
+            State::VBlank { scanline: scanline + 1, dot: 0 }
         }
     } else {
-        State::VBlank {
-            scanline,
-            dot: new_dot,
-        }
+        State::VBlank { scanline, dot: new_dot }
     }
 }
 
@@ -719,10 +637,7 @@ fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: Option<u8>) -> S
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == DOTS_PER_SCANLINE {
         if scanline == SCREEN_HEIGHT - 1 {
-            State::VBlank {
-                scanline: scanline + 1,
-                dot: 0,
-            }
+            State::VBlank { scanline: scanline + 1, dot: 0 }
         } else {
             State::ScanningOAM(ScanningOAMStateData {
                 scanline: scanline + 1,
@@ -732,11 +647,7 @@ fn hblank_next_state(scanline: u8, dot: u32, window_internal_y: Option<u8>) -> S
             })
         }
     } else {
-        State::HBlank {
-            scanline,
-            dot: new_dot,
-            window_internal_y,
-        }
+        State::HBlank { scanline, dot: new_dot, window_internal_y }
     }
 }
 
@@ -746,12 +657,7 @@ fn process_scanning_oam_state(
     address_space: &AddressSpace,
     oam_dma_status: Option<OamDmaStatus>,
 ) -> State {
-    let ScanningOAMStateData {
-        scanline,
-        dot,
-        mut sprites,
-        window_internal_y,
-    } = state_data;
+    let ScanningOAMStateData { scanline, dot, mut sprites, window_internal_y } = state_data;
 
     // PPU effectively can't read OAM while an OAM DMA transfer is in progress
     if oam_dma_status.is_none() {
@@ -762,18 +668,14 @@ fn process_scanning_oam_state(
 
     let new_dot = dot + DOTS_PER_M_CYCLE;
     if new_dot == OAM_SCAN_DOTS {
-        let opri_value = address_space
-            .get_io_registers()
-            .read_register(IoRegister::OPRI);
+        let opri_value = address_space.get_io_registers().read_register(IoRegister::OPRI);
 
         let sorted_sprites = SortedOamData::from_vec(sprites, execution_mode, opri_value);
         let sprites_with_tiles =
             lookup_sprite_tiles(execution_mode, &sorted_sprites, address_space, scanline);
 
         // Read WY only once per scanline
-        let window_y = address_space
-            .get_io_registers()
-            .read_register(IoRegister::WY);
+        let window_y = address_space.get_io_registers().read_register(IoRegister::WY);
         State::RenderingScanline(RenderingScanlineStateData {
             scanline,
             pixel: 0,
@@ -814,11 +716,7 @@ fn scan_oam(
 
     let y_pos = address_space.ppu_read_address_u8(obj_address);
 
-    let sprite_height = address_space
-        .get_io_registers()
-        .lcdc()
-        .sprite_mode()
-        .height();
+    let sprite_height = address_space.get_io_registers().lcdc().sprite_mode().height();
 
     let top_scanline = i32::from(y_pos) - 16;
     let bottom_scanline = top_scanline + i32::from(sprite_height);
@@ -827,12 +725,7 @@ fn scan_oam(
         let tile_index = address_space.ppu_read_address_u8(obj_address + 2);
         let flags = address_space.ppu_read_address_u8(obj_address + 3);
 
-        sprites.push(OamSpriteData {
-            x_pos,
-            y_pos,
-            tile_index,
-            flags,
-        });
+        sprites.push(OamSpriteData { x_pos, y_pos, tile_index, flags });
     }
 }
 
@@ -871,12 +764,7 @@ fn process_render_state(
         });
     }
 
-    log::trace!(
-        "LCDC: {:02X}",
-        address_space
-            .get_io_registers()
-            .read_register(IoRegister::LCDC)
-    );
+    log::trace!("LCDC: {:02X}", address_space.get_io_registers().read_register(IoRegister::LCDC));
 
     // If both pixel queues are full enough, render pixels to the frame buffer until one of the
     // queues is empty or we've finished this scanline
@@ -931,10 +819,7 @@ fn render_to_frame_buffer(
         let bg_pixel = if bg_enabled || execution_mode == ExecutionMode::GameBoyColor {
             bg_pixel
         } else {
-            QueuedBgPixel {
-                color_id: 0x00,
-                ..bg_pixel
-            }
+            QueuedBgPixel { color_id: 0x00, ..bg_pixel }
         };
 
         // BG enabled bit functions as a BG priority bit in GBC mode
@@ -979,7 +864,9 @@ fn render_to_frame_buffer(
             }
         };
 
-        log::trace!("bg_pixel={bg_pixel:?}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}");
+        log::trace!(
+            "bg_pixel={bg_pixel:?}, sprite_pixel={sprite_pixel:?}, bg_palette={bg_palette:02X}, obj_palette_0={obj_palette_0:02X}, obj_palette_1={obj_palette_1:02X}, pixel_color={pixel_color}"
+        );
 
         frame_buffer[scanline as usize][pixel as usize] = pixel_color;
         pixel += 1;
@@ -1049,7 +936,9 @@ fn populate_bg_pixel_queue(
                 }
             };
 
-            log::trace!("Inside window at x={bg_fetcher_x}, y={scanline}, WY={window_y}, WX={window_x_plus_7}");
+            log::trace!(
+                "Inside window at x={bg_fetcher_x}, y={scanline}, WY={window_y}, WX={window_x_plus_7}"
+            );
 
             let window_tile_x: u16 = ((bg_fetcher_x + 7 - window_x_plus_7) / 8).into();
             let window_tile_y: u16 = (window_internal_y / 8).into();
@@ -1122,11 +1011,8 @@ fn populate_bg_pixel_queue(
 
             log::trace!("Reading tile data from address {tile_address:04X}");
 
-            let y = if tile_attributes.y_flip() {
-                7 - u16::from(bg_y % 8)
-            } else {
-                (bg_y % 8).into()
-            };
+            let y =
+                if tile_attributes.y_flip() { 7 - u16::from(bg_y % 8) } else { (bg_y % 8).into() };
             let tile_data_0 =
                 address_space.read_vram_direct(tile_address + 2 * y, tile_attributes.vram_bank());
             let tile_data_1 = address_space
@@ -1166,11 +1052,7 @@ fn populate_bg_pixel_queue(
 }
 
 fn bg_x_iter(x: u8, tile_attributes: BgTileAttributes) -> ArrayVec<[u8; 8]> {
-    if tile_attributes.x_flip() {
-        (0..=(7 - x)).rev().collect()
-    } else {
-        (x..8).collect()
-    }
+    if tile_attributes.x_flip() { (0..=(7 - x)).rev().collect() } else { (x..8).collect() }
 }
 
 fn populate_sprite_pixel_queue(
@@ -1331,11 +1213,7 @@ fn get_bg_pixel_color_gb(pixel: u8, palette: u8) -> u16 {
 
 fn get_obj_pixel_color_gb(pixel: u8, palette: u8) -> u16 {
     // 0x00 in OBJ pixels means transparent, ignore palette
-    if pixel == 0x00 {
-        0x00
-    } else {
-        u16::from(palette >> (pixel * 2)) & 0x03
-    }
+    if pixel == 0x00 { 0x00 } else { u16::from(palette >> (pixel * 2)) & 0x03 }
 }
 
 fn get_pixel_color_gbc(color_id: u8, palette_index: u8, palette_ram: &[u8; 64]) -> u16 {
@@ -1362,10 +1240,8 @@ mod tests {
             Cartridge::new(vec![0; 0x150], None, ControllerStates::default()).unwrap(),
             ExecutionMode::GameBoy,
         );
-        let mut ppu_state = PpuState {
-            state: VBLANK_START,
-            ..PpuState::new(ExecutionMode::GameBoy)
-        };
+        let mut ppu_state =
+            PpuState { state: VBLANK_START, ..PpuState::new(ExecutionMode::GameBoy) };
 
         progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
         assert_eq!(None, ppu_state.oam_dma_status);
@@ -1375,9 +1251,7 @@ mod tests {
         address_space.write_address_u8(0xC59F, 0x34, &ppu_state);
         address_space.write_address_u8(0xC5A0, 0x56, &ppu_state);
 
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::DMA, 0xC5);
+        address_space.get_io_registers_mut().write_register(IoRegister::DMA, 0xC5);
 
         progress_oam_dma_transfer(&mut ppu_state, &mut address_space);
         assert!(ppu_state.oam_dma_status.is_some());
@@ -1401,10 +1275,7 @@ mod tests {
             Cartridge::new(vec![0; 0x150], None, ControllerStates::default()).unwrap(),
             ExecutionMode::GameBoy,
         );
-        let ppu_state = PpuState {
-            state: VBLANK_START,
-            ..PpuState::new(ExecutionMode::GameBoy)
-        };
+        let ppu_state = PpuState { state: VBLANK_START, ..PpuState::new(ExecutionMode::GameBoy) };
 
         address_space.write_address_u8(address::OAM_START + 40, 53, &ppu_state);
         address_space.write_address_u8(address::OAM_START + 41, 20, &ppu_state);
@@ -1417,12 +1288,7 @@ mod tests {
 
         assert_eq!(
             sprites,
-            vec![OamSpriteData {
-                y_pos: 53,
-                x_pos: 20,
-                tile_index: 0xC3,
-                flags: 0x30,
-            }]
+            vec![OamSpriteData { y_pos: 53, x_pos: 20, tile_index: 0xC3, flags: 0x30 }]
         );
 
         // Scanline 45 is past the bottom of the sprite

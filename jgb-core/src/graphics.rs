@@ -44,20 +44,12 @@ const GB_COLOR_TO_RGB_BW: [[u8; 3]; 4] =
     [[255, 255, 255], [170, 170, 170], [85, 85, 85], [0, 0, 0]];
 
 // Render with a light green tint
-const GB_COLOR_TO_RGB_GREEN_TINT: [[u8; 3]; 4] = [
-    [0xAE, 0xD2, 0x8D],
-    [0x75, 0x9C, 0x68],
-    [0x40, 0x5E, 0x2D],
-    [0x0C, 0x1E, 0x09],
-];
+const GB_COLOR_TO_RGB_GREEN_TINT: [[u8; 3]; 4] =
+    [[0xAE, 0xD2, 0x8D], [0x75, 0x9C, 0x68], [0x40, 0x5E, 0x2D], [0x0C, 0x1E, 0x09]];
 
 // Render with an intense green tint that somewhat mimics the original Game Boy LCD screen
-const GB_COLOR_TO_RGB_LIME_GREEN: [[u8; 3]; 4] = [
-    [0x80, 0xA6, 0x08],
-    [0x5D, 0x7F, 0x07],
-    [0x25, 0x5C, 0x1A],
-    [0x00, 0x32, 0x00],
-];
+const GB_COLOR_TO_RGB_LIME_GREEN: [[u8; 3]; 4] =
+    [[0x80, 0xA6, 0x08], [0x5D, 0x7F, 0x07], [0x25, 0x5C, 0x1A], [0x00, 0x32, 0x00]];
 
 fn palette_for(color_scheme: GbColorScheme) -> [[u8; 3]; 4] {
     match color_scheme {
@@ -79,9 +71,7 @@ pub fn create_renderer(
         } else {
             FullscreenType::True
         };
-        window
-            .set_fullscreen(fullscreen_mode)
-            .map_err(|msg| GraphicsError::Fullscreen { msg })?;
+        window.set_fullscreen(fullscreen_mode).map_err(|msg| GraphicsError::Fullscreen { msg })?;
     }
 
     let mut canvas_builder = window.into_canvas();
@@ -141,11 +131,7 @@ const GBC_COLOR_TO_8_BIT: [u8; 32] = [
 
 fn parse_gbc_color(gbc_color: u16) -> [u16; 3] {
     // R = lowest 5 bits, G = next 5 bits, B = next 5 bits; highest bit unused
-    [
-        gbc_color & 0x001F,
-        (gbc_color & 0x03E0) >> 5,
-        (gbc_color & 0x7C00) >> 10,
-    ]
+    [gbc_color & 0x001F, (gbc_color & 0x03E0) >> 5, (gbc_color & 0x7C00) >> 10]
 }
 
 fn normalize_gbc_color(value: u16) -> u8 {
@@ -227,10 +213,7 @@ pub struct Modal {
 
 impl Modal {
     pub fn new(text: String, duration: Duration) -> Self {
-        Self {
-            text,
-            end_time: SystemTime::now() + duration,
-        }
+        Self { text, end_time: SystemTime::now() + duration }
     }
 
     pub fn is_finished(&self) -> bool {
@@ -277,10 +260,7 @@ pub fn render_frame<T>(
         },
     };
 
-    texture
-        .0
-        .with_lock(None, texture_updater)
-        .map_err(|msg| GraphicsError::Texture { msg })?;
+    texture.0.with_lock(None, texture_updater).map_err(|msg| GraphicsError::Texture { msg })?;
 
     let dst_rect = if run_config.force_integer_scaling {
         let (w, h) = canvas.window().size();
@@ -291,9 +271,7 @@ pub fn render_frame<T>(
 
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
-    canvas
-        .copy(&texture.0, None, dst_rect)
-        .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
+    canvas.copy(&texture.0, None, dst_rect).map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
 
     render_modals(canvas, texture_creator, font, modals)?;
 
@@ -322,11 +300,7 @@ fn render_modals<T>(
         let texture = surface.as_texture(texture_creator)?;
 
         canvas
-            .copy(
-                &texture,
-                None,
-                Rect::new(20, y, surface.width(), surface.height()),
-            )
+            .copy(&texture, None, Rect::new(20, y, surface.width(), surface.height()))
             .map_err(|msg| GraphicsError::CopyToCanvas { msg })?;
 
         canvas.set_draw_color(Color::RGBA(50, 50, 50, 200));
@@ -345,9 +319,8 @@ fn determine_integer_scale_rect(w: u32, h: u32) -> Option<Rect> {
     let screen_width: u32 = ppu::SCREEN_WIDTH.into();
     let screen_height: u32 = ppu::SCREEN_HEIGHT.into();
 
-    let Some(scale) = (1..)
-        .take_while(|&scale| scale * screen_width <= w && scale * screen_height <= h)
-        .last()
+    let Some(scale) =
+        (1..).take_while(|&scale| scale * screen_width <= w && scale * screen_height <= h).last()
     else {
         // Give up, display area is too small for 1x scale
         return None;

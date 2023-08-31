@@ -49,9 +49,7 @@ pub fn push_samples(
     }
 
     let samples = drain_sample_queue(apu_state.get_sample_queue_mut(), fast_forwarding);
-    device_queue
-        .queue_audio(&samples)
-        .map_err(|msg| AudioError::Playback { msg })?;
+    device_queue.queue_audio(&samples).map_err(|msg| AudioError::Playback { msg })?;
 
     Ok(())
 }

@@ -164,10 +164,6 @@ impl Channel for NoiseChannel {
         }
 
         // Output 0 or <volume> based on the current LFSR bit 0
-        if self.lfsr & 0x0001 != 0 {
-            Some(self.volume_control.volume)
-        } else {
-            Some(0)
-        }
+        if self.lfsr & 0x0001 != 0 { Some(self.volume_control.volume) } else { Some(0) }
     }
 }

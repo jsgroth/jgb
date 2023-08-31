@@ -102,10 +102,7 @@ impl ApuState {
     }
 
     pub fn new_with_debug_sink(debug_sink: Box<dyn DebugSink>) -> Self {
-        Self {
-            debug_sink: Some(debug_sink),
-            ..Self::new()
-        }
+        Self { debug_sink: Some(debug_sink), ..Self::new() }
     }
 
     pub fn get_sample_queue_mut(&mut self) -> &mut VecDeque<f32> {
@@ -119,14 +116,10 @@ impl ApuState {
 
     fn process_register_updates(&mut self, io_registers: &mut IoRegisters) {
         if self.enabled {
-            self.channel_1
-                .process_register_updates(io_registers, self.divider_ticks);
-            self.channel_2
-                .process_register_updates(io_registers, self.divider_ticks);
-            self.channel_3
-                .process_register_updates(io_registers, self.divider_ticks);
-            self.channel_4
-                .process_register_updates(io_registers, self.divider_ticks);
+            self.channel_1.process_register_updates(io_registers, self.divider_ticks);
+            self.channel_2.process_register_updates(io_registers, self.divider_ticks);
+            self.channel_3.process_register_updates(io_registers, self.divider_ticks);
+            self.channel_4.process_register_updates(io_registers, self.divider_ticks);
         }
     }
 
@@ -135,10 +128,8 @@ impl ApuState {
         self.divider_ticks += 1;
 
         if self.enabled {
-            self.channel_1
-                .tick_divider(self.divider_ticks, io_registers);
-            self.channel_2
-                .tick_divider(self.divider_ticks, io_registers);
+            self.channel_1.tick_divider(self.divider_ticks, io_registers);
+            self.channel_2.tick_divider(self.divider_ticks, io_registers);
             self.channel_3.tick_divider(self.divider_ticks);
             self.channel_4.tick_divider(self.divider_ticks);
         }

@@ -70,12 +70,7 @@ struct SingleInput<'a, T> {
 
 impl<'a, T: std::fmt::Display> SingleInput<'a, T> {
     fn new(input: ConfigurableInput, current_input: Option<T>) -> Self {
-        Self {
-            input,
-            current_input,
-            input_type: InputType::Keyboard,
-            field_to_clear: None,
-        }
+        Self { input, current_input, input_type: InputType::Keyboard, field_to_clear: None }
     }
 
     fn add_clear_button(mut self, field_to_clear: &'a mut Option<T>) -> Self {
@@ -129,16 +124,10 @@ impl<'a> KeyboardSettingsWidget<'a> {
                 [
                     SingleInput::new(ConfigurableInput::Up, Some(self.input_config.up.clone()))
                         .ui(ui),
-                    SingleInput::new(
-                        ConfigurableInput::Down,
-                        Some(self.input_config.down.clone()),
-                    )
-                    .ui(ui),
-                    SingleInput::new(
-                        ConfigurableInput::Left,
-                        Some(self.input_config.left.clone()),
-                    )
-                    .ui(ui),
+                    SingleInput::new(ConfigurableInput::Down, Some(self.input_config.down.clone()))
+                        .ui(ui),
+                    SingleInput::new(ConfigurableInput::Left, Some(self.input_config.left.clone()))
+                        .ui(ui),
                     SingleInput::new(
                         ConfigurableInput::Right,
                         Some(self.input_config.right.clone()),
@@ -227,10 +216,7 @@ pub struct ControllerSettingsWidget<'a> {
 
 impl<'a> ControllerSettingsWidget<'a> {
     pub fn new(controller_config: &'a mut ControllerConfig, deadzone_text: &'a mut String) -> Self {
-        Self {
-            controller_config,
-            deadzone_text,
-        }
+        Self { controller_config, deadzone_text }
     }
 
     #[must_use]
@@ -295,10 +281,7 @@ impl<'a> ControllerSettingsWidget<'a> {
             })
             .inner;
         if deadzone_invalid {
-            ui.colored_label(
-                Color32::RED,
-                "Deadzone must be an integer between 0 and 32767",
-            );
+            ui.colored_label(Color32::RED, "Deadzone must be an integer between 0 and 32767");
         }
 
         ui.checkbox(&mut self.controller_config.rumble_enabled, "Rumble enabled");
@@ -429,10 +412,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
         loop {
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::KeyDown {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
+                    Event::KeyDown { keycode: Some(keycode), .. } => {
                         if input_type == InputType::Keyboard {
                             return Ok(Some((button, InputPress::Keyboard(keycode))));
                         }
@@ -448,9 +428,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
                             InputPress::Controller(ControllerInput::Button(button_idx)),
                         )));
                     }
-                    Event::JoyAxisMotion {
-                        axis_idx, value, ..
-                    } => {
+                    Event::JoyAxisMotion { axis_idx, value, .. } => {
                         if let InputType::Controller { deadzone } = input_type {
                             if value.saturating_abs() as u16 >= deadzone {
                                 let input = if value > 0 {
@@ -516,9 +494,7 @@ fn spawn_input_thread(button: ConfigurableInput, input_type: InputType) -> Input
             canvas.set_draw_color(Color::RGB(0, 0, 0));
             canvas.clear();
 
-            canvas
-                .copy(&font_texture, None, None)
-                .map_err(anyhow::Error::msg)?;
+            canvas.copy(&font_texture, None, None).map_err(anyhow::Error::msg)?;
 
             canvas.present();
 
