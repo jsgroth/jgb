@@ -15,9 +15,7 @@ impl SampleFileWriter {
         let file = File::create(Path::new(filename))?;
         let writer = BufWriter::new(file);
 
-        Ok(Self {
-            writer: RefCell::new(writer),
-        })
+        Ok(Self { writer: RefCell::new(writer) })
     }
 
     fn write_f32(&self, samples: &[f32]) -> Result<(), io::Error> {
@@ -58,14 +56,7 @@ impl FileApuDebugSink {
         let master = SampleFileWriter::new("master.pcm")?;
         let filtered_master = SampleFileWriter::new("filtered_master.pcm")?;
 
-        Ok(Self {
-            channel_1,
-            channel_2,
-            channel_3,
-            channel_4,
-            master,
-            filtered_master,
-        })
+        Ok(Self { channel_1, channel_2, channel_3, channel_4, master, filtered_master })
     }
 }
 
@@ -89,8 +80,6 @@ impl apu::DebugSink for FileApuDebugSink {
     }
 
     fn collect_filtered_samples(&self, samples: (f32, f32)) {
-        self.filtered_master
-            .write_f32(&[samples.0, samples.1])
-            .expect("audio debug write failed");
+        self.filtered_master.write_f32(&[samples.0, samples.1]).expect("audio debug write failed");
     }
 }

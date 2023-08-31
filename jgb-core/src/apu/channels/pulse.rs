@@ -172,13 +172,7 @@ impl PulseChannel {
 
     // Create a square wave channel configured to read from channel 2 audio registers (no sweep)
     pub(crate) fn new_channel_2() -> Self {
-        Self::new(
-            None,
-            IoRegister::NR21,
-            IoRegister::NR22,
-            IoRegister::NR23,
-            IoRegister::NR24,
-        )
+        Self::new(None, IoRegister::NR21, IoRegister::NR22, IoRegister::NR23, IoRegister::NR24)
     }
 
     // Update the channel's internal state based on audio register contents and updates.

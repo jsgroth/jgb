@@ -166,18 +166,12 @@ where
         .with_context(|| format!("error opening GB file: {}", path.as_ref().display()))?;
 
     file.seek(SeekFrom::Start(0x0143)).with_context(|| {
-        format!(
-            "error seeking to address 0x0143 in GB file: {}",
-            path.as_ref().display()
-        )
+        format!("error seeking to address 0x0143 in GB file: {}", path.as_ref().display())
     })?;
 
     let mut buffer = [0; 1];
     file.read_exact(&mut buffer).with_context(|| {
-        format!(
-            "error reading byte at address 0x0143 in GB file: {}",
-            path.as_ref().display()
-        )
+        format!("error reading byte at address 0x0143 in GB file: {}", path.as_ref().display())
     })?;
 
     Ok(CgbSupportType::from_byte(buffer[0]))
@@ -194,11 +188,7 @@ impl JgbApp {
     #[must_use]
     pub fn new(config: AppConfig, config_path: PathBuf) -> Self {
         let state = AppState::from_config(&config);
-        Self {
-            config,
-            config_path,
-            state,
-        }
+        Self { config, config_path, state }
     }
 
     fn handle_open(&mut self, hardware_mode: HardwareMode) {
@@ -232,23 +222,19 @@ impl JgbApp {
     }
 
     fn render_error_window(&mut self, ctx: &egui::Context) {
-        if let Some(emulation_error) = self
-            .state
-            .emulation_error
-            .as_ref()
-            .map(EmulationError::to_string)
+        if let Some(emulation_error) =
+            self.state.emulation_error.as_ref().map(EmulationError::to_string)
         {
             let mut error_open = true;
-            Window::new("Error")
-                .id("error".into())
-                .resizable(false)
-                .open(&mut error_open)
-                .show(ctx, |ui| {
+            Window::new("Error").id("error".into()).resizable(false).open(&mut error_open).show(
+                ctx,
+                |ui| {
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
                         ui.label("Emulator terminated with unexpected error");
                         ui.colored_label(Color32::RED, emulation_error);
                     });
-                });
+                },
+            );
             if !error_open {
                 self.state.emulation_error = None;
             }
@@ -524,11 +510,9 @@ impl JgbApp {
 
     fn render_about_window(&mut self, ctx: &egui::Context) {
         let mut about_open = true;
-        Window::new("About")
-            .id("about".into())
-            .resizable(false)
-            .open(&mut about_open)
-            .show(ctx, |ui| {
+        Window::new("About").id("about".into()).resizable(false).open(&mut about_open).show(
+            ctx,
+            |ui| {
                 ui.heading("jgb");
 
                 ui.add_space(10.0);
@@ -542,7 +526,8 @@ impl JgbApp {
                     ui.label("Source code:");
                     ui.hyperlink("https://www.github.com/jsgroth/jgb");
                 });
-            });
+            },
+        );
         if !about_open {
             self.state.open_window = None;
         }
@@ -553,12 +538,9 @@ impl JgbApp {
             ui.set_enabled(self.state.open_window.is_none() && self.state.input_thread.is_none());
 
             if self.state.rom_search_results.is_empty() {
-                ui.with_layout(
-                    Layout::centered_and_justified(Direction::LeftToRight),
-                    |ui| {
-                        ui.label("Configure a search path to see ROMs here");
-                    },
-                );
+                ui.with_layout(Layout::centered_and_justified(Direction::LeftToRight), |ui| {
+                    ui.label("Configure a search path to see ROMs here");
+                });
             } else {
                 ui.with_layout(Layout::top_down(Align::Center), |ui| {
                     TableBuilder::new(ui)
@@ -628,12 +610,7 @@ impl eframe::App for JgbApp {
             self.state.emulation_error = thread.join().unwrap().err();
         }
 
-        if self
-            .state
-            .input_thread
-            .as_ref()
-            .is_some_and(InputThread::is_finished)
-        {
+        if self.state.input_thread.as_ref().is_some_and(InputThread::is_finished) {
             let thread = self.state.input_thread.take().unwrap();
 
             input::handle_input_thread_result(thread, &mut self.config);
@@ -672,8 +649,7 @@ impl eframe::App for JgbApp {
             // Save config immediately on changes
             self.save_config();
 
-            self.state
-                .refresh_rom_search_results(self.config.rom_search_dir.as_ref());
+            self.state.refresh_rom_search_results(self.config.rom_search_dir.as_ref());
         }
     }
 
@@ -727,8 +703,5 @@ fn launch_emulator(
         result
     });
 
-    EmulatorInstance {
-        thread,
-        quit_signal,
-    }
+    EmulatorInstance { thread, quit_signal }
 }

@@ -182,10 +182,7 @@ impl CliArgs {
         let default = HotkeyConfig::default();
         HotkeyConfig {
             exit: self.hotkey_exit.clone().or(default.exit),
-            toggle_fullscreen: self
-                .hotkey_toggle_fullscreen
-                .clone()
-                .or(default.toggle_fullscreen),
+            toggle_fullscreen: self.hotkey_toggle_fullscreen.clone().or(default.toggle_fullscreen),
             save_state: self.hotkey_save_state.clone().or(default.save_state),
             load_state: self.hotkey_load_state.clone().or(default.load_state),
             fast_forward: self.hotkey_fast_forward.clone().or(default.fast_forward),

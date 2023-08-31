@@ -73,16 +73,12 @@ fn load_sav_file<P>(sav_file: P) -> Result<Option<Vec<u8>>, CartridgeLoadError>
 where
     P: AsRef<Path>,
 {
-    let ram = if fs::metadata(sav_file.as_ref())
-        .map(|metadata| metadata.is_file())
-        .unwrap_or(false)
+    let ram = if fs::metadata(sav_file.as_ref()).map(|metadata| metadata.is_file()).unwrap_or(false)
     {
-        Some(
-            fs::read(sav_file.as_ref()).map_err(|err| CartridgeLoadError::FileReadError {
-                file_path: sav_file.as_ref().to_str().unwrap_or("").into(),
-                source: err,
-            })?,
-        )
+        Some(fs::read(sav_file.as_ref()).map_err(|err| CartridgeLoadError::FileReadError {
+            file_path: sav_file.as_ref().to_str().unwrap_or("").into(),
+            source: err,
+        })?)
     } else {
         None
     };
@@ -101,10 +97,7 @@ where
     let rtc_bytes = match fs::read(rtc_file.as_ref()) {
         Ok(rtc_bytes) => rtc_bytes,
         Err(err) => {
-            return Err(format!(
-                "error reading RTC file {}: {err}",
-                rtc_file.as_ref().display()
-            ));
+            return Err(format!("error reading RTC file {}: {err}", rtc_file.as_ref().display()));
         }
     };
 
@@ -118,10 +111,7 @@ where
         }
     };
 
-    log::info!(
-        "Successfully loaded real-time clock state from {}",
-        rtc_file.as_ref().display()
-    );
+    log::info!("Successfully loaded real-time clock state from {}", rtc_file.as_ref().display());
 
     Ok(rtc)
 }
@@ -153,9 +143,7 @@ impl Cartridge {
         log::info!("Initializing cartridge using {} bytes of data", rom.len());
 
         if rom.len() < 0x0150 {
-            return Err(CartridgeLoadError::HeaderTooShort {
-                header_len: rom.len(),
-            });
+            return Err(CartridgeLoadError::HeaderTooShort { header_len: rom.len() });
         }
 
         let mapper_byte = rom[address::MAPPER as usize];
@@ -166,11 +154,8 @@ impl Cartridge {
         log::info!("Detected mapper type {mapper_type:?} (byte: {mapper_byte:02X})");
         log::info!("Mapper features: {mapper_features}");
 
-        let loaded_ram = if let Some(sav_path) = &sav_path {
-            load_sav_file(sav_path)?
-        } else {
-            None
-        };
+        let loaded_ram =
+            if let Some(sav_path) = &sav_path { load_sav_file(sav_path)? } else { None };
 
         let rtc = match (mapper_features.has_rtc, &sav_path) {
             (true, Some(sav_path)) => {
@@ -221,10 +206,7 @@ impl Cartridge {
         };
 
         let ram_battery = match (mapper_features.has_battery, sav_path) {
-            (true, Some(sav_path)) => Some(FsRamBattery {
-                dirty: false,
-                sav_path,
-            }),
+            (true, Some(sav_path)) => Some(FsRamBattery { dirty: false, sav_path }),
             _ => None,
         };
 
@@ -245,12 +227,7 @@ impl Cartridge {
         log::info!("Cartridge has {} bytes of external RAM", ram.len());
         log::info!("Cartridge has battery: {}", mapper_features.has_battery);
 
-        Ok(Self {
-            rom,
-            mapper,
-            ram,
-            ram_battery,
-        })
+        Ok(Self { rom, mapper, ram, ram_battery })
     }
 
     #[cfg(test)]
@@ -266,11 +243,9 @@ impl Cartridge {
     ) -> Result<Self, CartridgeLoadError> {
         log::info!("Loading cartridge from '{file_path}'");
 
-        let rom =
-            fs::read(Path::new(file_path)).map_err(|err| CartridgeLoadError::FileReadError {
-                file_path: file_path.into(),
-                source: err,
-            })?;
+        let rom = fs::read(Path::new(file_path)).map_err(|err| {
+            CartridgeLoadError::FileReadError { file_path: file_path.into(), source: err }
+        })?;
 
         let sav_file = Path::new(file_path).with_extension("sav");
 
@@ -301,15 +276,12 @@ impl Cartridge {
     /// Read a value from the given cartridge RAM address. Returns 0xFF if the address is not valid.
     pub fn read_ram_address(&self, address: u16) -> u8 {
         match self.mapper.map_ram_address(address) {
-            RamMapResult::RamAddress(mapped_address) => self
-                .ram
-                .get(mapped_address as usize)
-                .copied()
-                .unwrap_or(0xFF),
-            RamMapResult::MapperRegister => self
-                .mapper
-                .read_ram_addressed_register(address)
-                .unwrap_or(0xFF),
+            RamMapResult::RamAddress(mapped_address) => {
+                self.ram.get(mapped_address as usize).copied().unwrap_or(0xFF)
+            }
+            RamMapResult::MapperRegister => {
+                self.mapper.read_ram_addressed_register(address).unwrap_or(0xFF)
+            }
             RamMapResult::None => 0xFF,
         }
     }
@@ -440,10 +412,7 @@ impl AddressSpace {
 
         // OAM access not allowed while PPU is scanning OAM or rendering a scanline
         if ppu_state.enabled()
-            && matches!(
-                ppu_state.mode(),
-                PpuMode::ScanningOAM | PpuMode::RenderingScanline
-            )
+            && matches!(ppu_state.mode(), PpuMode::ScanningOAM | PpuMode::RenderingScanline)
             && (address::OAM_START..=address::OAM_END).contains(&address)
         {
             return false;
@@ -650,8 +619,7 @@ impl AddressSpace {
     }
 
     pub fn move_unserializable_fields_from(&mut self, other: Self) {
-        self.cartridge
-            .move_unserializable_fields_from(other.cartridge);
+        self.cartridge.move_unserializable_fields_from(other.cartridge);
     }
 }
 
@@ -708,9 +676,7 @@ mod tests {
             AddressSpace::new(Cartridge::new_cgb_test(), ExecutionMode::GameBoyColor);
         let ppu_state = PpuState::new(ExecutionMode::GameBoyColor);
 
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::VBK, 0x00);
+        address_space.get_io_registers_mut().write_register(IoRegister::VBK, 0x00);
 
         assert_eq!(0x00, address_space.read_address_u8(0x8500, &ppu_state));
         address_space.write_address_u8(0x8500, 0xCD, &ppu_state);
@@ -720,9 +686,7 @@ mod tests {
         address_space.write_address_u8(0x9CDE, 0x35, &ppu_state);
         assert_eq!(0x35, address_space.read_address_u8(0x9CDE, &ppu_state));
 
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::VBK, 0x01);
+        address_space.get_io_registers_mut().write_register(IoRegister::VBK, 0x01);
 
         assert_eq!(0x00, address_space.read_address_u8(0x8500, &ppu_state));
         assert_eq!(0x00, address_space.read_address_u8(0x9CDE, &ppu_state));
@@ -734,9 +698,7 @@ mod tests {
         assert_eq!(0x46, address_space.read_address_u8(0x9CDE, &ppu_state));
 
         // Check that bits other than 0 are ignored
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::VBK, 0xFE);
+        address_space.get_io_registers_mut().write_register(IoRegister::VBK, 0xFE);
         assert_eq!(0xCD, address_space.read_address_u8(0x8500, &ppu_state));
         assert_eq!(0x35, address_space.read_address_u8(0x9CDE, &ppu_state));
     }
@@ -747,9 +709,7 @@ mod tests {
             AddressSpace::new(Cartridge::new_cgb_test(), ExecutionMode::GameBoyColor);
         let ppu_state = PpuState::new(ExecutionMode::GameBoyColor);
 
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::SVBK, 0x00);
+        address_space.get_io_registers_mut().write_register(IoRegister::SVBK, 0x00);
 
         assert_eq!(0x00, address_space.read_address_u8(0xC500, &ppu_state));
         address_space.write_address_u8(0xC500, 0xDE, &ppu_state);
@@ -761,16 +721,12 @@ mod tests {
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
         // Bank 1 should behave the same as 0
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::SVBK, 0x01);
+        address_space.get_io_registers_mut().write_register(IoRegister::SVBK, 0x01);
         assert_eq!(0xCF, address_space.read_address_u8(0xD500, &ppu_state));
         assert_eq!(0xCF, address_space.working_ram[0x1500]);
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::SVBK, 0x04);
+        address_space.get_io_registers_mut().write_register(IoRegister::SVBK, 0x04);
         assert_eq!(0x00, address_space.read_address_u8(0xD500, &ppu_state));
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
@@ -780,16 +736,12 @@ mod tests {
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
         // Check that only the lower 3 bits of SVBK are read
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::SVBK, 0xF8);
+        address_space.get_io_registers_mut().write_register(IoRegister::SVBK, 0xF8);
         assert_eq!(0xCF, address_space.read_address_u8(0xD500, &ppu_state));
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 
         // Test the highest bank number
-        address_space
-            .get_io_registers_mut()
-            .write_register(IoRegister::SVBK, 0x07);
+        address_space.get_io_registers_mut().write_register(IoRegister::SVBK, 0x07);
         assert_eq!(0x00, address_space.read_address_u8(0xD500, &ppu_state));
         assert_eq!(0xDE, address_space.read_address_u8(0xC500, &ppu_state));
 

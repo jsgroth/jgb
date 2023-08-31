@@ -72,11 +72,7 @@ impl ZFlag {
     const BIT: u8 = 1 << 7;
 
     fn to_bit(self) -> u8 {
-        if self.0 {
-            Self::BIT
-        } else {
-            0
-        }
+        if self.0 { Self::BIT } else { 0 }
     }
 }
 
@@ -84,11 +80,7 @@ impl NFlag {
     const BIT: u8 = 1 << 6;
 
     fn to_bit(self) -> u8 {
-        if self.0 {
-            Self::BIT
-        } else {
-            0
-        }
+        if self.0 { Self::BIT } else { 0 }
     }
 }
 
@@ -96,11 +88,7 @@ impl HFlag {
     const BIT: u8 = 1 << 5;
 
     fn to_bit(self) -> u8 {
-        if self.0 {
-            Self::BIT
-        } else {
-            0
-        }
+        if self.0 { Self::BIT } else { 0 }
     }
 }
 
@@ -108,11 +96,7 @@ impl CFlag {
     const BIT: u8 = 1 << 4;
 
     fn to_bit(self) -> u8 {
-        if self.0 {
-            Self::BIT
-        } else {
-            0
-        }
+        if self.0 { Self::BIT } else { 0 }
     }
 }
 

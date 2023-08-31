@@ -75,15 +75,9 @@ impl Operation {
                 0x00C0 => Self::WriteEnable,
                 _ => panic!("{opcode} & 0x00C0 was not 0x0000/0x0040/0x0080/0x00C0"),
             },
-            0x0100 => Self::Write {
-                address: (opcode & 0x007F) as u8,
-            },
-            0x0200 => Self::Read {
-                address: (opcode & 0x007F) as u8,
-            },
-            0x0300 => Self::Erase {
-                address: (opcode & 0x007F) as u8,
-            },
+            0x0100 => Self::Write { address: (opcode & 0x007F) as u8 },
+            0x0200 => Self::Read { address: (opcode & 0x007F) as u8 },
+            0x0300 => Self::Erase { address: (opcode & 0x007F) as u8 },
             _ => panic!("{opcode} & 0x0300 was not 0x0000/0x0100/0x0200/0x0300"),
         }
     }
@@ -103,10 +97,7 @@ struct OpInput {
 
 impl OpInput {
     fn new() -> Self {
-        Self {
-            input_bits: 0,
-            bits_remaining: 10,
-        }
+        Self { input_bits: 0, bits_remaining: 10 }
     }
 }
 
@@ -118,10 +109,7 @@ struct WriteInput {
 
 impl WriteInput {
     fn new() -> Self {
-        Self {
-            input_bits: 0,
-            bits_remaining: 16,
-        }
+        Self { input_bits: 0, bits_remaining: 16 }
     }
 }
 
@@ -133,10 +121,7 @@ struct ReadOutput {
 
 impl ReadOutput {
     fn new(value: u16) -> Self {
-        Self {
-            value,
-            current_bit: 16,
-        }
+        Self { value, current_bit: 16 }
     }
 
     fn current_output(self) -> DataOut {
@@ -285,11 +270,7 @@ impl Mbc7Eeprom {
             _ => {}
         }
 
-        Self {
-            memory,
-            state: ChipState::Standby(WriteStatus::Disabled),
-            last_clock: Clock(false),
-        }
+        Self { memory, state: ChipState::Standby(WriteStatus::Disabled), last_clock: Clock(false) }
     }
 
     pub(crate) fn handle_read(&self) -> u8 {

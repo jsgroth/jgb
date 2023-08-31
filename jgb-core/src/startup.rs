@@ -107,7 +107,7 @@ pub fn init_emulation_state(run_config: &RunConfig) -> Result<EmulationState, St
             return Err(StartupError::FileRead {
                 file_path: run_config.gb_file_path.clone(),
                 source: err,
-            })
+            });
         }
     };
 
@@ -161,13 +161,8 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
     sdl.mouse().show_cursor(false);
 
     let window_title = get_window_title(&run_config.gb_file_path)?;
-    let window = video
-        .window(
-            &window_title,
-            run_config.window_width,
-            run_config.window_height,
-        )
-        .build()?;
+    let window =
+        video.window(&window_title, run_config.window_width, run_config.window_height).build()?;
 
     let canvas = graphics::create_renderer(window, run_config)?;
     let texture_creator = canvas.texture_creator();
@@ -203,8 +198,6 @@ fn get_window_title(gb_file_path: &str) -> Result<String, StartupError> {
     let file_name = Path::new(gb_file_path).file_name().and_then(OsStr::to_str);
     match file_name {
         Some(file_name) => Ok(format!("jgb - {file_name}")),
-        None => Err(StartupError::FileName {
-            file_path: gb_file_path.into(),
-        }),
+        None => Err(StartupError::FileName { file_path: gb_file_path.into() }),
     }
 }

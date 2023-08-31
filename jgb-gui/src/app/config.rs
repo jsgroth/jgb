@@ -96,16 +96,10 @@ impl AppConfig {
         P: AsRef<Path>,
     {
         let config_str = fs::read_to_string(path.as_ref()).with_context(|| {
-            format!(
-                "error reading TOML config file from '{}'",
-                path.as_ref().display()
-            )
+            format!("error reading TOML config file from '{}'", path.as_ref().display())
         })?;
         let config: Self = toml::from_str(&config_str).with_context(|| {
-            format!(
-                "error parsing app config from TOML file at '{}'",
-                path.as_ref().display()
-            )
+            format!("error parsing app config from TOML file at '{}'", path.as_ref().display())
         })?;
 
         Ok(config)

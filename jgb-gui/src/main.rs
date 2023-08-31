@@ -27,11 +27,7 @@ fn get_display_resolution() -> Result<Option<Rect>, String> {
     let sdl = sdl2::init()?;
     let video = sdl.video()?;
 
-    if video.num_video_displays()? > 1 {
-        Ok(None)
-    } else {
-        Ok(Some(video.display_bounds(0)?))
-    }
+    if video.num_video_displays()? > 1 { Ok(None) } else { Ok(Some(video.display_bounds(0)?)) }
 }
 
 // Override winit scale factor to 1 if it looks like we're on a Steam Deck
@@ -50,7 +46,9 @@ fn steam_deck_dpi_hack() -> Result<(), String> {
         && primary_display_bounds.w == 1280
         && primary_display_bounds.h == 800
     {
-        log::info!("Assuming running on Steam Deck, overriding scale factor to 1 because otherwise it will default to 4.5");
+        log::info!(
+            "Assuming running on Steam Deck, overriding scale factor to 1 because otherwise it will default to 4.5"
+        );
         env::set_var("WINIT_X11_SCALE_FACTOR", "1");
     }
 
@@ -64,9 +62,7 @@ fn main() -> eframe::Result<()> {
 
     let args = GuiArgs::parse();
 
-    let config_path = args
-        .config_path
-        .map_or_else(default_config_path, PathBuf::from);
+    let config_path = args.config_path.map_or_else(default_config_path, PathBuf::from);
 
     log::info!("reading app config from '{}'", config_path.display());
 

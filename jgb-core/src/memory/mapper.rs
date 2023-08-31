@@ -94,16 +94,8 @@ impl Mapper {
         loaded_ram: Option<&Vec<u8>>,
         controller_states: ControllerStates,
     ) -> Self {
-        let rom_bank_bit_mask = if rom_size >= 1 << 14 {
-            ((rom_size >> 14) - 1) as u16
-        } else {
-            0
-        };
-        let ram_bank_bit_mask = if ram_size >= 1 << 13 {
-            ((ram_size >> 13) - 1) as u8
-        } else {
-            0
-        };
+        let rom_bank_bit_mask = if rom_size >= 1 << 14 { ((rom_size >> 14) - 1) as u16 } else { 0 };
+        let ram_bank_bit_mask = if ram_size >= 1 << 13 { ((ram_size >> 13) - 1) as u8 } else { 0 };
 
         log::debug!("setting ROM bit bask to {rom_bank_bit_mask:02X} for size {rom_size}");
         log::debug!("setting RAM bit mask to {ram_bank_bit_mask:02X} for size {ram_size}");
@@ -173,11 +165,7 @@ impl Mapper {
                 banking_mode_select,
                 ..
             } => {
-                let rom_bank_number = if rom_bank_number == 0x00 {
-                    0x01
-                } else {
-                    rom_bank_number
-                };
+                let rom_bank_number = if rom_bank_number == 0x00 { 0x01 } else { rom_bank_number };
 
                 match address {
                     address @ 0x0000..=0x3FFF => {
@@ -193,28 +181,19 @@ impl Mapper {
                             let bank_number = rom_bank_number & rom_bank_bit_mask;
                             u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
                         } else {
-                            let bank_number = (rom_bank_number | (ram_bank_number << 5)) & rom_bank_bit_mask;
+                            let bank_number =
+                                (rom_bank_number | (ram_bank_number << 5)) & rom_bank_bit_mask;
                             u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
                         }
                     }
-                    _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
+                    _ => panic!(
+                        "mapper called for address outside of cartridge address range: {address:04X}"
+                    ),
                 }
             }
-            &Self::MBC2 {
-                rom_bank_bit_mask,
-                rom_bank_number,
-                ..
-            }
-            | &Self::MBC3 {
-                rom_bank_bit_mask,
-                rom_bank_number,
-                ..
-            } => {
-                let rom_bank_number = if rom_bank_number == 0x00 {
-                    0x01
-                } else {
-                    rom_bank_number
-                };
+            &Self::MBC2 { rom_bank_bit_mask, rom_bank_number, .. }
+            | &Self::MBC3 { rom_bank_bit_mask, rom_bank_number, .. } => {
+                let rom_bank_number = if rom_bank_number == 0x00 { 0x01 } else { rom_bank_number };
 
                 match address {
                     address @ 0x0000..=0x3FFF => u32::from(address),
@@ -222,19 +201,13 @@ impl Mapper {
                         let bank_number = rom_bank_number & rom_bank_bit_mask;
                         u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
                     }
-                    _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
+                    _ => panic!(
+                        "mapper called for address outside of cartridge address range: {address:04X}"
+                    ),
                 }
             }
-            &Self::MBC5 {
-                rom_bank_bit_mask,
-                rom_bank_number,
-                ..
-            }
-            | &Self::MBC7 {
-                rom_bank_bit_mask,
-                rom_bank_number,
-                ..
-            } => {
+            &Self::MBC5 { rom_bank_bit_mask, rom_bank_number, .. }
+            | &Self::MBC7 { rom_bank_bit_mask, rom_bank_number, .. } => {
                 // ROM bank 0 is actually bank 0 in MBC5 and MBC7
 
                 match address {
@@ -243,7 +216,9 @@ impl Mapper {
                         let bank_number = rom_bank_number & rom_bank_bit_mask;
                         u32::from(address - 0x4000) + (u32::from(bank_number) << 14)
                     }
-                    _ => panic!("mapper called for address outside of cartridge address range: {address:04X}")
+                    _ => panic!(
+                        "mapper called for address outside of cartridge address range: {address:04X}"
+                    ),
                 }
             }
         }
@@ -279,11 +254,7 @@ impl Mapper {
                 }
                 _ => panic!("invalid ROM write address in MBC1 mapper: {address:04X}"),
             },
-            Self::MBC2 {
-                ram_enable,
-                rom_bank_number,
-                ..
-            } => match address {
+            Self::MBC2 { ram_enable, rom_bank_number, .. } => match address {
                 address @ 0x0000..=0x3FFF => {
                     if address & 0x0100 != 0 {
                         *rom_bank_number = value & 0x0F;
@@ -295,11 +266,7 @@ impl Mapper {
                 _ => panic!("invalid ROM write address in MBC2 mapper: {address:04X}"),
             },
             Self::MBC3 {
-                ram_enable,
-                rom_bank_number,
-                ram_bank_number,
-                real_time_clock,
-                ..
+                ram_enable, rom_bank_number, ram_bank_number, real_time_clock, ..
             } => match address {
                 _address @ 0x0000..=0x1FFF => {
                     *ram_enable = value;
@@ -318,11 +285,7 @@ impl Mapper {
                 _ => panic!("invalid ROM write address in MBC3 mapper: {address:04X}"),
             },
             Self::MBC5 {
-                ram_enable,
-                rom_bank_number,
-                ram_bank_number,
-                rumble_motor_on,
-                ..
+                ram_enable, rom_bank_number, ram_bank_number, rumble_motor_on, ..
             } => match address {
                 _address @ 0x0000..=0x1FFF => {
                     *ram_enable = value;
@@ -340,11 +303,7 @@ impl Mapper {
                 _address @ 0x6000..=0x7FFF => {}
                 _ => panic!("invalid ROM write address in MBC5 mapper: {address:04X}"),
             },
-            Self::MBC7 {
-                rom_bank_number,
-                ram_status,
-                ..
-            } => match address {
+            Self::MBC7 { rom_bank_number, ram_status, .. } => match address {
                 _address @ 0x0000..=0x1FFF => {
                     if value == 0x0A {
                         *ram_status = Mbc7RamStatus::PreEnabled;
@@ -398,11 +357,7 @@ impl Mapper {
                     RamMapResult::None
                 }
             }
-            &Self::MBC3 {
-                ram_enable,
-                ram_bank_number,
-                ..
-            } => {
+            &Self::MBC3 { ram_enable, ram_bank_number, .. } => {
                 if ram_enable & 0x0A == 0x0A {
                     match ram_bank_number {
                         ram_bank_number @ 0x00..=0x03 => RamMapResult::RamAddress(
@@ -416,12 +371,7 @@ impl Mapper {
                     RamMapResult::None
                 }
             }
-            &Self::MBC5 {
-                ram_bank_bit_mask,
-                ram_enable,
-                ram_bank_number,
-                ..
-            } => {
+            &Self::MBC5 { ram_bank_bit_mask, ram_enable, ram_bank_number, .. } => {
                 if ram_enable & 0x0A == 0x0A {
                     let bank_number = ram_bank_number & ram_bank_bit_mask;
                     match bank_number {
@@ -445,39 +395,31 @@ impl Mapper {
 
     pub(crate) fn read_ram_addressed_register(&self, address: u16) -> Option<u8> {
         match self {
-            Self::MBC3 {
-                ram_bank_number,
-                real_time_clock: Some(real_time_clock),
-                ..
-            } => real_time_clock.handle_ram_read(*ram_bank_number),
-            Self::MBC7 {
-                eeprom,
-                latched_accelerometer_state,
-                ..
-            } if (0xA000..=0xAFFF).contains(&address) => {
+            Self::MBC3 { ram_bank_number, real_time_clock: Some(real_time_clock), .. } => {
+                real_time_clock.handle_ram_read(*ram_bank_number)
+            }
+            Self::MBC7 { eeprom, latched_accelerometer_state, .. }
+                if (0xA000..=0xAFFF).contains(&address) =>
+            {
                 match address & 0x00F0 {
                     0x0020 => {
-                        let x = latched_accelerometer_state
-                            .unwrap_or(AccelerometerState::default())
-                            .x;
+                        let x =
+                            latched_accelerometer_state.unwrap_or(AccelerometerState::default()).x;
                         Some((x & 0x00FF) as u8)
                     }
                     0x0030 => {
-                        let x = latched_accelerometer_state
-                            .unwrap_or(AccelerometerState::default())
-                            .x;
+                        let x =
+                            latched_accelerometer_state.unwrap_or(AccelerometerState::default()).x;
                         Some((x >> 8) as u8)
                     }
                     0x0040 => {
-                        let y = latched_accelerometer_state
-                            .unwrap_or(AccelerometerState::default())
-                            .y;
+                        let y =
+                            latched_accelerometer_state.unwrap_or(AccelerometerState::default()).y;
                         Some((y & 0x00FF) as u8)
                     }
                     0x0050 => {
-                        let y = latched_accelerometer_state
-                            .unwrap_or(AccelerometerState::default())
-                            .y;
+                        let y =
+                            latched_accelerometer_state.unwrap_or(AccelerometerState::default()).y;
                         Some((y >> 8) as u8)
                     }
                     // Unused register that always reads out 0, possibly meant for accelerometer Z
@@ -497,18 +439,11 @@ impl Mapper {
 
     pub(crate) fn write_ram_addressed_register(&mut self, address: u16, value: u8) {
         match self {
-            Self::MBC3 {
-                ram_bank_number,
-                real_time_clock: Some(real_time_clock),
-                ..
-            } => {
+            Self::MBC3 { ram_bank_number, real_time_clock: Some(real_time_clock), .. } => {
                 real_time_clock.handle_ram_write(*ram_bank_number, value);
             }
             Self::MBC7 {
-                eeprom,
-                live_accelerometer_state,
-                latched_accelerometer_state,
-                ..
+                eeprom, live_accelerometer_state, latched_accelerometer_state, ..
             } if (0xA000..=0xAFFF).contains(&address) => match address & 0x00F0 {
                 0x0000 => {
                     if value == 0x55 {
@@ -531,11 +466,7 @@ impl Mapper {
     }
 
     pub(crate) fn update_rtc(&mut self) {
-        let Self::MBC3 {
-            real_time_clock: Some(real_time_clock),
-            ..
-        } = self
-        else {
+        let Self::MBC3 { real_time_clock: Some(real_time_clock), .. } = self else {
             return;
         };
         real_time_clock.update(SystemTime::now());
@@ -543,9 +474,7 @@ impl Mapper {
 
     pub(crate) fn get_clock(&self) -> Option<&RealTimeClock> {
         match self {
-            Self::MBC3 {
-                real_time_clock, ..
-            } => real_time_clock.as_ref(),
+            Self::MBC3 { real_time_clock, .. } => real_time_clock.as_ref(),
             _ => None,
         }
     }
@@ -561,25 +490,14 @@ impl Mapper {
     pub(crate) fn move_unserializable_fields_from(&mut self, other: Self) {
         match (self, other) {
             (
-                Self::MBC5 {
-                    rumble_motor_on, ..
-                },
-                Self::MBC5 {
-                    rumble_motor_on: other_rumble_motor_on,
-                    ..
-                },
+                Self::MBC5 { rumble_motor_on, .. },
+                Self::MBC5 { rumble_motor_on: other_rumble_motor_on, .. },
             ) => {
                 *rumble_motor_on = other_rumble_motor_on;
             }
             (
-                Self::MBC7 {
-                    live_accelerometer_state,
-                    ..
-                },
-                Self::MBC7 {
-                    live_accelerometer_state: other_live_accelerometer_state,
-                    ..
-                },
+                Self::MBC7 { live_accelerometer_state, .. },
+                Self::MBC7 { live_accelerometer_state: other_live_accelerometer_state, .. },
             ) => {
                 *live_accelerometer_state = other_live_accelerometer_state;
             }
@@ -633,12 +551,7 @@ pub(crate) fn parse_byte(mapper_byte: u8) -> Option<(MapperType, MapperFeatures)
 
     let has_rumble = [0x1C, 0x1D, 0x1E].contains(&mapper_byte);
 
-    let features = MapperFeatures {
-        has_ram,
-        has_battery,
-        has_rtc,
-        has_rumble,
-    };
+    let features = MapperFeatures { has_ram, has_battery, has_rtc, has_rumble };
     Some((mapper_type, features))
 }
 
@@ -647,12 +560,7 @@ mod tests {
     use super::*;
 
     fn mapper_features() -> MapperFeatures {
-        MapperFeatures {
-            has_ram: false,
-            has_battery: false,
-            has_rtc: false,
-            has_rumble: false,
-        }
+        MapperFeatures { has_ram: false, has_battery: false, has_rtc: false, has_rumble: false }
     }
 
     #[test]
@@ -757,17 +665,8 @@ mod tests {
         // Enable RAM
         mapper.write_rom_address(0x0000, 0x0A);
 
-        assert_eq!(
-            RamMapResult::RamAddress(0x0000),
-            mapper.map_ram_address(0xA000)
-        );
-        assert_eq!(
-            RamMapResult::RamAddress(0x1000),
-            mapper.map_ram_address(0xB000)
-        );
-        assert_eq!(
-            RamMapResult::RamAddress(0x1234),
-            mapper.map_ram_address(0xB234)
-        );
+        assert_eq!(RamMapResult::RamAddress(0x0000), mapper.map_ram_address(0xA000));
+        assert_eq!(RamMapResult::RamAddress(0x1000), mapper.map_ram_address(0xB000));
+        assert_eq!(RamMapResult::RamAddress(0x1234), mapper.map_ram_address(0xB234));
     }
 }

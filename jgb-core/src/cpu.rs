@@ -66,9 +66,7 @@ pub fn interrupt_triggered(cpu_registers: &CpuRegisters, address_space: &Address
 
 pub fn interrupt_triggered_no_ime_check(address_space: &AddressSpace) -> bool {
     let ie_value = address_space.get_ie_register();
-    let if_value = address_space
-        .get_io_registers()
-        .read_register(IoRegister::IF);
+    let if_value = address_space.get_io_registers().read_register(IoRegister::IF);
 
     ie_value & if_value != 0
 }
@@ -106,10 +104,7 @@ pub fn execute_interrupt_service_routine(
 
     cpu_registers.pc = interrupt_type.handler_address();
 
-    address_space
-        .get_io_registers_mut()
-        .interrupt_flags()
-        .clear(interrupt_type);
+    address_space.get_io_registers_mut().interrupt_flags().clear(interrupt_type);
     cpu_registers.ime = false;
     cpu_registers.halted = false;
 }

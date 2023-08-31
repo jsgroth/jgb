@@ -112,11 +112,7 @@ impl WaveChannel {
             // Read the current 4-bit sample from custom waveform RAM and update the internal sample
             // buffer
             let samples = io_registers.read_address(0xFF30 + u16::from(self.sample_index / 2));
-            let sample = if self.sample_index % 2 == 0 {
-                samples >> 4
-            } else {
-                samples & 0x0F
-            };
+            let sample = if self.sample_index % 2 == 0 { samples >> 4 } else { samples & 0x0F };
             self.last_sample = sample;
 
             // The 32 samples loop forever (or until the length timer expires)
