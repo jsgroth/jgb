@@ -43,11 +43,6 @@ Linux (Debian-based):
 sudo apt install libsdl2-dev libsdl2-ttf-dev
 ```
 
-macOS:
-```shell
-brew install sdl2 sdl2-ttf
-```
-
 Windows:
 * https://github.com/libsdl-org/SDL/releases/
 * https://github.com/libsdl-org/SDL_ttf/releases/
