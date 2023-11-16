@@ -19,3 +19,6 @@ rfd = "0.11"
 sdl2 = { version = "0.35", features = ["ttf"] }
 serde = { workspace = true }
 toml = "0.7"
+
+[lints]
+workspace = true
