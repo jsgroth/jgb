@@ -3,7 +3,7 @@ mod lcdc;
 use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::address;
 use crate::ppu::PpuMode;
-pub use lcdc::{AddressRange, Lcdc, SpriteMode, TileDataRange};
+pub use lcdc::{Lcdc, SpriteMode, TileDataRange};
 use serde::{Deserialize, Serialize};
 
 #[allow(clippy::upper_case_acronyms)]
