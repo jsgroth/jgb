@@ -1,5 +1,11 @@
 # jgb
 
+**Note: This emulator has been largely obsoleted by the Game Boy core in [my multi-system emulator](https://github.com/jsgroth/jgenesis), but this emulator does still support two features that one does not:**
+* MBC7 cartridges (_Kirby Tilt 'n' Tumble_)
+* MBC5 rumble support (e.g. _Pokemon Pinball_)
+
+---
+
 An attempt at writing a Game Boy emulator.
 
 jgb is a cross-platform low-level Game Boy \[Color\] emulator with no game-specific logic or game-specific hacks. It is not completely cycle-accurate due to CPU emulation being instruction-based rather than cycle-based, but it should be able to run the vast majority of licensed Game Boy and Game Boy Color games.
