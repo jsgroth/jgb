@@ -2,7 +2,7 @@
 
 use clap::Parser;
 use eframe::NativeOptions;
-use egui::{Pos2, Vec2};
+use egui::{Pos2, Vec2, ViewportBuilder};
 use env_logger::Env;
 use jgb_gui::{AppConfig, JgbApp};
 use sdl2::rect::Rect;
@@ -100,14 +100,13 @@ fn main() -> eframe::Result<()> {
         None
     };
 
-    let options = NativeOptions {
-        initial_window_size: Some(Vec2::new(
-            initial_window_width as f32,
-            initial_window_height as f32,
-        )),
-        initial_window_pos,
-        ..NativeOptions::default()
-    };
+    let mut viewport = ViewportBuilder::default()
+        .with_inner_size(Vec2::new(initial_window_width as f32, initial_window_height as f32));
+    if let Some(initial_window_pos) = initial_window_pos {
+        viewport = viewport.with_position(initial_window_pos);
+    }
+
+    let options = NativeOptions { viewport, ..NativeOptions::default() };
 
     let app = JgbApp::new(app_config, config_path);
 

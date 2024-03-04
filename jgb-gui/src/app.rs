@@ -6,7 +6,7 @@ use eframe::epaint::Color32;
 use eframe::Frame;
 use egui::{
     menu, Align, Button, CentralPanel, Direction, Key, KeyboardShortcut, Layout, Modifiers,
-    TextEdit, TopBottomPanel, Widget, Window,
+    TextEdit, TopBottomPanel, ViewportCommand, Widget, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use jgb_core::{EmulationError, GbColorScheme, GbcColorCorrection, HardwareMode, RunConfig};
@@ -241,7 +241,7 @@ impl JgbApp {
         }
     }
 
-    fn render_menu(&mut self, ctx: &egui::Context, frame: &mut Frame) {
+    fn render_menu(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
         let gb_open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
         if ctx.input_mut(|input| input.consume_shortcut(&gb_open_shortcut)) {
             self.handle_open(HardwareMode::GameBoy);
@@ -254,7 +254,7 @@ impl JgbApp {
 
         let quit_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Q);
         if ctx.input_mut(|input| input.consume_shortcut(&quit_shortcut)) {
-            frame.close();
+            ctx.send_viewport_cmd(ViewportCommand::Close);
         }
 
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -285,7 +285,7 @@ impl JgbApp {
                         .shortcut_text(ctx.format_shortcut(&quit_shortcut))
                         .ui(ui);
                     if quit_button.clicked() {
-                        frame.close();
+                        ctx.send_viewport_cmd(ViewportCommand::Close);
                     }
                 });
 
