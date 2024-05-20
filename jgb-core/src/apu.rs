@@ -55,8 +55,6 @@ pub struct ApuDebugOutput {
 
 pub trait DebugSink {
     fn collect_samples(&self, samples: &ApuDebugOutput);
-
-    fn collect_filtered_samples(&self, samples: (f32, f32));
 }
 
 #[derive(Serialize, Deserialize)]

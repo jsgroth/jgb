@@ -12,9 +12,7 @@ use sdl2::event::EventType;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::{WindowBuildError, WindowContext};
-use sdl2::{
-    ttf, AudioSubsystem, EventPump, GameControllerSubsystem, JoystickSubsystem, Sdl, VideoSubsystem,
-};
+use sdl2::{ttf, EventPump, GameControllerSubsystem, JoystickSubsystem};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::ffi::OsStr;
@@ -85,9 +83,6 @@ pub struct EmulationState {
 }
 
 pub struct SdlState {
-    pub sdl: Sdl,
-    pub video: VideoSubsystem,
-    pub audio: AudioSubsystem,
     pub audio_playback_queue: Option<AudioQueue<f32>>,
     pub joystick_subsystem: JoystickSubsystem,
     pub controller_subsystem: GameControllerSubsystem,
@@ -181,9 +176,6 @@ pub fn init_sdl_state(run_config: &RunConfig) -> Result<SdlState, StartupError> 
     };
 
     Ok(SdlState {
-        sdl,
-        video,
-        audio,
         audio_playback_queue,
         joystick_subsystem,
         controller_subsystem,

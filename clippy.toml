@@ -1,1 +1,1 @@
-doc-valid-idents = ["VBlank", "VSync", ".."]
+doc-valid-idents = ["VBlank", "VSync", "BlackAndWhite", "GreenTint", "LimeGreen", "GbcLcd", ".."]

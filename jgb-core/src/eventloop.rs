@@ -103,7 +103,6 @@ pub fn run(
         texture_creator,
         mut event_pump,
         ttf_ctx,
-        ..
     } = sdl_state;
 
     let mut texture = GbFrameTexture::create(&texture_creator)?;
