@@ -1,4 +1,4 @@
-use super::{hash_map, run_test, set_in_state, ExpectedState, ALL_REGISTERS};
+use super::{ALL_REGISTERS, ExpectedState, hash_map, run_test, set_in_state};
 
 use crate::cpu::registers::{CpuRegister, CpuRegisterPair};
 
@@ -137,13 +137,10 @@ fn load_indirect_hl_register() {
             _ => 0xE3,
         };
 
-        run_test(
-            &program_hex,
-            &ExpectedState {
-                memory: hash_map! { 0xD075: expected_value },
-                ..ExpectedState::empty()
-            },
-        );
+        run_test(&program_hex, &ExpectedState {
+            memory: hash_map! { 0xD075: expected_value },
+            ..ExpectedState::empty()
+        });
     }
 }
 

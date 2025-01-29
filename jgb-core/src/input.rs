@@ -1,7 +1,7 @@
+use crate::HotkeyConfig;
 use crate::config::{ControllerConfig, ControllerInput, HatDirection, InputConfig};
 use crate::cpu::InterruptType;
 use crate::memory::ioregisters::{IoRegister, IoRegisters};
-use crate::HotkeyConfig;
 use sdl2::controller::GameController;
 use sdl2::joystick::{HatState, Joystick};
 use sdl2::keyboard::Keycode;

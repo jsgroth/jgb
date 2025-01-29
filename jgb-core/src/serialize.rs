@@ -3,7 +3,7 @@ use crate::memory::AddressSpace;
 use crate::startup::EmulationState;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeTuple;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};

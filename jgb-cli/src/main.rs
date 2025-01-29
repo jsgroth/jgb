@@ -7,8 +7,8 @@ use jgb_core::{
     ControllerConfig, ControllerInput, GbColorScheme, GbcColorCorrection, HardwareMode,
     HotkeyConfig, InputConfig, RunConfig,
 };
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 #[derive(Parser)]
 struct CliArgs {

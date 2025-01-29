@@ -1,13 +1,13 @@
 use crate::config::GbColorScheme;
 use crate::cpu::ExecutionMode;
 use crate::ppu::{FrameBuffer, PpuState};
-use crate::{ppu, GbcColorCorrection, HardwareMode, RunConfig};
+use crate::{GbcColorCorrection, HardwareMode, RunConfig, ppu};
+use sdl2::IntegerOrSdlError;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, TextureValueError, WindowCanvas};
 use sdl2::ttf::{Font, FontError};
 use sdl2::video::{FullscreenType, Window};
-use sdl2::IntegerOrSdlError;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 use thiserror::Error;

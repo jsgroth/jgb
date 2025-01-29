@@ -1,6 +1,6 @@
 use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::ioregisters::{IoRegister, IoRegisters, SpriteMode, TileDataRange};
-use crate::memory::{address, AddressSpace, VramBank};
+use crate::memory::{AddressSpace, VramBank, address};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tinyvec::ArrayVec;
@@ -1286,10 +1286,12 @@ mod tests {
 
         scan_oam(&mut sprites, &address_space, 40, 20);
 
-        assert_eq!(
-            sprites,
-            vec![OamSpriteData { y_pos: 53, x_pos: 20, tile_index: 0xC3, flags: 0x30 }]
-        );
+        assert_eq!(sprites, vec![OamSpriteData {
+            y_pos: 53,
+            x_pos: 20,
+            tile_index: 0xC3,
+            flags: 0x30
+        }]);
 
         // Scanline 45 is past the bottom of the sprite
         scan_oam(&mut sprites, &address_space, 45, 20);

@@ -8,7 +8,7 @@ use crate::memory::AddressSpace;
 use crate::cpu::{CgbSpeedMode, ExecutionMode};
 use crate::memory::ioregisters::IoRegister;
 use crate::ppu::PpuState;
-pub use parse::{parse_next_instruction, ParseError};
+pub use parse::{ParseError, parse_next_instruction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpCondition {

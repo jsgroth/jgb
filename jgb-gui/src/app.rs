@@ -2,11 +2,11 @@ mod config;
 mod input;
 
 use anyhow::Context;
-use eframe::epaint::Color32;
 use eframe::Frame;
+use eframe::epaint::Color32;
 use egui::{
-    menu, Align, Button, CentralPanel, Direction, Key, KeyboardShortcut, Layout, Modifiers,
-    TextEdit, TopBottomPanel, ViewportCommand, Widget, Window,
+    Align, Button, CentralPanel, Direction, Key, KeyboardShortcut, Layout, Modifiers, TextEdit,
+    TopBottomPanel, ViewportCommand, Widget, Window, menu,
 };
 use egui_extras::{Column, TableBuilder};
 use jgb_core::{EmulationError, GbColorScheme, GbcColorCorrection, HardwareMode, RunConfig};
@@ -15,8 +15,8 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::{fs, thread};
 

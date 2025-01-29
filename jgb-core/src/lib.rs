@@ -15,8 +15,8 @@ mod serialize;
 mod startup;
 mod timer;
 
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 
 use crate::eventloop::RunError;

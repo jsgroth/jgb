@@ -1,7 +1,7 @@
 use crate::apu::ApuState;
-use crate::{apu, RunConfig};
-use sdl2::audio::{AudioQueue, AudioSpecDesired};
+use crate::{RunConfig, apu};
 use sdl2::AudioSubsystem;
+use sdl2::audio::{AudioQueue, AudioSpecDesired};
 use std::collections::VecDeque;
 use std::thread;
 use std::time::Duration;
@@ -16,14 +16,11 @@ pub enum AudioError {
 }
 
 pub fn initialize(audio_subsystem: &AudioSubsystem) -> Result<AudioQueue<f32>, String> {
-    let queue = audio_subsystem.open_queue(
-        None,
-        &AudioSpecDesired {
-            freq: Some(apu::OUTPUT_FREQUENCY as i32),
-            channels: Some(2),
-            samples: Some(AUDIO_QUEUE_SIZE as u16),
-        },
-    )?;
+    let queue = audio_subsystem.open_queue(None, &AudioSpecDesired {
+        freq: Some(apu::OUTPUT_FREQUENCY as i32),
+        channels: Some(2),
+        samples: Some(AUDIO_QUEUE_SIZE as u16),
+    })?;
     queue.resume();
 
     Ok(queue)

@@ -1,4 +1,4 @@
-use super::{hash_map, run_test, set_in_state, ExpectedState, ALL_REGISTERS};
+use super::{ALL_REGISTERS, ExpectedState, hash_map, run_test, set_in_state};
 
 #[test]
 fn test_bit_register() {

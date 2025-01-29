@@ -4,8 +4,8 @@ mod registers;
 #[cfg(test)]
 mod tests;
 
-use crate::memory::ioregisters::IoRegister;
 use crate::memory::AddressSpace;
+use crate::memory::ioregisters::IoRegister;
 use crate::ppu::PpuState;
 pub use registers::{CgbSpeedMode, CpuRegisters};
 use serde::{Deserialize, Serialize};

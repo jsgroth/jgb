@@ -1,24 +1,24 @@
 use crate::audio::AudioError;
 use crate::cpu::instructions::ParseError;
-use crate::cpu::{instructions, CgbSpeedMode, CpuRegisters};
+use crate::cpu::{CgbSpeedMode, CpuRegisters, instructions};
 use crate::graphics::{GbFrameTexture, GraphicsError, Modal};
 use crate::input::{
     ControllerMap, Hotkey, HotkeyMap, JoypadState, JoystickError, Joysticks, KeyMap, KeyMapError,
 };
-use crate::memory::ioregisters::IoRegister;
 use crate::memory::AddressSpace;
+use crate::memory::ioregisters::IoRegister;
 use crate::ppu::{PpuMode, PpuState};
 use crate::serialize::SaveStateError;
 use crate::startup::{ControllerStates, EmulationState, SdlState};
 use crate::timer::TimerCounter;
-use crate::{apu, audio, cpu, font, graphics, input, ppu, serialize, timer, RunConfig};
+use crate::{RunConfig, apu, audio, cpu, font, graphics, input, ppu, serialize, timer};
 use sdl2::event::Event;
 use sdl2::sensor::SensorType;
 use std::ffi::OsStr;
 use std::io;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use thiserror::Error;
 

@@ -9,7 +9,7 @@ mod load;
 mod singlebit;
 
 use crate::cpu::registers::CpuRegister;
-use crate::cpu::{instructions, CpuRegisters, ExecutionMode};
+use crate::cpu::{CpuRegisters, ExecutionMode, instructions};
 use crate::memory::{AddressSpace, Cartridge};
 use std::collections::HashMap;
 use std::fmt::Formatter;

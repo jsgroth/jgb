@@ -1,6 +1,6 @@
 use crate::AppConfig;
 use egui::{Color32, Grid, Ui};
-use jgb_core::{font, ControllerConfig, ControllerInput, HatDirection, HotkeyConfig, InputConfig};
+use jgb_core::{ControllerConfig, ControllerInput, HatDirection, HotkeyConfig, InputConfig, font};
 use sdl2::event::Event;
 use sdl2::joystick::{HatState, Joystick};
 use sdl2::keyboard::Keycode;
