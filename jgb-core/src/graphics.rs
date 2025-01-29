@@ -8,6 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, TextureValueError, WindowCanvas};
 use sdl2::ttf::{Font, FontError};
 use sdl2::video::{FullscreenType, Window};
+use std::array;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 use thiserror::Error;
@@ -153,11 +154,13 @@ fn gbc_texture_updater_raw_colors(frame_buffer: &FrameBuffer) -> impl Fn(&mut [u
 }
 
 // Indexed by R then G then B
-struct ColorCorrectionTable([[[[u8; 3]; 32]; 32]; 32]);
+struct ColorCorrectionTable(Box<[[[[u8; 3]; 32]; 32]; 32]>);
 
 impl ColorCorrectionTable {
     fn create() -> Self {
-        let mut table = [[[[0; 3]; 32]; 32]; 32];
+        let mut table = Box::new(array::from_fn(|_| {
+            array::from_fn(|_| array::from_fn(|_| array::from_fn(|_| 0)))
+        }));
 
         for (r, r_row) in table.iter_mut().enumerate() {
             for (g, g_row) in r_row.iter_mut().enumerate() {

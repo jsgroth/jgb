@@ -274,7 +274,7 @@ impl IoRegister {
 /// A convenience view around the IF register.
 pub struct InterruptFlags<'a>(&'a mut u8);
 
-impl<'a> InterruptFlags<'a> {
+impl InterruptFlags<'_> {
     /// Returns the highest priority requested + enabled interrupt, or None if no enabled interrupts
     /// have been requested.
     pub fn highest_priority_interrupt(&self, ie_value: u8) -> Option<InterruptType> {

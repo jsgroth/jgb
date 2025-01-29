@@ -856,7 +856,7 @@ fn shift_right_logical(value: u8) -> (u8, CFlag) {
 }
 
 fn swap_bits(value: u8) -> u8 {
-    (value >> 4) | (value << 4)
+    value.rotate_left(4)
 }
 
 fn decimal_adjust_accumulator(cpu_registers: &mut CpuRegisters) {

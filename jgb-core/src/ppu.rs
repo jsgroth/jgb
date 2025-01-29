@@ -2,6 +2,7 @@ use crate::cpu::{ExecutionMode, InterruptType};
 use crate::memory::ioregisters::{IoRegister, IoRegisters, SpriteMode, TileDataRange};
 use crate::memory::{AddressSpace, VramBank, address};
 use serde::{Deserialize, Serialize};
+use std::array;
 use std::collections::VecDeque;
 use tinyvec::ArrayVec;
 
@@ -281,14 +282,16 @@ pub struct PpuState {
     state: State,
     oam_dma_status: Option<OamDmaStatus>,
     vram_dma_status: Option<VramDmaStatus>,
-    #[serde(
-        serialize_with = "crate::serialize::serialize_2d_array",
-        deserialize_with = "crate::serialize::deserialize_2d_array"
-    )]
-    frame_buffer: FrameBuffer,
+    #[serde(skip)]
+    #[serde(default = "new_frame_buffer")]
+    frame_buffer: Box<FrameBuffer>,
     last_stat_interrupt_line: bool,
     skip_next_frame: bool,
     stat_interrupt_pending: bool,
+}
+
+fn new_frame_buffer() -> Box<FrameBuffer> {
+    Box::new(array::from_fn(|_| array::from_fn(|_| 0)))
 }
 
 impl PpuState {
@@ -304,7 +307,7 @@ impl PpuState {
             }),
             oam_dma_status: None,
             vram_dma_status: None,
-            frame_buffer: [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
+            frame_buffer: new_frame_buffer(),
             last_stat_interrupt_line: false,
             skip_next_frame: false,
             stat_interrupt_pending: false,
@@ -482,12 +485,12 @@ pub fn tick_m_cycle(ppu_state: &mut PpuState, address_space: &mut AddressSpace) 
     if prev_enabled && !enabled {
         // If the PPU was just disabled then clear the frame buffer, clear the LY=LYC and mode bits
         // in STAT, and set LY to 0
-        ppu_state.frame_buffer = match ppu_state.execution_mode {
-            ExecutionMode::GameBoy => [[0; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize],
-            ExecutionMode::GameBoyColor => {
-                [[0xFFFF; SCREEN_WIDTH as usize]; SCREEN_HEIGHT as usize]
-            }
-        };
+        ppu_state.frame_buffer = Box::new(array::from_fn(|_| {
+            array::from_fn(|_| match ppu_state.execution_mode {
+                ExecutionMode::GameBoy => 0,
+                ExecutionMode::GameBoyColor => 0xFFFF,
+            })
+        }));
 
         let stat = address_space.get_io_registers().read_register(IoRegister::STAT);
         address_space.get_io_registers_mut().ppu_set_stat(stat & 0xF8);

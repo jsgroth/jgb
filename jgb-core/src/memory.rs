@@ -373,6 +373,7 @@ pub struct AddressSpace {
 }
 
 impl AddressSpace {
+    #[allow(clippy::large_stack_arrays)]
     pub fn new(cartridge: Cartridge, execution_mode: ExecutionMode) -> Self {
         Self {
             execution_mode,

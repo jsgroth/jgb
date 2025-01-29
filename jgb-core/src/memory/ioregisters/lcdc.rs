@@ -42,7 +42,7 @@ impl SpriteMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lcdc<'a>(pub(super) &'a u8);
 
-impl<'a> Lcdc<'a> {
+impl Lcdc<'_> {
     pub fn lcd_enabled(self) -> bool {
         *self.0 & 0x80 != 0
     }
